@@ -30,3 +30,6 @@ export const HTML_DIRS = ['ui/popup', 'ui/options', 'ui/sidepanel'] as const;
 
 /** Icon sizes to copy */
 export const ICON_SIZES = [16, 32, 48, 128] as const;
+
+/** Directory under src/ for multi-entry injected (page-context) scripts */
+export const INJECTED_DIR = 'injected';
