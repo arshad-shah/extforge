@@ -3,7 +3,6 @@
  */
 
 import { loadConfig } from 'c12';
-import { defu } from 'defu';
 import type { Browser, ManifestConfig } from './manifest/index.js';
 
 // ─── Config shape ────────────────────────────────────────────────────────────
@@ -48,7 +47,11 @@ export async function loadExtForgeConfig(
     defaults: DEFAULT_CONFIG,
     overrides: overrides as ExtForgeConfig,
   });
-  return defu(config ?? {}, DEFAULT_CONFIG) as ExtForgeConfig;
+  const merged = (config ?? DEFAULT_CONFIG) as ExtForgeConfig;
+  if (merged.browsers) {
+    merged.browsers = Array.from(new Set(merged.browsers));
+  }
+  return merged;
 }
 
 export function defineConfig(config: ExtForgeConfig): ExtForgeConfig {
