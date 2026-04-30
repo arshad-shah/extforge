@@ -129,12 +129,13 @@ function copyPublic(root: string, outDir: string, log: Logger): void {
 
 // ─── Build config factory ────────────────────────────────────────────────────
 
-function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
-  const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
+function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuild.BuildOptions,
+  'bundle' | 'platform' | 'target' | 'sourcemap' | 'minify' | 'define' | 'alias' | 'loader' | 'jsx' | 'jsxImportSource' | 'logLevel' | 'metafile'
+> {
   return {
-    entryPoints: entries,
-    bundle: true, outdir: outDir, format: 'esm', platform: 'browser',
-    target: ESBUILD_TARGETS, splitting: false,
+    bundle: true,
+    platform: 'browser',
+    target: ESBUILD_TARGETS,
     sourcemap: opts.sourcemap ?? (opts.dev ? 'inline' : false),
     minify: opts.minify ?? !opts.dev,
     define: {
@@ -145,9 +146,21 @@ function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<strin
     },
     alias: { '@': resolve(root, 'src') },
     loader: ESBUILD_LOADERS as Record<string, esbuild.Loader>,
-    jsx: 'automatic', jsxImportSource: 'react',
+    jsx: 'automatic',
+    jsxImportSource: 'react',
     logLevel: opts.dev ? 'warning' : 'error',
     metafile: true,
+  };
+}
+
+function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
+  const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
+  return {
+    ...makeSharedEsbuildOptions(root, opts),
+    entryPoints: entries,
+    outdir: outDir,
+    format: 'esm',
+    splitting: false,
   };
 }
 
@@ -177,6 +190,24 @@ export async function build(
     const msg = err instanceof Error ? err.message : String(err);
     errors.push(msg); log.error(`Build failed: ${msg}`);
     return { browser: opts.browser, outDir, duration: performance.now() - start, files: [], errors };
+  }
+
+  // ─── Injected (page-context, IIFE) pass ────────────────────────────────────
+  const injectedEntries = discoverInjectedEntries(srcDir, log);
+  if (Object.keys(injectedEntries).length > 0) {
+    try {
+      await esbuild.build({
+        ...makeSharedEsbuildOptions(root, { ...opts, outDir }),
+        entryPoints: injectedEntries,
+        outdir: outDir,
+        format: 'iife',
+        splitting: false,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`Injected build failed: ${msg}`);
+      log.error(`Injected build failed: ${msg}`);
+    }
   }
 
   await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log);
