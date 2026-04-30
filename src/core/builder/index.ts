@@ -4,7 +4,7 @@
 
 import * as esbuild from 'esbuild';
 import {
-  copyFileSync, existsSync, mkdirSync, readdirSync,
+  copyFileSync, existsSync, mkdirSync, readdirSync, statSync,
   writeFileSync,
 } from 'node:fs';
 import { join, resolve, dirname } from 'pathe';
@@ -13,7 +13,7 @@ import { createLogger, formatDuration, formatFileSize, type Logger } from '../lo
 import { type Browser, ALL_BROWSERS, generateManifest } from '../manifest/index.js';
 import { validateProject } from '../validator/index.js';
 import type { ExtForgeConfig } from '../config.js';
-import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES } from './constants.js';
+import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -45,6 +45,30 @@ function discoverEntryPoints(srcDir: string): Record<string, string> {
       if (existsSync(index))  { entries[outputKey] = index; break; }
     }
   }
+  return entries;
+}
+
+export function discoverInjectedEntries(srcDir: string, log: Logger): Record<string, string> {
+  const entries: Record<string, string> = {};
+  const dir = join(srcDir, INJECTED_DIR);
+  const looseTs  = join(srcDir, 'injected.ts');
+  const looseTsx = join(srcDir, 'injected.tsx');
+
+  if (existsSync(dir) && statSync(dir).isDirectory()) {
+    if (existsSync(looseTs) || existsSync(looseTsx)) {
+      log.warn('Both src/injected/ and src/injected.ts(x) exist; using directory mode and ignoring the loose file.');
+    }
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (!e.isFile()) continue;
+      const m = /^(.+)\.tsx?$/.exec(e.name);
+      if (!m) continue;
+      entries[`injected/${m[1]}`] = join(dir, e.name);
+    }
+    return entries;
+  }
+
+  if (existsSync(looseTs))  { entries['injected'] = looseTs;  return entries; }
+  if (existsSync(looseTsx)) { entries['injected'] = looseTsx; return entries; }
   return entries;
 }
 
