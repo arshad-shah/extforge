@@ -10,7 +10,7 @@ import {
 import { join, resolve, dirname } from 'pathe';
 import { execSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
-import { type Browser, ALL_BROWSERS, generateManifest } from '../manifest/index.js';
+import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
 import { validateProject } from '../validator/index.js';
 import type { ExtForgeConfig } from '../config.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
@@ -215,6 +215,7 @@ export async function build(
 
   if (config.manifest) {
     const manifest = generateManifest(config.manifest, opts.browser);
+    applyInjectedDefaults(manifest, config.manifest, injectedEntries);
     mkdirSync(outDir, { recursive: true });
     writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   }
