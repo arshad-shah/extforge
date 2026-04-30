@@ -11,6 +11,9 @@ export const ASSET_EXTENSIONS = new Set(['.png', '.jpg', '.gif', '.svg', '.woff'
 /** Path fragments that indicate a background script change (requires full reload) */
 export const BACKGROUND_PATTERNS = ['/background/', '/background.'] as const;
 
+/** Path fragments that indicate an injected (page-context) script change (requires full reload) */
+export const INJECTED_PATTERNS = ['/injected/', '/injected.'] as const;
+
 /** Path fragments that indicate a manifest/config change */
 export const MANIFEST_PATTERNS = ['extforge.config', 'manifest'] as const;
 

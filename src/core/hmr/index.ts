@@ -16,7 +16,7 @@ import type { ExtForgeConfig } from '../config.js';
 import type * as esbuild from 'esbuild';
 import { loadTemplate } from '../scaffold/template-loader.js';
 import {
-  CSS_EXTENSIONS, ASSET_EXTENSIONS, BACKGROUND_PATTERNS,
+  CSS_EXTENSIONS, ASSET_EXTENSIONS, BACKGROUND_PATTERNS, INJECTED_PATTERNS,
   MANIFEST_PATTERNS, DEBOUNCE_MS, DEFAULT_HMR_PORT, WATCH_IGNORED,
 } from './constants.js';
 
@@ -54,6 +54,7 @@ export function classifyChange(filePath: string): HMRUpdateType {
 
   if (MANIFEST_PATTERNS.some(p => normalized.includes(p)))   return 'manifest';
   if (BACKGROUND_PATTERNS.some(p => normalized.includes(p))) return 'full-reload';
+  if (INJECTED_PATTERNS.some(p => normalized.includes(p)))   return 'full-reload';
   if (CSS_EXTENSIONS.has(ext))                                return 'css';
   if (ASSET_EXTENSIONS.has(ext))                              return 'assets';
   return 'js';

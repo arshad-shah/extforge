@@ -22,6 +22,23 @@ describe('HMR System', () => {
       });
     });
 
+    describe('Given an injected script change', () => {
+      it('should classify src/injected.ts as full-reload', () => {
+        expect(classifyChange('src/injected.ts')).toBe('full-reload');
+      });
+      it('should classify src/injected.tsx as full-reload', () => {
+        expect(classifyChange('src/injected.tsx')).toBe('full-reload');
+      });
+      it('should classify src/injected/foo.ts as full-reload', () => {
+        expect(classifyChange('src/injected/foo.ts')).toBe('full-reload');
+      });
+      it('should classify nested src/injected/sub/bar.ts as full-reload', () => {
+        // discoverInjectedEntries does not recurse, but watcher events for
+        // nested files should still trigger the same reload class.
+        expect(classifyChange('src/injected/sub/bar.ts')).toBe('full-reload');
+      });
+    });
+
     describe('Given a manifest/config change', () => {
       it('should classify extforge.config.ts as manifest update', () => {
         expect(classifyChange('extforge.config.ts')).toBe('manifest');
