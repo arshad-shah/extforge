@@ -200,36 +200,41 @@ export async function build(
 
   log.info(`Building for ${opts.browser}...`);
 
-  const entries = discoverEntryPoints(srcDir);
-  if (Object.keys(entries).length === 0) {
+  const allEntries = discoverEntryPoints(srcDir);
+  const injectedEntries = discoverInjectedEntries(srcDir, log);
+  const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
+
+  if (Object.keys(esmEntries).length === 0 && Object.keys(iifeEntries).length === 0) {
     errors.push('No entry points found in src/');
     log.error('No entry points discovered');
     return { browser: opts.browser, outDir, duration: 0, files: [], errors };
   }
 
-  let result: esbuild.BuildResult;
-  try { result = await esbuild.build(makeBuildConfig(root, { ...opts, outDir }, entries)); }
-  catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    errors.push(msg); log.error(`Build failed: ${msg}`);
-    return { browser: opts.browser, outDir, duration: performance.now() - start, files: [], errors };
+  // ─── Main ESM pass (background, UI) ────────────────────────────────────────
+  let result: esbuild.BuildResult | undefined;
+  if (Object.keys(esmEntries).length > 0) {
+    try { result = await esbuild.build(makeBuildConfig(root, { ...opts, outDir }, esmEntries)); }
+    catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(msg); log.error(`Build failed: ${msg}`);
+      return { browser: opts.browser, outDir, duration: performance.now() - start, files: [], errors };
+    }
   }
 
-  // ─── Injected (page-context, IIFE) pass ────────────────────────────────────
-  const injectedEntries = discoverInjectedEntries(srcDir, log);
-  if (Object.keys(injectedEntries).length > 0) {
+  // ─── IIFE pass (content + injected) ────────────────────────────────────────
+  if (Object.keys(iifeEntries).length > 0) {
     try {
       await esbuild.build({
         ...makeSharedEsbuildOptions(root, { ...opts, outDir }),
-        entryPoints: injectedEntries,
+        entryPoints: iifeEntries,
         outdir: outDir,
         format: 'iife',
         splitting: false,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`Injected build failed: ${msg}`);
-      log.error(`Injected build failed: ${msg}`);
+      errors.push(`IIFE build failed: ${msg}`);
+      log.error(`IIFE build failed: ${msg}`);
     }
   }
 
@@ -248,7 +253,7 @@ export async function build(
   copyPublic(root, outDir, log);
 
   const files: Array<{ path: string; size: number }> = [];
-  if (result.metafile) {
+  if (result?.metafile) {
     for (const [p, m] of Object.entries(result.metafile.outputs)) files.push({ path: p, size: m.bytes });
   }
 
