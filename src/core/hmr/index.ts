@@ -1,0 +1,205 @@
+/**
+ * ExtForge HMR System
+ *
+ * HMR client code loaded from templates/hmr-client.js.tpl
+ * Classification rules from ./constants.ts
+ */
+
+import { WebSocketServer, WebSocket } from 'ws';
+import chokidar, { type FSWatcher } from 'chokidar';
+import { existsSync } from 'node:fs';
+import { join, relative, extname } from 'pathe';
+import { createLogger, type Logger } from '../logger/index.js';
+import { build, createBuildContext } from '../builder/index.js';
+import type { Browser } from '../manifest/index.js';
+import type { ExtForgeConfig } from '../config.js';
+import type * as esbuild from 'esbuild';
+import { loadTemplate } from '../scaffold/template-loader.js';
+import {
+  CSS_EXTENSIONS, ASSET_EXTENSIONS, BACKGROUND_PATTERNS,
+  MANIFEST_PATTERNS, DEBOUNCE_MS, DEFAULT_HMR_PORT, WATCH_IGNORED,
+} from './constants.js';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export type HMRUpdateType = 'css' | 'js' | 'full-reload' | 'manifest' | 'assets';
+
+export interface HMRUpdate {
+  type: HMRUpdateType;
+  files: string[];
+  timestamp: number;
+}
+
+export interface HMRServerOptions {
+  port?: number;
+  host?: string;
+  projectRoot: string;
+  config: ExtForgeConfig;
+  browser: Browser;
+  logger?: Logger;
+}
+
+export interface HMRServer {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  readonly port: number;
+  readonly connections: number;
+}
+
+// ─── Change classifier (uses constants) ──────────────────────────────────────
+
+export function classifyChange(filePath: string): HMRUpdateType {
+  const ext = extname(filePath);
+  const normalized = filePath.replace(/\\/g, '/');
+
+  if (MANIFEST_PATTERNS.some(p => normalized.includes(p)))   return 'manifest';
+  if (BACKGROUND_PATTERNS.some(p => normalized.includes(p))) return 'full-reload';
+  if (CSS_EXTENSIONS.has(ext))                                return 'css';
+  if (ASSET_EXTENSIONS.has(ext))                              return 'assets';
+  return 'js';
+}
+
+// ─── Client code generator (reads from .tpl file) ────────────────────────────
+
+export function generateHMRClientCode(port: number, host: string = 'localhost'): string {
+  return loadTemplate('hmr-client.js.tpl', {
+    HMR_HOST: host,
+    HMR_PORT: String(port),
+  });
+}
+
+// ─── Debouncer ───────────────────────────────────────────────────────────────
+
+class ChangeDebouncer {
+  private pending = new Map<string, HMRUpdateType>();
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private delay: number,
+    private callback: (changes: Map<string, HMRUpdateType>) => void,
+  ) {}
+
+  add(file: string, type: HMRUpdateType): void {
+    this.pending.set(file, type);
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      const batch = new Map(this.pending);
+      this.pending.clear();
+      this.timer = null;
+      this.callback(batch);
+    }, this.delay);
+  }
+
+  flush(): void {
+    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
+    if (this.pending.size > 0) {
+      const batch = new Map(this.pending);
+      this.pending.clear();
+      this.callback(batch);
+    }
+  }
+}
+
+// ─── HMR Server ──────────────────────────────────────────────────────────────
+
+export function createHMRServer(options: HMRServerOptions): HMRServer {
+  const { projectRoot, config, browser, host = 'localhost' } = options;
+  const log = (options.logger ?? createLogger({ scope: 'hmr' })).child(browser);
+
+  let wss: WebSocketServer | null = null;
+  let watcher: FSWatcher | null = null;
+  let buildCtx: esbuild.BuildContext | null = null;
+  let resolvedPort = options.port ?? DEFAULT_HMR_PORT;
+
+  const broadcast = (update: HMRUpdate): void => {
+    if (!wss) return;
+    const payload = JSON.stringify(update);
+    let sent = 0;
+    wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) { c.send(payload); sent++; } });
+    log.debug(`Broadcast ${update.type} to ${sent} client(s)`);
+  };
+
+  const debouncer = new ChangeDebouncer(DEBOUNCE_MS, async (changes) => {
+    const types = new Set(changes.values());
+    let updateType: HMRUpdateType;
+    if (types.has('manifest') || types.has('full-reload')) updateType = 'full-reload';
+    else if (types.has('js'))     updateType = 'js';
+    else if (types.has('assets')) updateType = 'assets';
+    else                          updateType = 'css';
+
+    const files = Array.from(changes.keys()).map(f => relative(projectRoot, f));
+    log.hmr(files, updateType);
+
+    log.time('rebuild');
+    try {
+      if (buildCtx) await buildCtx.rebuild();
+      else await build(projectRoot, config, { browser, dev: true }, log);
+    } catch (err) {
+      log.error(`Rebuild failed: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+    log.timeEnd('rebuild', 'Rebuild');
+
+    broadcast({ type: updateType, files, timestamp: Date.now() });
+  });
+
+  return {
+    get port() { return resolvedPort; },
+    get connections() {
+      return wss ? Array.from(wss.clients).filter(c => c.readyState === WebSocket.OPEN).length : 0;
+    },
+
+    async start() {
+      log.time('initial-build');
+      await build(projectRoot, config, { browser, dev: true }, log);
+      log.timeEnd('initial-build', 'Initial dev build');
+
+      try { buildCtx = await createBuildContext(projectRoot, config, { browser, dev: true }, log); }
+      catch { log.warn('No incremental context — using full rebuilds'); buildCtx = null; }
+
+      wss = new WebSocketServer({ port: resolvedPort, host });
+      wss.on('listening', () => log.success(`HMR server listening on ws://${host}:${resolvedPort}`));
+      wss.on('connection', () => log.debug(`Client connected (${wss!.clients.size} total)`));
+      wss.on('error', (err) => {
+        if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
+          resolvedPort++;
+          log.warn(`Port in use, trying ${resolvedPort}...`);
+          wss!.close();
+          wss = new WebSocketServer({ port: resolvedPort, host });
+        } else log.error(`WebSocket error: ${err.message}`);
+      });
+
+      const watchPaths = [
+        join(projectRoot, 'src'), join(projectRoot, 'public'),
+        join(projectRoot, 'icons'), join(projectRoot, 'extforge.config.ts'),
+      ].filter(p => existsSync(p));
+
+      watcher = chokidar.watch(watchPaths, {
+        ignoreInitial: true,
+        ignored: [...WATCH_IGNORED],
+        awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+      });
+
+      watcher.on('change', (fp: string) => debouncer.add(fp, classifyChange(fp)));
+      watcher.on('add',    (fp: string) => debouncer.add(fp, classifyChange(fp)));
+      watcher.on('unlink', (fp: string) => debouncer.add(fp, 'full-reload'));
+
+      log.banner('ExtForge Dev Server', [
+        `Browser:  ${browser}`,
+        `HMR:      ws://${host}:${resolvedPort}`,
+        `Watching: src/, public/, icons/`,
+        '',
+        `Load extension from: dist/${browser}/`,
+        `Press Ctrl+C to stop`,
+      ]);
+    },
+
+    async stop() {
+      debouncer.flush();
+      if (watcher) { await watcher.close(); watcher = null; }
+      if (buildCtx) { await buildCtx.dispose(); buildCtx = null; }
+      if (wss) { wss.close(); wss = null; }
+      log.info('HMR server stopped');
+    },
+  };
+}

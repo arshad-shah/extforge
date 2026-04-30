@@ -1,0 +1,74 @@
+{
+  "name": "extforge",
+  "version": "1.0.0",
+  "description": "Lightning-fast browser extension build system with first-class HMR, interactive scaffolding, and cross-browser support",
+  "type": "module",
+  "bin": {
+    "extforge": "./dist/cli/index.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/core/index.js",
+      "types": "./dist/core/index.d.ts"
+    },
+    "./logger": {
+      "import": "./dist/core/logger/index.js",
+      "types": "./dist/core/logger/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write 'src/**/*.ts'",
+    "typecheck": "tsc --noEmit",
+    "prepare": "npm run build"
+  },
+  "dependencies": {
+    "citty": "^0.1.6",
+    "consola": "^3.2.3",
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2",
+    "c12": "^2.0.1",
+    "pathe": "^1.1.2",
+    "esbuild": "^0.24.0",
+    "chokidar": "^4.0.3",
+    "ws": "^8.18.0",
+    "glob": "^11.0.0",
+    "fast-glob": "^3.3.2",
+    "defu": "^6.1.4",
+    "pkg-types": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/prompts": "^2.4.9",
+    "@types/ws": "^8.5.13",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0",
+    "@vitest/coverage-v8": "^2.1.0",
+    "prettier": "^3.4.0",
+    "eslint": "^9.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "keywords": [
+    "browser-extension",
+    "chrome-extension",
+    "firefox-addon",
+    "hmr",
+    "build-tool",
+    "scaffold",
+    "mv3",
+    "cross-browser"
+  ],
+  "license": "MIT"
+}

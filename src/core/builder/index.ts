@@ -1,0 +1,225 @@
+/**
+ * ExtForge Builder — esbuild pipeline
+ */
+
+import * as esbuild from 'esbuild';
+import {
+  copyFileSync, existsSync, mkdirSync, readdirSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, resolve, dirname } from 'pathe';
+import { execSync } from 'node:child_process';
+import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
+import { type Browser, ALL_BROWSERS, generateManifest } from '../manifest/index.js';
+import { validateProject } from '../validator/index.js';
+import type { ExtForgeConfig } from '../config.js';
+import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES } from './constants.js';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface BuildOptions {
+  browser: Browser;
+  dev: boolean;
+  outDir?: string;
+  sourcemap?: boolean;
+  minify?: boolean;
+}
+
+export interface BuildResult {
+  browser: Browser;
+  outDir: string;
+  duration: number;
+  files: Array<{ path: string; size: number }>;
+  errors: string[];
+}
+
+// ─── Entry point discovery ───────────────────────────────────────────────────
+
+function discoverEntryPoints(srcDir: string): Record<string, string> {
+  const entries: Record<string, string> = {};
+  for (const { subPath, outputKey } of ENTRY_SCANS) {
+    for (const ext of ['.ts', '.tsx']) {
+      const direct = join(srcDir, subPath + ext);
+      const index = join(srcDir, subPath, 'index' + ext);
+      if (existsSync(direct)) { entries[outputKey] = direct; break; }
+      if (existsSync(index))  { entries[outputKey] = index; break; }
+    }
+  }
+  return entries;
+}
+
+// ─── CSS ─────────────────────────────────────────────────────────────────────
+
+async function processCSS(input: string, output: string, log: Logger): Promise<void> {
+  if (!existsSync(input)) return;
+  mkdirSync(dirname(output), { recursive: true });
+  try {
+    execSync('npx tailwindcss --help', { stdio: 'ignore' });
+    execSync(`npx tailwindcss -i ${input} -o ${output} --minify`, { stdio: 'pipe' });
+    log.debug(`Processed CSS: ${input}`);
+  } catch {
+    copyFileSync(input, output);
+    log.debug(`Copied CSS (no Tailwind): ${input}`);
+  }
+}
+
+// ─── Asset copying ───────────────────────────────────────────────────────────
+
+function copyHTML(srcDir: string, outDir: string, log: Logger): void {
+  for (const dir of HTML_DIRS) {
+    const html = join(srcDir, dir, 'index.html');
+    if (existsSync(html)) {
+      const dest = join(outDir, dir);
+      mkdirSync(dest, { recursive: true });
+      copyFileSync(html, join(dest, 'index.html'));
+      log.debug(`Copied HTML: ${dir}/index.html`);
+    }
+  }
+}
+
+function copyIcons(root: string, outDir: string, log: Logger): void {
+  const iconsDir = join(root, 'icons');
+  if (!existsSync(iconsDir)) return;
+  const out = join(outDir, 'icons');
+  mkdirSync(out, { recursive: true });
+  for (const size of ICON_SIZES) {
+    const src = join(iconsDir, `icon-${size}.png`);
+    if (existsSync(src)) copyFileSync(src, join(out, `icon-${size}.png`));
+  }
+  log.debug('Copied icons');
+}
+
+function copyPublic(root: string, outDir: string, log: Logger): void {
+  const pub = join(root, 'public');
+  if (!existsSync(pub)) return;
+  const walk = (src: string, dest: string) => {
+    mkdirSync(dest, { recursive: true });
+    for (const e of readdirSync(src, { withFileTypes: true })) {
+      const s = join(src, e.name), d = join(dest, e.name);
+      if (e.isDirectory()) walk(s, d); else copyFileSync(s, d);
+    }
+  };
+  walk(pub, outDir);
+  log.debug('Copied public/ assets');
+}
+
+// ─── Build config factory ────────────────────────────────────────────────────
+
+function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
+  const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
+  return {
+    entryPoints: entries,
+    bundle: true, outdir: outDir, format: 'esm', platform: 'browser',
+    target: ESBUILD_TARGETS, splitting: false,
+    sourcemap: opts.sourcemap ?? (opts.dev ? 'inline' : false),
+    minify: opts.minify ?? !opts.dev,
+    define: {
+      'process.env.NODE_ENV': opts.dev ? '"development"' : '"production"',
+      'process.env.BROWSER': `"${opts.browser}"`,
+      '__DEV__': String(opts.dev),
+      '__BROWSER__': `"${opts.browser}"`,
+    },
+    alias: { '@': resolve(root, 'src') },
+    loader: ESBUILD_LOADERS as Record<string, esbuild.Loader>,
+    jsx: 'automatic', jsxImportSource: 'react',
+    logLevel: opts.dev ? 'warning' : 'error',
+    metafile: true,
+  };
+}
+
+// ─── Build ───────────────────────────────────────────────────────────────────
+
+export async function build(
+  root: string, config: ExtForgeConfig, opts: BuildOptions, logger?: Logger,
+): Promise<BuildResult> {
+  const log = (logger ?? createLogger({ scope: 'builder' })).child(opts.browser);
+  const start = performance.now();
+  const errors: string[] = [];
+  const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
+  const srcDir = join(root, 'src');
+
+  log.info(`Building for ${opts.browser}...`);
+
+  const entries = discoverEntryPoints(srcDir);
+  if (Object.keys(entries).length === 0) {
+    errors.push('No entry points found in src/');
+    log.error('No entry points discovered');
+    return { browser: opts.browser, outDir, duration: 0, files: [], errors };
+  }
+
+  let result: esbuild.BuildResult;
+  try { result = await esbuild.build(makeBuildConfig(root, { ...opts, outDir }, entries)); }
+  catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(msg); log.error(`Build failed: ${msg}`);
+    return { browser: opts.browser, outDir, duration: performance.now() - start, files: [], errors };
+  }
+
+  await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log);
+  await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log);
+
+  if (config.manifest) {
+    const manifest = generateManifest(config.manifest, opts.browser);
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+  }
+
+  copyHTML(srcDir, outDir, log);
+  copyIcons(root, outDir, log);
+  copyPublic(root, outDir, log);
+
+  const files: Array<{ path: string; size: number }> = [];
+  if (result.metafile) {
+    for (const [p, m] of Object.entries(result.metafile.outputs)) files.push({ path: p, size: m.bytes });
+  }
+
+  const duration = performance.now() - start;
+  const total = files.reduce((s, f) => s + f.size, 0);
+  log.success(`Built ${opts.browser} → ${outDir} (${files.length} files, ${formatFileSize(total)}) in ${formatDuration(duration)}`);
+  return { browser: opts.browser, outDir, duration, files, errors };
+}
+
+export async function buildAll(
+  root: string, config: ExtForgeConfig, opts: Omit<BuildOptions, 'browser'>, logger?: Logger,
+): Promise<BuildResult[]> {
+  const log = logger ?? createLogger({ scope: 'builder' });
+  const browsers = config.browsers ?? ALL_BROWSERS;
+
+  log.banner('ExtForge Build', [`Browsers: ${browsers.join(', ')}`, `Mode: ${opts.dev ? 'development' : 'production'}`]);
+  log.time('total-build');
+
+  const validation = validateProject(root, log.child('validate'));
+  if (!validation.valid) { log.error('Fix errors above before building'); return []; }
+
+  const results: BuildResult[] = [];
+  for (const browser of browsers) results.push(await build(root, config, { ...opts, browser }, log));
+
+  log.timeEnd('total-build', 'Total build time');
+  const totalErrors = results.reduce((s, r) => s + r.errors.length, 0);
+  if (totalErrors > 0) log.error(`Build completed with ${totalErrors} error(s)`);
+  else log.success(`All ${browsers.length} browser builds completed`);
+  return results;
+}
+
+export async function createBuildContext(
+  root: string, config: ExtForgeConfig, opts: BuildOptions, logger?: Logger,
+): Promise<esbuild.BuildContext> {
+  const log = logger ?? createLogger({ scope: 'builder' });
+  const srcDir = join(root, 'src');
+  const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
+  const entries = discoverEntryPoints(srcDir);
+  const cfg = makeBuildConfig(root, { ...opts, outDir }, entries);
+
+  return esbuild.context({
+    ...cfg,
+    plugins: [...(cfg.plugins ?? []), {
+      name: 'extforge-rebuild-notify',
+      setup(build) {
+        build.onEnd((result) => {
+          if (result.errors.length > 0) log.error(`Rebuild failed with ${result.errors.length} error(s)`);
+          else log.success(`Rebuilt ${opts.browser} (${result.metafile ? Object.keys(result.metafile.outputs).length : '?'} files)`);
+        });
+      },
+    }],
+  });
+}
