@@ -132,6 +132,27 @@ export function generateManifest(config: ManifestConfig, browser: Browser): Reco
   return manifest;
 }
 
+// ─── Injected defaults ───────────────────────────────────────────────────────
+
+/**
+ * Auto-populate `web_accessible_resources` for injected (page-context) scripts.
+ * No-ops if the user already declared a non-empty `webAccessibleResources` array
+ * or if no injected entries exist.
+ */
+export function applyInjectedDefaults(
+  manifest: Record<string, unknown>,
+  userConfig: ManifestConfig,
+  injectedEntries: Record<string, string>,
+): void {
+  if (Object.keys(injectedEntries).length === 0) return;
+  if (userConfig.webAccessibleResources && userConfig.webAccessibleResources.length > 0) return;
+
+  const resources = Object.keys(injectedEntries).map(key =>
+    key === 'injected' ? 'injected.js' : `${key}.js`,
+  );
+  manifest.web_accessible_resources = [{ resources, matches: ['<all_urls>'] }];
+}
+
 // ─── Writer ──────────────────────────────────────────────────────────────────
 
 export function writeManifest(

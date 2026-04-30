@@ -10,7 +10,7 @@ export { Logger, createLogger, getLogger, setRootLogger, LogLevel, formatDuratio
 export type { LogEntry, LogTransport, LoggerOptions } from './logger/index.js';
 
 // Manifest
-export { generateManifest, writeManifest, validateManifestConfig, ALL_BROWSERS, AVAILABLE_PERMISSIONS, PERMISSION_GROUPS } from './manifest/index.js';
+export { generateManifest, writeManifest, validateManifestConfig, applyInjectedDefaults, ALL_BROWSERS, AVAILABLE_PERMISSIONS, PERMISSION_GROUPS } from './manifest/index.js';
 export type { Browser, ManifestConfig, ManifestPermission, Permission, ValidationResult } from './manifest/index.js';
 
 // Builder

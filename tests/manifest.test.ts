@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   generateManifest,
   validateManifestConfig,
+  applyInjectedDefaults,
   ALL_BROWSERS,
   PERMISSION_GROUPS,
   type ManifestConfig,
@@ -212,6 +213,56 @@ describe('Manifest Engine', () => {
         expect(manifest.version).toBe('1.0.0');
         expect(manifest.permissions).toBeDefined();
       }
+    });
+  });
+
+  describe('applyInjectedDefaults', () => {
+    it('does nothing when no injected entries exist', () => {
+      const manifest: Record<string, unknown> = {};
+      applyInjectedDefaults(manifest, validConfig, {});
+      expect(manifest.web_accessible_resources).toBeUndefined();
+    });
+
+    it('does nothing when user already declared webAccessibleResources', () => {
+      const manifest: Record<string, unknown> = {
+        web_accessible_resources: [{ resources: ['user.js'], matches: ['https://example.com/*'] }],
+      };
+      const userConfig = {
+        ...validConfig,
+        webAccessibleResources: [{ resources: ['user.js'], matches: ['https://example.com/*'] }],
+      };
+      applyInjectedDefaults(manifest, userConfig, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['user.js'], matches: ['https://example.com/*'] },
+      ]);
+    });
+
+    it('auto-populates with injected.js for single-entry mode', () => {
+      const manifest: Record<string, unknown> = {};
+      applyInjectedDefaults(manifest, validConfig, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected.js'], matches: ['<all_urls>'] },
+      ]);
+    });
+
+    it('auto-populates with injected/<name>.js for multi-entry mode', () => {
+      const manifest: Record<string, unknown> = {};
+      applyInjectedDefaults(manifest, validConfig, {
+        'injected/a': '/path/injected/a.ts',
+        'injected/b': '/path/injected/b.tsx',
+      });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected/a.js', 'injected/b.js'], matches: ['<all_urls>'] },
+      ]);
+    });
+
+    it('treats an empty webAccessibleResources array as "not declared"', () => {
+      const manifest: Record<string, unknown> = {};
+      const userConfig = { ...validConfig, webAccessibleResources: [] };
+      applyInjectedDefaults(manifest, userConfig, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected.js'], matches: ['<all_urls>'] },
+      ]);
     });
   });
 });
