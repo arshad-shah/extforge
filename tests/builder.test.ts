@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { discoverInjectedEntries } from '../src/core/builder/index.js';
+import { discoverInjectedEntries, partitionEntriesForFormat } from '../src/core/builder/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 function makeTempSrc(): string {
@@ -82,5 +82,38 @@ describe('discoverInjectedEntries', () => {
     expect(Object.keys(result)).toEqual(['injected/a']);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0][0]).toMatch(/both .*injected\/.*injected\.ts/i);
+  });
+});
+
+describe('partitionEntriesForFormat', () => {
+  it('routes content/index entry to IIFE bucket', () => {
+    const allEntries = { 'background/index': '/p/bg.ts', 'content/index': '/p/content.ts' };
+    const injectedEntries = { 'injected': '/p/injected.ts' };
+    const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
+    expect(esmEntries).toEqual({ 'background/index': '/p/bg.ts' });
+    expect(iifeEntries).toEqual({ 'content/index': '/p/content.ts', 'injected': '/p/injected.ts' });
+  });
+
+  it('handles missing content/index gracefully', () => {
+    const allEntries = { 'background/index': '/p/bg.ts', 'ui/popup/index': '/p/popup.ts' };
+    const injectedEntries = { 'injected': '/p/injected.ts' };
+    const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
+    expect(esmEntries).toEqual({ 'background/index': '/p/bg.ts', 'ui/popup/index': '/p/popup.ts' });
+    expect(iifeEntries).toEqual({ 'injected': '/p/injected.ts' });
+  });
+
+  it('handles empty injected map', () => {
+    const allEntries = { 'content/index': '/p/content.ts', 'background/index': '/p/bg.ts' };
+    const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, {});
+    expect(esmEntries).toEqual({ 'background/index': '/p/bg.ts' });
+    expect(iifeEntries).toEqual({ 'content/index': '/p/content.ts' });
+  });
+
+  it('does not mutate the input maps', () => {
+    const allEntries = { 'content/index': '/p/content.ts', 'background/index': '/p/bg.ts' };
+    const injectedEntries = { 'injected': '/p/injected.ts' };
+    partitionEntriesForFormat(allEntries, injectedEntries);
+    expect(allEntries).toEqual({ 'content/index': '/p/content.ts', 'background/index': '/p/bg.ts' });
+    expect(injectedEntries).toEqual({ 'injected': '/p/injected.ts' });
   });
 });

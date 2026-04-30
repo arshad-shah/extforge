@@ -72,6 +72,29 @@ export function discoverInjectedEntries(srcDir: string, log: Logger): Record<str
   return entries;
 }
 
+/**
+ * Split discovered entries into ESM and IIFE buckets.
+ * MV3 requires content scripts to be IIFE; injected scripts must be IIFE because
+ * they're loaded into page context via a <script src> tag (no module semantics).
+ * Background and UI entries remain ESM.
+ *
+ * Pure function — does not mutate inputs.
+ */
+export function partitionEntriesForFormat(
+  allEntries: Record<string, string>,
+  injectedEntries: Record<string, string>,
+): { esmEntries: Record<string, string>; iifeEntries: Record<string, string> } {
+  const esmEntries: Record<string, string> = { ...allEntries };
+  const iifeEntries: Record<string, string> = { ...injectedEntries };
+
+  if (esmEntries['content/index']) {
+    iifeEntries['content/index'] = esmEntries['content/index'];
+    delete esmEntries['content/index'];
+  }
+
+  return { esmEntries, iifeEntries };
+}
+
 // ─── CSS ─────────────────────────────────────────────────────────────────────
 
 async function processCSS(input: string, output: string, log: Logger): Promise<void> {
