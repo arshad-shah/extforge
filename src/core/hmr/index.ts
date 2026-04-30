@@ -8,6 +8,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import chokidar, { type FSWatcher } from 'chokidar';
 import { existsSync } from 'node:fs';
+import { createServer as createNetServer } from 'node:net';
 import { join, relative, extname } from 'pathe';
 import { createLogger, type Logger } from '../logger/index.js';
 import { build, createBuildContext } from '../builder/index.js';
@@ -17,8 +18,25 @@ import type * as esbuild from 'esbuild';
 import { loadTemplate } from '../scaffold/template-loader.js';
 import {
   CSS_EXTENSIONS, ASSET_EXTENSIONS, BACKGROUND_PATTERNS, INJECTED_PATTERNS,
-  MANIFEST_PATTERNS, DEBOUNCE_MS, DEFAULT_HMR_PORT, WATCH_IGNORED,
+  MANIFEST_PATTERNS, DEBOUNCE_MS, DEFAULT_HMR_PORT, MAX_PORT_RETRIES, WATCH_IGNORED,
 } from './constants.js';
+
+async function reservePort(start: number, host: string, log: Logger): Promise<number> {
+  for (let i = 0; i < MAX_PORT_RETRIES; i++) {
+    const port = start + i;
+    try {
+      await new Promise<void>((res, rej) => {
+        const s = createNetServer();
+        s.once('error', rej);
+        s.listen(port, host, () => s.close(() => res()));
+      });
+      if (port !== start) log.warn(`Port ${start} in use, using ${port}`);
+      return port;
+    } catch { /* try next */ }
+  }
+  log.warn(`Could not find free port near ${start}; using ${start}`);
+  return start;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -134,7 +152,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     log.time('rebuild');
     try {
       if (buildCtx) await buildCtx.rebuild();
-      else await build(projectRoot, config, { browser, dev: true }, log);
+      else await build(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log);
     } catch (err) {
       log.error(`Rebuild failed: ${err instanceof Error ? err.message : String(err)}`);
       return;
@@ -151,24 +169,21 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     },
 
     async start() {
+      // Resolve the WS port before the initial build so the bundled HMR client
+      // points at the correct port (the build embeds the port at compile time).
+      resolvedPort = await reservePort(resolvedPort, host, log);
+
       log.time('initial-build');
-      await build(projectRoot, config, { browser, dev: true }, log);
+      await build(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log);
       log.timeEnd('initial-build', 'Initial dev build');
 
-      try { buildCtx = await createBuildContext(projectRoot, config, { browser, dev: true }, log); }
+      try { buildCtx = await createBuildContext(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log); }
       catch { log.warn('No incremental context — using full rebuilds'); buildCtx = null; }
 
       wss = new WebSocketServer({ port: resolvedPort, host });
       wss.on('listening', () => log.success(`HMR server listening on ws://${host}:${resolvedPort}`));
       wss.on('connection', () => log.debug(`Client connected (${wss!.clients.size} total)`));
-      wss.on('error', (err) => {
-        if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
-          resolvedPort++;
-          log.warn(`Port in use, trying ${resolvedPort}...`);
-          wss!.close();
-          wss = new WebSocketServer({ port: resolvedPort, host });
-        } else log.error(`WebSocket error: ${err.message}`);
-      });
+      wss.on('error', (err) => log.error(`WebSocket error: ${err.message}`));
 
       const watchPaths = [
         join(projectRoot, 'src'), join(projectRoot, 'public'),

@@ -5,23 +5,31 @@
  * applies {{KEY}} interpolation, and returns the result.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'pathe';
 import { fileURLToPath } from 'node:url';
 
 // Resolve the templates dir relative to this source file.
 // Works both when running from src/ (via tsx) and from dist/ (built).
 function resolveTemplatesDir(): string {
-  // When running unbundled via tsx, __dirname equivalent:
+  // tsup bundles scaffold/* into one chunk, so this file's runtime location
+  // is not always dist/core/scaffold/. We copy templates to a single known
+  // location (dist/core/scaffold/templates/) via tsup's onSuccess hook, then
+  // try a small set of candidates that cover: running from source via tsx,
+  // running from a built dist, and the bundled-chunk case.
   const thisDir = dirname(fileURLToPath(import.meta.url));
-  // Templates live at src/core/scaffold/templates/ in source,
-  // or dist/core/scaffold/templates/ in built output.
-  // We ship them alongside via tsup's "files" field in package.json.
   const candidates = [
-    join(thisDir, 'templates'),                     // running from source
-    join(thisDir, '..', '..', '..', 'src', 'core', 'scaffold', 'templates'), // from dist/
+    join(thisDir, 'templates'),                                          // src/core/scaffold/templates (tsx)
+    join(thisDir, 'core', 'scaffold', 'templates'),                      // dist/<root>/ (bundled chunk)
+    join(thisDir, '..', 'core', 'scaffold', 'templates'),                // dist/<sibling>/
+    join(thisDir, '..', '..', 'core', 'scaffold', 'templates'),          // dist/<a>/<b>/
+    join(thisDir, '..', '..', '..', 'core', 'scaffold', 'templates'),    // deeper nesting
+    join(thisDir, '..', '..', '..', 'src', 'core', 'scaffold', 'templates'), // dev fallback
   ];
-  return candidates[0]; // Always source-relative when using tsx
+  for (const c of candidates) if (existsSync(c)) return c;
+  // Fall back to the first candidate so the eventual readFileSync reports
+  // a meaningful path in the error.
+  return candidates[0];
 }
 
 let _templatesDir: string | undefined;

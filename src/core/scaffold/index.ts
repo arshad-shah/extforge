@@ -314,6 +314,10 @@ export async function scaffold(
   }
 
   // Feature-specific source files
+  if (answers.framework === 'react') {
+    mkdirSync(join(projectDir, 'src/components'), { recursive: true });
+    writeFileSync(join(projectDir, 'src/components/ErrorBoundary.tsx'), loadTemplateRaw('error-boundary.tsx.tpl'));
+  }
   if (answers.features.includes('popup')) {
     writeFileSync(join(projectDir, 'src/ui/popup/index.html'), loadTemplate('popup.html.tpl', vars));
     if (answers.framework === 'react')

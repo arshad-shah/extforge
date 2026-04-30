@@ -1,7 +1,7 @@
 {
   "name": "extforge",
-  "version": "1.0.0",
-  "description": "Lightning-fast browser extension build system with first-class HMR, interactive scaffolding, and cross-browser support",
+  "version": "0.2.0",
+  "description": "Lightning-fast browser extension build system with first-class HMR, interactive scaffolding, and cross-browser support (Chrome, Firefox, Safari, Edge — Manifest V3).",
   "type": "module",
   "bin": {
     "extforge": "./dist/cli/index.js"
@@ -16,6 +16,8 @@
       "types": "./dist/core/logger/index.d.ts"
     }
   },
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -25,7 +27,7 @@
     "lint": "eslint src",
     "format": "prettier --write 'src/**/*.ts'",
     "typecheck": "tsc --noEmit",
-    "prepare": "npm run build"
+    "prepublishOnly": "npm run typecheck && npm run build && npm run test"
   },
   "dependencies": {
     "c12": "^2.0.1",
@@ -55,22 +57,54 @@
     "typescript-eslint": "^8.59.1",
     "vitest": "^2.1.0"
   },
+  "peerDependencies": {
+    "esbuild": ">=0.24.0"
+  },
+  "peerDependenciesMeta": {
+    "esbuild": { "optional": false }
+  },
   "engines": {
     "node": ">=20.0.0"
   },
   "files": [
     "dist",
-    "templates"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "browser-extension",
     "chrome-extension",
     "firefox-addon",
-    "hmr",
-    "build-tool",
-    "scaffold",
+    "safari-extension",
+    "edge-extension",
+    "manifest-v3",
     "mv3",
-    "cross-browser"
+    "hmr",
+    "hot-reload",
+    "build-tool",
+    "bundler",
+    "scaffold",
+    "cli",
+    "cross-browser",
+    "esbuild",
+    "webextension"
   ],
-  "license": "MIT"
+  "author": {
+    "name": "Arshad Shah",
+    "url": "https://github.com/arshad-shah"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arshad-shah/extforge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arshad-shah/extforge/issues"
+  },
+  "homepage": "https://github.com/arshad-shah/extforge#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
 }

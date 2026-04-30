@@ -1,5 +1,9 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import ErrorBoundary from '../../components/ErrorBoundary';
+
+window.addEventListener('error', (e) => console.error('[Popup] Uncaught error:', e.error ?? e.message));
+window.addEventListener('unhandledrejection', (e) => console.error('[Popup] Unhandled rejection:', e.reason));
 
 function Popup() {
   const [count, setCount] = useState(0);
@@ -21,4 +25,8 @@ function Popup() {
 }
 
 const root = createRoot(document.getElementById('root')!);
-root.render(<Popup />);
+root.render(
+  <ErrorBoundary scope="Popup">
+    <Popup />
+  </ErrorBoundary>
+);

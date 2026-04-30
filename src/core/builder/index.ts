@@ -14,6 +14,7 @@ import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } f
 import { validateProject } from '../validator/index.js';
 import type { ExtForgeConfig } from '../config.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
+import { loadTemplate } from '../scaffold/template-loader.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,17 @@ export interface BuildOptions {
   outDir?: string;
   sourcemap?: boolean;
   minify?: boolean;
+  hmrPort?: number;
+  hmrHost?: string;
+}
+
+function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
+  if (!opts.dev || !opts.hmrPort) return undefined;
+  const client = loadTemplate('hmr-client.js.tpl', {
+    HMR_HOST: opts.hmrHost ?? 'localhost',
+    HMR_PORT: String(opts.hmrPort),
+  });
+  return { js: client };
 }
 
 export interface BuildResult {
@@ -178,12 +190,14 @@ function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuil
 
 function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
+  const banner = makeHMRBanner(opts);
   return {
     ...makeSharedEsbuildOptions(root, opts),
     entryPoints: entries,
     outdir: outDir,
     format: 'esm',
     splitting: false,
+    ...(banner ? { banner } : {}),
   };
 }
 

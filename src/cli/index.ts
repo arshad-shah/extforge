@@ -8,6 +8,7 @@
 
 import { defineCommand, runMain } from 'citty';
 import { getVersion } from '../core/version.js';
+import { withErrorHandler } from './error-handler.js';
 
 const version = getVersion();
 
@@ -183,4 +184,4 @@ const main = defineCommand({
   },
 });
 
-runMain(main);
+withErrorHandler(() => runMain(main));
