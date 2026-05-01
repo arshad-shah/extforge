@@ -1,6 +1,19 @@
 ---
 title: Configuration reference
-description: Every key in extforge.config.ts — replaced in Task 2
+description: Every key in extforge.config.ts.
 ---
 
-Coming soon.
+ExtForge reads its configuration from `extforge.config.ts` (or `.js`/`.mjs`) at the project root. The schema is permissive: unknown top-level keys produce a warning, not an error.
+
+## Top-level keys
+
+| Key | Type | Description |
+|---|---|---|
+| [`root`](/reference/config/root/) | `string` | Override the project root. Defaults to the directory `extforge` is invoked from. |
+| [`browsers`](/reference/config/browsers/) | `Array<'chrome' | 'firefox' | 'edge' | 'safari'>` | Browsers to build for. ExtForge generates a per-browser manifest into `dist/<browser>/`. |
+| [`manifest`](/reference/config/manifest/) | `unknown` | The MV3 manifest, ExtForge-flavored. Browser-specific quirks are handled automatically. |
+| [`build`](/reference/config/build/) | `object` |  |
+| [`dev`](/reference/config/dev/) | `object` |  |
+| [`framework`](/reference/config/framework/) | `'react' | 'vue' | 'svelte' | 'solid' | 'vanilla'` | UI framework. Drives auto-injection of first-party plugins. |
+| [`css`](/reference/config/css/) | `'tailwind' | 'vanilla' | 'none'` | CSS strategy. |
+| [`plugins`](/reference/config/plugins/) | `Array<unknown>` | List of ExtForge plugins. Both the V1 shape and the legacy thin shape are accepted. |

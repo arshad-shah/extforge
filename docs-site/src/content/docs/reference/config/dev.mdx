@@ -1,0 +1,18 @@
+---
+title: dev
+description: Configuration for dev.
+---
+
+Configuration for `dev`.
+
+**Type:** `object`
+
+## Fields
+
+| Path | Type | Default | Description |
+|---|---|---|---|
+| `dev.port` | `number` | `35729` | WebSocket port for the HMR server. |
+| `dev.host` | `string` | `"localhost"` | Host to bind the HMR server to. |
+| `dev.debounce` | `number` | `150` | Debounce window (ms) for collapsing rapid file changes into one rebuild. |
+| `dev.open` | `boolean` | `false` | Open chrome://extensions automatically when the dev server starts. |
+| `dev.strictCompat` | `boolean` | `false` | Treat cross-browser compat warnings as errors. |

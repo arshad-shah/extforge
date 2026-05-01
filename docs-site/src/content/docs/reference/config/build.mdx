@@ -1,0 +1,17 @@
+---
+title: build
+description: Configuration for build.
+---
+
+Configuration for `build`.
+
+**Type:** `object`
+
+## Fields
+
+| Path | Type | Default | Description |
+|---|---|---|---|
+| `build.outDir` | `string` | `"dist"` | Output directory for builds. |
+| `build.srcDir` | `string` | `"src"` | Source directory. |
+| `build.sourcemap` | `boolean` | `false` | Emit source maps. |
+| `build.esbuild` | `Record<string, unknown>` | — | Pass-through esbuild options merged into every entry build. |
