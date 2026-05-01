@@ -96,6 +96,7 @@ Checks (each is a small async function in `src/core/doctor/checks/`):
 | HMR port (default 8765) is free | warn |
 | `manifest.permissions` only contains known Chrome permissions | warn |
 | Browser-specific overrides reference declared browsers | warn |
+| Cross-browser API usage matches declared target browsers | warn |
 | `package.json` has the recommended `dev`/`build`/`package` scripts | info |
 | No leftover `dist/` from a different ExtForge major version | warn |
 
@@ -121,7 +122,63 @@ Build-end summary (replaces today's terse "Built in 42ms"):
   └─ edge     →  dist/edge      (12 files, 184 KB)
 ```
 
-### 5. Deprecation & upgrade ergonomics
+### 5. Cross-browser API compatibility check
+
+**Today:** Nothing stops a developer from calling `chrome.declarativeNetRequest.updateDynamicRules` in a project that targets Safari, where the API doesn't exist. The mismatch surfaces only at runtime, in the wrong browser, often weeks later.
+
+**Change:** During build, walk each entry's AST and check every `chrome.X.Y(...)` and `browser.X.Y(...)` member access against the compatibility matrix for the project's declared target browsers. Emit one warning per unsupported call site with file, line, column, the API, the browsers that support it, and the browsers that don't.
+
+**Data source:** `@mdn/browser-compat-data`, scoped to the `webextensions.api.*` subtree (we don't ship the whole BCD payload — a build step extracts only the webextensions slice into `src/core/compat/data.json` to keep install size reasonable). The dep is bumped on a regular cadence; users get up-to-date support data by upgrading ExtForge.
+
+**Where it runs:**
+- `extforge build` and `extforge dev` — runs in-process during bundling, adds a single AST visitor pass per entry. Warnings are grouped under one `[compat]` section in the build summary.
+- `extforge validate` — runs the same check, exits 1 only with `--strict`.
+- `extforge doctor` — includes a summary line: "3 cross-browser compat warnings — run `extforge validate` for details."
+
+**Severity:** warning by default. The build succeeds with warnings printed. Opt-in escalation via `--strict` (or `dev.strictCompat: true` in the config) turns warnings into errors.
+
+**Per-line opt-out:** A leading-line comment suppresses the warning for the next statement, with a required reason:
+
+```ts
+// extforge-ignore-compat: gated behind isFirefox check below
+chrome.declarativeNetRequest.updateDynamicRules(...)
+```
+
+The reason is required (enforced by the linter) so reviewers see why the suppression exists. Suppressions without a reason still warn.
+
+**False positives:** runtime feature-detection (`if (chrome.sidePanel) { ... }`) is intentionally not detected as "safe usage" — too easy to get wrong. The opt-out comment is the documented escape hatch.
+
+**Output example:**
+
+```
+[compat] 2 unsupported APIs found
+
+  src/background.ts:42:3
+    chrome.declarativeNetRequest.updateDynamicRules
+    supported in: chrome ✓  edge ✓  firefox ✓
+    unsupported in: safari ✗
+    suggestion: gate the call behind a runtime check, or add
+    "// extforge-ignore-compat: <reason>" if intentional.
+
+  src/sidepanel.ts:8:1
+    chrome.sidePanel.open
+    supported in: chrome ✓  edge ✓
+    unsupported in: firefox ✗  safari ✗
+```
+
+**File layout addition:**
+
+```
+src/core/compat/
+  index.ts          # NEW — visitor + checker
+  data.json         # NEW — extracted webextensions slice of BCD
+  build-data.ts     # NEW — extraction script run at ExtForge release time
+  suppressions.ts   # NEW — parses // extforge-ignore-compat comments
+tests/
+  compat.test.ts    # NEW
+```
+
+### 6. Deprecation & upgrade ergonomics
 
 To keep the "no breaking changes" promise visible:
 
@@ -141,6 +198,11 @@ src/core/
   errors/
     index.ts                   # NEW — ExtForgeError class + codes
     codes.ts                   # NEW — typed error code registry
+  compat/
+    index.ts                   # NEW — AST visitor + per-call lookup
+    data.json                  # NEW — extracted webextensions BCD slice
+    build-data.ts              # NEW — extraction script (release-time)
+    suppressions.ts            # NEW — // extforge-ignore-compat parser
   doctor/
     index.ts                   # NEW — runner
     checks/                    # NEW — one file per check
@@ -158,6 +220,7 @@ tests/
   doctor.test.ts               # NEW
   config-schema.test.ts        # NEW
   errors.test.ts               # NEW
+  compat.test.ts               # NEW
 ```
 
 ## Testing
@@ -172,11 +235,14 @@ tests/
 1. Do we want `extforge doctor --fix` in this track (auto-add missing icon sizes, update gitignore)? **Recommendation:** no — defer to track 3 once the plugin/codemod machinery exists.
 2. Error code naming: `EXT_BUILD_FAILED` vs. `extforge/build-failed`. **Recommendation:** `EXT_*` prefix with SCREAMING_SNAKE — matches Node convention, easy to grep.
 3. Should `--json` output be stable enough to depend on in CI scripts? **Recommendation:** yes; document the schema and version it (`{ "version": 1, ... }`).
+4. Compat data extraction: run on every `pnpm install` of ExtForge, or commit the extracted `data.json` to the repo? **Recommendation:** commit it. Reproducible builds, no install-time work, and the diff is reviewable when BCD updates.
+5. Whether to detect computed access like `chrome[apiName].method()`. **Recommendation:** no — too dynamic to reason about; the opt-out comment covers these.
 
 ## Success criteria
 
 - A user with a typo in `extforge.config.ts` sees the typo, the path, and a fix suggestion within 200ms of running any command.
 - `extforge doctor` runs in under one second on a typical project and produces a useful report.
 - Every code path that previously called `console.log` or threw a raw `Error` now goes through the logger façade or `ExtForgeError`.
+- A test fixture targeting `chrome` + `safari` that calls a Safari-unsupported API produces a warning with file/line; the same fixture builds successfully without `--strict` and fails the build with `--strict`.
 - All existing tests pass; new tests cover doctor, schema, and error formatting.
 - Zero breaking changes — verified by running an existing extension repo (e.g., the Request Interceptor) against the new build.
