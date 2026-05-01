@@ -41,7 +41,7 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
   EXT_MANIFEST_MISSING_ICON: {
     title: 'Required icon is missing',
     description: 'The manifest references an icon size that does not exist on disk.',
-    whenYouSeeThis: 'Your manifest declares icons: { 128: "..." } but icons/icon-128.png is not in the project.',
+    whenYouSeeThis: 'Your manifest declares `icons: { 128: "..." }` but `icons/icon-128.png` is not in the project.',
     howToFix: 'Add the missing PNG to icons/, or run extforge icons to regenerate from icons/icon.svg.',
   },
   EXT_DOCTOR_FAILED: {

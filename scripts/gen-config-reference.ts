@@ -16,7 +16,7 @@ function describeZod(node: any): string {
   const t = node._def?.typeName;
   switch (t) {
     case 'ZodOptional': return describeZod(node._def.innerType);
-    case 'ZodEnum':     return node._def.values.map((v: string) => `'${v}'`).join(' | ');
+    case 'ZodEnum':     return node._def.values.map((v: string) => `'${v}'`).join(' \\| ');
     case 'ZodString':   return 'string';
     case 'ZodNumber':   return 'number';
     case 'ZodBoolean':  return 'boolean';
