@@ -9,6 +9,7 @@ export const ERROR_CODES = {
   EXT_COMPAT_UNSUPPORTED:    'EXT_COMPAT_UNSUPPORTED',
   EXT_HMR_PORT_IN_USE:       'EXT_HMR_PORT_IN_USE',
   EXT_NODE_VERSION:          'EXT_NODE_VERSION',
+  EXT_PLUGIN_FAILED:         'EXT_PLUGIN_FAILED',
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODES;
