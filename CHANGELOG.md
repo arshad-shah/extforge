@@ -5,6 +5,24 @@ All notable changes to ExtForge are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `ExtForgeError` class with codes (`EXT_*` registry) and docs URLs; CLI now renders code, file:line:column, hint, and docs link.
+- Zod-based config validation with pretty error formatting and field-level suggestions.
+- `extforge doctor` command with 9 checks: node version, config validity, icons present, HMR port free, dist gitignored, permissions known, browser overrides match, recommended scripts present, cross-browser API compat.
+- Cross-browser API compatibility check using MDN browser-compat-data: warns by default during `extforge build`/`extforge dev`, fails the build with `--strict`. Per-line opt-out via `// extforge-ignore-compat: <reason>`.
+- `--quiet` and `--json` flags on `dev`, `build`, `validate`, `doctor`.
+- `extforge upgrade` stub command (codemods land in track 3).
+- `Logger` gains `group`, `step`, `summary`, and a JSON transport (`jsonTransport`).
+
+### Changed
+- esbuild build failures are now wrapped as `ExtForgeError(EXT_BUILD_FAILED)` with file/line/column.
+- `buildAll` ends with a grouped summary showing each browser's output dir, file count, and total size.
+
+### Backwards compatibility
+No breaking changes. The Zod schema uses `.passthrough()` so unknown config keys still work today; they will become warnings in v0.4.0 and errors thereafter.
+
 ## [0.2.0] — 2026-04-30
 
 ### Added

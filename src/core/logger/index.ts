@@ -14,7 +14,8 @@ export enum LogLevel {
   Error = 1,
   Warn = 2,
   Info = 3,
-  Success = 3,
+  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
+  Success = 3, // alias for Info — success messages share the Info threshold
   Debug = 4,
   Trace = 5,
 }
@@ -277,7 +278,8 @@ export function jsonTransport(write: (line: string) => void = (s) => process.std
       v: 1,
       level: entry.level,
       scope: entry.scope,
-      message: entry.message.replace(/\x1b\[[0-9;]*m/g, ''),
+      // eslint-disable-next-line no-control-regex
+      message: entry.message.replace(new RegExp('\x1b\\[[0-9;]*m', 'g'), ''),
       timestamp: entry.timestamp,
       duration: entry.duration,
       args: entry.args,
