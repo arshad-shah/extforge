@@ -63,6 +63,8 @@ export interface LoggerOptions {
   level?: LogLevel;
   scope?: string;
   transports?: LogTransport[];
+  /** When true, suppress human-formatted banner and summary output (use in --json mode). */
+  silentHumanOutput?: boolean;
 }
 
 // ─── Color env detection ─────────────────────────────────────────────────────
@@ -145,12 +147,14 @@ export class Logger {
   private level: LogLevel;
   private scope: string;
   private transports: LogTransport[];
+  private silentHumanOutput: boolean;
   private timers = new Map<string, number>();
 
   constructor(opts: LoggerOptions = {}) {
     this.level = opts.level ?? LogLevel.Info;
     this.scope = opts.scope ?? '';
     this.transports = opts.transports ?? [consoleTransport];
+    this.silentHumanOutput = opts.silentHumanOutput ?? false;
   }
 
   setLevel(level: LogLevel): void { this.level = level; }
@@ -161,6 +165,7 @@ export class Logger {
       level: overrides?.level ?? this.level,
       scope: this.scope ? `${this.scope}:${scope}` : scope,
       transports: overrides?.transports ?? this.transports,
+      silentHumanOutput: overrides?.silentHumanOutput ?? this.silentHumanOutput,
     });
   }
 
@@ -243,6 +248,7 @@ export class Logger {
   }
 
   summary(title: string, rows: Array<{ label: string; value: string }>): void {
+    if (this.silentHumanOutput) return;
     this.emit(LogLevel.Info, tint(pc.bold, title), []);
     const w = Math.max(...rows.map(r => r.label.length));
     for (const r of rows) {
@@ -252,6 +258,7 @@ export class Logger {
   }
 
   banner(title: string, lines: string[] = []): void {
+    if (this.silentHumanOutput) return;
     const maxLen = Math.max(title.length, ...lines.map(l => l.length));
     const pad = (s: string) => s + ' '.repeat(maxLen - s.length);
     const hr = tint(pc.dim, '─'.repeat(maxLen + 4));

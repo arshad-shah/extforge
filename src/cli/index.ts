@@ -54,6 +54,7 @@ const main = defineCommand({
           scope: 'extforge',
           level: args.quiet ? LogLevel.Warn : LogLevel.Debug,
           transports: args.json ? [jsonTransport()] : undefined,
+          silentHumanOutput: args.json as boolean,
         });
         const root = process.cwd();
         const validation = validateProject(root, log.child('validate'));
@@ -98,6 +99,7 @@ const main = defineCommand({
           scope: 'extforge',
           level: args.quiet ? LogLevel.Warn : LogLevel.Info,
           transports: args.json ? [jsonTransport()] : undefined,
+          silentHumanOutput: args.json as boolean,
         });
         const config = await loadExtForgeConfig(process.cwd());
         const isDev = args.dev as boolean;
