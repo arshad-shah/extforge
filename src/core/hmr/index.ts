@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { createServer as createNetServer } from 'node:net';
 import { join, relative, extname } from 'pathe';
 import { createLogger, type Logger } from '../logger/index.js';
-import { build, createBuildContext } from '../builder/index.js';
+import { build, createBuildContext, buildContentScriptMap } from '../builder/index.js';
 import type { Browser } from '../manifest/index.js';
 import type { ExtForgeConfig } from '../config.js';
 import type * as esbuild from 'esbuild';
@@ -81,6 +81,27 @@ export function classifyChange(filePath: string): HMRUpdateType {
   return 'js';
 }
 
+// ─── scriptIds extractor (exported for unit tests) ───────────────────────────
+
+/**
+ * Given a set of changed absolute file paths and a content-script map
+ * (absolute path → scriptId index), return a sorted array of matching
+ * scriptIds, or undefined if none match.
+ */
+export function extractScriptIds(
+  changedAbsPaths: Iterable<string>,
+  map: Map<string, number>,
+): number[] | undefined {
+  if (map.size === 0) return undefined;
+  const ids = new Set<number>();
+  for (const file of changedAbsPaths) {
+    const id = map.get(file);
+    if (id !== undefined) ids.add(id);
+  }
+  if (ids.size === 0) return undefined;
+  return Array.from(ids).sort((a, b) => a - b);
+}
+
 // ─── Client code generator (reads from .tpl file) ────────────────────────────
 
 export function generateHMRClientCode(port: number, host: string = 'localhost'): string {
@@ -132,6 +153,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
   let watcher: FSWatcher | null = null;
   let buildCtx: esbuild.BuildContext | null = null;
   let resolvedPort = options.port ?? DEFAULT_HMR_PORT;
+  let contentScriptMap: Map<string, number> = new Map();
 
   const broadcast = (update: HMRUpdate): void => {
     if (!wss) return;
@@ -152,6 +174,10 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     const files = Array.from(changes.keys()).map(f => relative(projectRoot, f));
     log.hmr(files, updateType);
 
+    const scriptIds = updateType === 'js'
+      ? extractScriptIds(changes.keys(), contentScriptMap)
+      : undefined;
+
     log.time('rebuild');
     try {
       if (buildCtx) await buildCtx.rebuild();
@@ -162,7 +188,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     }
     log.timeEnd('rebuild', 'Rebuild');
 
-    broadcast({ type: updateType, files, timestamp: Date.now() });
+    broadcast({ type: updateType, files, timestamp: Date.now(), scriptIds });
   });
 
   return {
@@ -179,6 +205,8 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       log.time('initial-build');
       await build(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log);
       log.timeEnd('initial-build', 'Initial dev build');
+
+      contentScriptMap = buildContentScriptMap(projectRoot, config);
 
       try { buildCtx = await createBuildContext(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log); }
       catch { log.warn('No incremental context — using full rebuilds'); buildCtx = null; }
