@@ -42,6 +42,26 @@ function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
   return { js: client };
 }
 
+/**
+ * Build a Map from absolute content-script source path → scriptId (index in
+ * `config.manifest.contentScripts[]`). Multiple JS files in one entry share
+ * the same scriptId. Used by the builder to inject __EXTFORGE_SCRIPT_ID__ at
+ * compile time (dev only), and by the HMR server to route update messages.
+ */
+export function buildContentScriptMap(
+  projectRoot: string,
+  config: ExtForgeConfig,
+): Map<string, number> {
+  const cs = config.manifest?.contentScripts ?? [];
+  const map = new Map<string, number>();
+  cs.forEach((entry, idx) => {
+    for (const rel of (entry.js ?? [])) {
+      map.set(resolve(projectRoot, rel), idx);
+    }
+  });
+  return map;
+}
+
 export interface BuildResult {
   browser: Browser;
   outDir: string;
@@ -314,15 +334,56 @@ export async function build(
 
   // ─── IIFE pass (content + injected) ────────────────────────────────────────
   if (Object.keys(iifeEntries).length > 0) {
-    try {
-      await esbuild.build({
-        ...makeSharedEsbuildOptions(root, { ...opts, outDir }),
-        entryPoints: iifeEntries,
-        outdir: outDir,
-        format: 'iife',
-        splitting: false,
-      });
-    } catch (err) { throwAsBuildError(err, 'IIFE build failed'); }
+    const csMap = buildContentScriptMap(root, config);
+    const sharedOpts = makeSharedEsbuildOptions(root, { ...opts, outDir });
+
+    // Separate content-script entries (need per-entry scriptId banner in dev)
+    // from other IIFE entries (injected scripts, no scriptId banner needed).
+    const csEntries: Record<string, string> = {};
+    const nonCsIifeEntries: Record<string, string> = {};
+    for (const [key, absPath] of Object.entries(iifeEntries)) {
+      if (csMap.has(absPath)) {
+        csEntries[key] = absPath;
+      } else {
+        nonCsIifeEntries[key] = absPath;
+      }
+    }
+
+    // Build each content-script entry individually so we can inject the
+    // scriptId banner (dev only). Production builds get no banner.
+    for (const [key, absPath] of Object.entries(csEntries)) {
+      const scriptId = csMap.get(absPath)!;
+      const csBanner = opts.dev
+        ? `globalThis.__EXTFORGE_SCRIPT_ID__ = ${scriptId};\n`
+        : undefined;
+      const hmrBanner = makeHMRBanner(opts);
+      const bannerJs = [csBanner, hmrBanner?.js].filter(Boolean).join('');
+      try {
+        await esbuild.build({
+          ...sharedOpts,
+          entryPoints: { [key]: absPath },
+          outdir: outDir,
+          format: 'iife',
+          splitting: false,
+          ...(bannerJs ? { banner: { js: bannerJs } } : {}),
+        });
+      } catch (err) { throwAsBuildError(err, `IIFE build failed for content script (${key})`); }
+    }
+
+    // Build remaining IIFE entries (injected scripts) in a single pass.
+    if (Object.keys(nonCsIifeEntries).length > 0) {
+      const hmrBanner = makeHMRBanner(opts);
+      try {
+        await esbuild.build({
+          ...sharedOpts,
+          entryPoints: nonCsIifeEntries,
+          outdir: outDir,
+          format: 'iife',
+          splitting: false,
+          ...(hmrBanner ? { banner: hmrBanner } : {}),
+        });
+      } catch (err) { throwAsBuildError(err, 'IIFE build failed'); }
+    }
   }
 
   await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log);

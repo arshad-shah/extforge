@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { discoverInjectedEntries, partitionEntriesForFormat } from '../src/core/builder/index.js';
+import { resolve } from 'pathe';
+import { discoverInjectedEntries, partitionEntriesForFormat, buildContentScriptMap } from '../src/core/builder/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 function makeTempSrc(): string {
@@ -115,5 +116,46 @@ describe('partitionEntriesForFormat', () => {
     partitionEntriesForFormat(allEntries, injectedEntries);
     expect(allEntries).toEqual({ 'content/index': '/p/content.ts', 'background/index': '/p/bg.ts' });
     expect(injectedEntries).toEqual({ 'injected': '/p/injected.ts' });
+  });
+});
+
+describe('buildContentScriptMap', () => {
+  it('maps each content-script JS file to its index', () => {
+    const cfg = {
+      manifest: {
+        contentScripts: [
+          { matches: ['<all_urls>'], js: ['src/a.ts'] },
+          { matches: ['<all_urls>'], js: ['src/b.ts', 'src/c.ts'] },
+        ],
+      },
+    } as any;
+    const map = buildContentScriptMap('/p', cfg);
+    expect(map.get(resolve('/p', 'src/a.ts'))).toBe(0);
+    expect(map.get(resolve('/p', 'src/b.ts'))).toBe(1);
+    expect(map.get(resolve('/p', 'src/c.ts'))).toBe(1);
+  });
+
+  it('returns empty map when no contentScripts', () => {
+    const map = buildContentScriptMap('/p', { manifest: {} } as any);
+    expect(map.size).toBe(0);
+  });
+
+  it('returns empty map when manifest is undefined', () => {
+    const map = buildContentScriptMap('/p', {} as any);
+    expect(map.size).toBe(0);
+  });
+
+  it('handles content-script entry with no js array', () => {
+    const cfg = {
+      manifest: {
+        contentScripts: [
+          { matches: ['<all_urls>'], css: ['src/styles.css'] },
+          { matches: ['<all_urls>'], js: ['src/b.ts'] },
+        ],
+      },
+    } as any;
+    const map = buildContentScriptMap('/p', cfg);
+    expect(map.size).toBe(1);
+    expect(map.get(resolve('/p', 'src/b.ts'))).toBe(1);
   });
 });
