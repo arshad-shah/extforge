@@ -16,27 +16,48 @@ const project = new Project({
 const typesFile  = project.addSourceFileAtPath(resolve(__dirname, '../src/core/plugins/types.ts'));
 const presetFile = project.addSourceFileAtPath(resolve(__dirname, '../src/core/plugins/preset-react.ts'));
 
+function escapeType(s: string): string { return s.replace(/\|/g, '\\|'); }
+function escapeDoc(s: string): string { return s.replace(/\{/g, '\\{').replace(/\}/g, '\\}'); }
+
 function renderInterface(decl: any): string {
   const name = decl.getName();
   const docs = decl.getJsDocs().map((d: any) => d.getDescription().trim()).join('\n\n');
-  const props = decl.getProperties().map((p: any) => {
+
+  const propRows = decl.getProperties().map((p: any) => {
     const pname = p.getName();
     const ptype = p.getType().getText(p);
     const pdoc = p.getJsDocs().map((d: any) => d.getDescription().trim()).join(' ');
     const opt = p.hasQuestionToken() ? '?' : '';
-    // Escape pipes in union types so they don't break MDX tables
-    const escapedType = ptype.replace(/\|/g, '\\|');
-    // Escape curly braces in descriptions so MDX doesn't parse them as JSX expressions
-    const escapedDoc = pdoc.replace(/\{/g, '\\{').replace(/\}/g, '\\}');
-    return `| \`${pname}${opt}\` | \`${escapedType}\` | ${escapedDoc} |`;
+    return `| \`${pname}${opt}\` | \`${escapeType(ptype)}\` | ${escapeDoc(pdoc)} |`;
   });
+
+  // Methods on interfaces are not returned by getProperties(); fetch them
+  // separately so PluginHooks/PluginContext members render in the table.
+  const methodRows = (decl.getMethods?.() ?? []).map((m: any) => {
+    const mname = m.getName();
+    const params = m.getParameters().map((p: any) => {
+      const pname = p.getName();
+      const ptype = p.getType().getText(p);
+      const opt = p.hasQuestionToken() ? '?' : '';
+      return `${pname}${opt}: ${ptype}`;
+    }).join(', ');
+    const ret = m.getReturnType().getText(m);
+    const sig = `(${params}) => ${ret}`;
+    const mdoc = m.getJsDocs().map((d: any) => d.getDescription().trim()).join(' ');
+    return `| \`${mname}\` | \`${escapeType(sig)}\` | ${escapeDoc(mdoc)} |`;
+  });
+
+  const allRows = [...propRows, ...methodRows];
+  if (allRows.length === 0) {
+    return [`### \`${name}\``, docs, ''].join('\n');
+  }
   return [
     `### \`${name}\``,
     docs,
     '',
     '| Member | Type | Description |',
     '|---|---|---|',
-    ...props,
+    ...allRows,
     '',
   ].join('\n');
 }
