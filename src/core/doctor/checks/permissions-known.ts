@@ -2,8 +2,11 @@ import type { Check } from '../index.js';
 import { loadExtForgeConfig } from '../../config.js';
 
 const KNOWN = new Set([
-  'activeTab','alarms','bookmarks','contextMenus','cookies','declarativeNetRequest',
-  'declarativeNetRequestWithHostAccess','downloads','geolocation','history','identity',
+  'activeTab','alarms','bookmarks','clipboardRead','clipboardWrite','contextMenus',
+  'cookies','declarativeNetRequest','declarativeNetRequestWithHostAccess','downloads',
+  'enterprise.deviceAttributes','enterprise.hardwarePlatformKeys',
+  'enterprise.networkingAttributes','enterprise.platformKeys',
+  'fontSettings','geolocation','history','identity',
   'idle','management','nativeMessaging','notifications','offscreen','pageCapture',
   'power','privacy','proxy','scripting','search','sidePanel','storage','system.cpu',
   'system.display','system.memory','system.storage','tabCapture','tabGroups','tabs',
@@ -17,7 +20,7 @@ export const permissionsKnownCheck: Check = {
     try {
       const cfg = await loadExtForgeConfig(cwd);
       const perms = (cfg.manifest as unknown as { permissions?: string[] })?.permissions ?? [];
-      const unknown = perms.filter((p) => !KNOWN.has(p) && !p.startsWith('http'));
+      const unknown = perms.filter((p) => !KNOWN.has(p) && !p.startsWith('http') && p !== '<all_urls>');
       if (unknown.length === 0) return { name: 'permissions-known', status: 'pass', message: 'Permissions OK' };
       return { name: 'permissions-known', status: 'warn', message: `Unknown permissions: ${unknown.join(', ')}` };
     } catch { return { name: 'permissions-known', status: 'info', message: 'Skipped (config invalid)' }; }
