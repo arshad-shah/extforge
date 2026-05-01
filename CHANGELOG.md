@@ -46,6 +46,16 @@ No breaking changes. Old projects rebuilt against this version automatically inh
 ### Backwards compatibility (Plugins)
 No breaking changes. Existing configs continue to work; legacy plugins continue to load via a shim.
 
+### Testing
+- New subpath exports: `extforge/testing` (typed `chrome.*` fakes for `runtime`, `storage`, `tabs`, `action`, `scripting`) and `extforge/testing/vitest` (vitest setup-file preset that auto-installs fakes and resets them between tests).
+- `installChromeFakes()` / `resetChromeFakes()` for granular control.
+- Unmodeled `chrome.*` calls throw a clear "not modeled" error pointing at the docs.
+- Scaffolded projects now ship a `vitest.config.ts` wired to the preset and an `extension.test.ts` with real, passing tests.
+- New scaffold templates for Playwright E2E: `tests/e2e/fixture.ts` and `tests/e2e/smoke.test.ts`.
+
+### Backwards compatibility (Testing)
+No breaking changes. Existing scaffolded projects are unaffected; the new template applies only to projects created via `extforge init` from this version onward.
+
 ### Backwards compatibility
 No breaking changes. The Zod schema uses `.passthrough()` so unknown config keys still work today; they will become warnings in v0.4.0 and errors thereafter.
 
