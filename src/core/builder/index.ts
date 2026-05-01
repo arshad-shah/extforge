@@ -17,6 +17,8 @@ import { ExtForgeError } from '../errors/index.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
 import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
+import type { PluginRunner } from '../plugins/runner.js';
+import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -210,7 +212,7 @@ function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
 // ─── Build config factory ────────────────────────────────────────────────────
 
 function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuild.BuildOptions,
-  'bundle' | 'platform' | 'target' | 'sourcemap' | 'minify' | 'define' | 'alias' | 'loader' | 'jsx' | 'jsxImportSource' | 'logLevel' | 'metafile'
+  'bundle' | 'platform' | 'target' | 'sourcemap' | 'minify' | 'define' | 'alias' | 'loader' | 'logLevel' | 'metafile'
 > {
   return {
     bundle: true,
@@ -226,11 +228,40 @@ function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuil
     },
     alias: { '@': resolve(root, 'src') },
     loader: ESBUILD_LOADERS as Record<string, esbuild.Loader>,
-    jsx: 'automatic',
-    jsxImportSource: 'react',
     logLevel: opts.dev ? 'warning' : 'error',
     metafile: true,
   };
+}
+
+// ─── Plugin hook helpers ──────────────────────────────────────────────────────
+
+/**
+ * Fire the onBuildEntry hook for a single entry, merge the returned
+ * esbuildOptions over the base, and return the final options object.
+ *
+ * For multi-entry ESM pass: this is called per-entry so every plugin gets
+ * visibility, but since esbuild.build() is called once for all ESM entries
+ * we adopt a "last-write-wins" merge across all entries and pass those merged
+ * options to the shared call. Per-entry option divergence is a v2+ concern.
+ */
+async function runEntryHook(
+  baseOptions: Record<string, unknown>,
+  name: string,
+  file: string,
+  format: 'esm' | 'iife',
+  isContentScript: boolean,
+  runner: PluginRunner | undefined,
+): Promise<Record<string, unknown>> {
+  if (!runner) return baseOptions;
+  const descriptor: EntryDescriptor = {
+    name,
+    file,
+    format,
+    esbuildOptions: baseOptions,
+    isContentScript,
+  };
+  const next = await runner.fireBuildEntry(descriptor);
+  return next.esbuildOptions ?? baseOptions;
 }
 
 function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
@@ -283,6 +314,9 @@ export async function build(
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const srcDir = join(root, 'src');
 
+  const runner = (config as { __pluginRunner?: PluginRunner }).__pluginRunner;
+  await runner?.fireBuildStart({ browser: opts.browser, dev: opts.dev });
+
   log.info(`Building for ${opts.browser}...`);
 
   const allEntries = discoverEntryPoints(srcDir);
@@ -326,9 +360,17 @@ export async function build(
   }
 
   // ─── Main ESM pass (background, UI) ────────────────────────────────────────
+  // Fire onBuildEntry per-entry (last-write-wins for shared esbuild options).
   let result: esbuild.BuildResult | undefined;
   if (Object.keys(esmEntries).length > 0) {
-    try { result = await esbuild.build(makeBuildConfig(root, { ...opts, outDir }, esmEntries)); }
+    const baseEsmConfig = makeBuildConfig(root, { ...opts, outDir }, esmEntries);
+    const mergedEntryOptions: Record<string, unknown> = {};
+    for (const [name, file] of Object.entries(esmEntries)) {
+      const returned = await runEntryHook({}, name, file, 'esm', false, runner);
+      Object.assign(mergedEntryOptions, returned);
+    }
+    const finalEsmConfig = { ...baseEsmConfig, ...mergedEntryOptions };
+    try { result = await esbuild.build(finalEsmConfig as esbuild.BuildOptions); }
     catch (err) { throwAsBuildError(err); }
   }
 
@@ -358,30 +400,44 @@ export async function build(
         : undefined;
       const hmrBanner = makeHMRBanner(opts);
       const bannerJs = [csBanner, hmrBanner?.js].filter(Boolean).join('');
+      const entryOpts = await runEntryHook(
+        { ...sharedOpts },
+        key,
+        absPath,
+        'iife',
+        true,
+        runner,
+      );
       try {
         await esbuild.build({
-          ...sharedOpts,
+          ...entryOpts,
           entryPoints: { [key]: absPath },
           outdir: outDir,
           format: 'iife',
           splitting: false,
           ...(bannerJs ? { banner: { js: bannerJs } } : {}),
-        });
+        } as esbuild.BuildOptions);
       } catch (err) { throwAsBuildError(err, `IIFE build failed for content script (${key})`); }
     }
 
     // Build remaining IIFE entries (injected scripts) in a single pass.
+    // Fire onBuildEntry per-entry (last-write-wins merge) for plugin visibility.
     if (Object.keys(nonCsIifeEntries).length > 0) {
       const hmrBanner = makeHMRBanner(opts);
+      const mergedNonCsOpts: Record<string, unknown> = { ...sharedOpts };
+      for (const [key, absPath] of Object.entries(nonCsIifeEntries)) {
+        const returned = await runEntryHook({ ...sharedOpts }, key, absPath, 'iife', false, runner);
+        Object.assign(mergedNonCsOpts, returned);
+      }
       try {
         await esbuild.build({
-          ...sharedOpts,
+          ...mergedNonCsOpts,
           entryPoints: nonCsIifeEntries,
           outdir: outDir,
           format: 'iife',
           splitting: false,
           ...(hmrBanner ? { banner: hmrBanner } : {}),
-        });
+        } as esbuild.BuildOptions);
       } catch (err) { throwAsBuildError(err, 'IIFE build failed'); }
     }
   }
@@ -390,8 +446,9 @@ export async function build(
   await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log);
 
   if (config.manifest) {
-    const manifest = generateManifest(config.manifest, opts.browser);
-    applyInjectedDefaults(manifest, config.manifest, injectedEntries);
+    let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;
+    applyInjectedDefaults(manifest as Record<string, unknown>, config.manifest, injectedEntries);
+    if (runner) manifest = await runner.fireManifestTransform(manifest, opts.browser);
     mkdirSync(outDir, { recursive: true });
     writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   }
@@ -408,7 +465,9 @@ export async function build(
   const duration = performance.now() - start;
   const total = files.reduce((s, f) => s + f.size, 0);
   log.success(`Built ${opts.browser} → ${outDir} (${files.length} files, ${formatFileSize(total)}) in ${formatDuration(duration)}`);
-  return { browser: opts.browser, outDir, duration, files, errors };
+  const buildResult: BuildResult = { browser: opts.browser, outDir, duration, files, errors };
+  await runner?.fireBuildEnd(buildResult);
+  return buildResult;
 }
 
 export async function buildAll(
