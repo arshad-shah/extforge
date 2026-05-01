@@ -32,4 +32,14 @@ describe('checkSourceCompat', () => {
     const issues = checkSourceCompat({ source: src, file: 'a.ts', browsers: ['chrome', 'safari'] });
     expect(issues).toHaveLength(1);
   });
+  it('does not flag chrome.* inside string literals', () => {
+    const src = `console.log("chrome.tabGroups.update is unsupported on safari");`;
+    const issues = checkSourceCompat({ source: src, file: 'a.ts', browsers: ['chrome', 'safari'] });
+    expect(issues).toHaveLength(0);
+  });
+  it('does not flag chrome.* inside line comments', () => {
+    const src = `// chrome.tabGroups.update would be unsupported\nconst x = 1;`;
+    const issues = checkSourceCompat({ source: src, file: 'a.ts', browsers: ['chrome', 'safari'] });
+    expect(issues).toHaveLength(0);
+  });
 });
