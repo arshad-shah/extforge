@@ -133,14 +133,12 @@ const main = defineCommand({
         });
 
         const result = validateProject(process.cwd(), log);
-        try {
-          const config = await loadExtForgeConfig(process.cwd());
-          if (config.manifest) {
-            const mr = validateManifestConfig(config.manifest);
-            for (const e of mr.errors) log.error(`Manifest: ${e}`);
-            for (const w of mr.warnings) log.warn(`Manifest: ${w}`);
-          }
-        } catch (err) { log.error(`Config: ${err instanceof Error ? err.message : String(err)}`); }
+        const config = await loadExtForgeConfig(process.cwd());
+        if (config.manifest) {
+          const mr = validateManifestConfig(config.manifest);
+          for (const e of mr.errors) log.error(`Manifest: ${e}`);
+          for (const w of mr.warnings) log.warn(`Manifest: ${w}`);
+        }
 
         if (!result.valid) process.exit(1);
         else log.success('All checks passed');
