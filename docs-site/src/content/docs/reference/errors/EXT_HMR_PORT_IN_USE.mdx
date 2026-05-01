@@ -1,0 +1,14 @@
+---
+title: EXT_HMR_PORT_IN_USE
+description: HMR port is in use
+---
+
+`EXT_HMR_PORT_IN_USE` — Another process is bound to the configured HMR port.
+
+## When you see this
+
+A previous extforge dev is still running, or another tool is using port 35729.
+
+## How to fix
+
+Stop the conflicting process or pass a different port: extforge dev --port 35730.

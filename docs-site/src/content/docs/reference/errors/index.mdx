@@ -1,6 +1,20 @@
 ---
 title: Error codes
-description: Every error code ExtForge can emit — replaced in Task 3
+description: Every error code ExtForge can emit.
 ---
 
-Coming soon.
+ExtForge errors carry a stable code so you can grep, link, and route. Every URL emitted by the CLI lives here.
+
+| Code | Description |
+|---|---|
+| [`EXT_CONFIG_INVALID`](/reference/errors/EXT_CONFIG_INVALID/) | Configuration is invalid |
+| [`EXT_CONFIG_NOT_FOUND`](/reference/errors/EXT_CONFIG_NOT_FOUND/) | No extforge.config found |
+| [`EXT_CONFIG_DEPRECATED`](/reference/errors/EXT_CONFIG_DEPRECATED/) | Deprecated configuration |
+| [`EXT_BUILD_FAILED`](/reference/errors/EXT_BUILD_FAILED/) | Build failed |
+| [`EXT_MANIFEST_INVALID`](/reference/errors/EXT_MANIFEST_INVALID/) | Manifest is invalid |
+| [`EXT_MANIFEST_MISSING_ICON`](/reference/errors/EXT_MANIFEST_MISSING_ICON/) | Required icon is missing |
+| [`EXT_DOCTOR_FAILED`](/reference/errors/EXT_DOCTOR_FAILED/) | Doctor checks failed |
+| [`EXT_COMPAT_UNSUPPORTED`](/reference/errors/EXT_COMPAT_UNSUPPORTED/) | Cross-browser API is unsupported |
+| [`EXT_HMR_PORT_IN_USE`](/reference/errors/EXT_HMR_PORT_IN_USE/) | HMR port is in use |
+| [`EXT_NODE_VERSION`](/reference/errors/EXT_NODE_VERSION/) | Unsupported Node version |
+| [`EXT_PLUGIN_FAILED`](/reference/errors/EXT_PLUGIN_FAILED/) | A plugin threw |

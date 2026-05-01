@@ -1,0 +1,14 @@
+---
+title: EXT_COMPAT_UNSUPPORTED
+description: Cross-browser API is unsupported
+---
+
+`EXT_COMPAT_UNSUPPORTED` — Code uses a chrome.* API that is not supported on one of your declared target browsers.
+
+## When you see this
+
+You called something like chrome.tabGroups.update(...) while targeting Safari.
+
+## How to fix
+
+Either gate the call behind a runtime check, drop the unsupported browser from `browsers`, or suppress per-line with `// extforge-ignore-compat: <reason>`.

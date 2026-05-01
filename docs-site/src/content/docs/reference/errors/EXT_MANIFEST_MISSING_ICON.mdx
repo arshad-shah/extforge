@@ -1,0 +1,14 @@
+---
+title: EXT_MANIFEST_MISSING_ICON
+description: Required icon is missing
+---
+
+`EXT_MANIFEST_MISSING_ICON` — The manifest references an icon size that does not exist on disk.
+
+## When you see this
+
+Your manifest declares icons: { 128: "..." } but icons/icon-128.png is not in the project.
+
+## How to fix
+
+Add the missing PNG to icons/, or run extforge icons to regenerate from icons/icon.svg.

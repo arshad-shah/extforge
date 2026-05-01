@@ -1,0 +1,14 @@
+---
+title: EXT_CONFIG_INVALID
+description: Configuration is invalid
+---
+
+`EXT_CONFIG_INVALID` — extforge.config.ts has a value that does not match the schema.
+
+## When you see this
+
+A field has the wrong type, an unknown enum value (e.g. browsers: ["brave"]), or a malformed nested option.
+
+## How to fix
+
+Read the per-issue suggestions in the error output. The path (browsers.0, dev.port) tells you exactly which field. The Configuration reference enumerates allowed values.
