@@ -8,22 +8,23 @@ import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
 import { existsSync } from 'node:fs';
-import { join } from 'pathe';
+import { join, resolve } from 'pathe';
 import pc from 'picocolors';
+import { PluginRunner } from './plugins/runner.js';
+import { presetReact } from './plugins/preset-react.js';
+import { createLogger } from './logger/index.js';
+
+export type { ExtForgePlugin } from './plugins/types.js';
+import type { ExtForgePlugin } from './plugins/types.js';
 
 // ─── Config shape (derived from Zod schema — single source of truth) ─────────
-
-export interface ExtForgePlugin {
-  name: string;
-  setup?: (config: ExtForgeConfig) => void | Promise<void>;
-  buildStart?: () => void | Promise<void>;
-  buildEnd?: (result: unknown) => void | Promise<void>;
-}
 
 export type ExtForgeConfig = z.infer<typeof extForgeConfigSchema> & {
   // These fields are not strictly modeled in the schema today; declared here so callers see them.
   manifest?: ManifestConfig;
   plugins?: ExtForgePlugin[];
+  /** @internal Plugin runner attached by loadExtForgeConfig. Not part of the public API. */
+  __pluginRunner?: PluginRunner;
 };
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
@@ -64,6 +65,34 @@ export async function loadExtForgeConfig(
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));
   }
+
+  // Build the plugin list: built-ins first (so user plugins can override), then user plugins.
+  const userPlugins = (merged.plugins ?? []) as ExtForgePlugin[];
+  const builtins: ExtForgePlugin[] = [];
+  if (merged.framework === 'react') builtins.push(presetReact());
+  const allPlugins = [...builtins, ...userPlugins];
+
+  const runner = new PluginRunner(allPlugins, {
+    config: Object.freeze({ ...merged }),
+    paths: {
+      root: cwd,
+      src: resolve(cwd, merged.build?.srcDir ?? 'src'),
+      dist: resolve(cwd, merged.build?.outDir ?? 'dist'),
+    },
+    logger: createLogger({ scope: 'plugins' }),
+    addEntry: () => {},   // wired later in builder Task 6
+    emitFile: () => {},   // wired later in builder Task 6
+  });
+  await runner.setup();
+  await runner.fireConfigResolved(merged);
+
+  Object.defineProperty(merged, '__pluginRunner', {
+    value: runner,
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+
   return merged;
 }
 
