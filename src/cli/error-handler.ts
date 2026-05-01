@@ -7,11 +7,13 @@
  */
 
 import pc from 'picocolors';
+import { isExtForgeError } from '../core/errors/index.js';
 
 export interface FormattedError {
   title: string;
   detail?: string;
   hint?: string;
+  docsUrl?: string;
   cause?: unknown;
 }
 
@@ -25,6 +27,18 @@ const KNOWN_ERROR_HINTS: Array<[RegExp, string]> = [
 ];
 
 export function formatError(err: unknown): FormattedError {
+  if (isExtForgeError(err)) {
+    const loc = err.file
+      ? ` (${err.file}${err.line ? `:${err.line}` : ''}${err.column ? `:${err.column}` : ''})`
+      : '';
+    return {
+      title: err.code,
+      detail: `${err.message}${loc}`,
+      hint: err.hint,
+      docsUrl: err.docsUrl,
+      cause: err,
+    };
+  }
   if (err instanceof Error) {
     const msg = err.message;
     const hint = KNOWN_ERROR_HINTS.find(([re]) => re.test(msg))?.[1];
@@ -41,6 +55,7 @@ export function printError(err: unknown): void {
   if (f.detail) console.error(`  ${f.detail}`);
   if (f.hint) console.error('');
   if (f.hint) console.error(pc.dim(`  Hint: ${f.hint}`));
+  if (f.docsUrl) console.error(pc.dim(`  Docs: ${f.docsUrl}`));
   if (process.env.EXTFORGE_DEBUG && f.cause instanceof Error && f.cause.stack) {
     console.error('');
     console.error(pc.dim(f.cause.stack));
