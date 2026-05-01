@@ -165,6 +165,26 @@ function copyPublic(root: string, outDir: string, log: Logger): void {
   log.debug('Copied public/ assets');
 }
 
+// ─── Directory summarizer ─────────────────────────────────────────────────────
+
+function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
+  let fileCount = 0;
+  let totalBytes = 0;
+  const walk = (d: string) => {
+    if (!existsSync(d)) return;
+    for (const ent of readdirSync(d, { withFileTypes: true })) {
+      const full = join(d, ent.name);
+      if (ent.isDirectory()) walk(full);
+      else if (ent.isFile()) {
+        fileCount++;
+        totalBytes += statSync(full).size;
+      }
+    }
+  };
+  walk(dir);
+  return { fileCount, totalBytes };
+}
+
 // ─── Build config factory ────────────────────────────────────────────────────
 
 function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuild.BuildOptions,
@@ -346,6 +366,15 @@ export async function buildAll(
   const totalErrors = results.reduce((s, r) => s + r.errors.length, 0);
   if (totalErrors > 0) log.error(`Build completed with ${totalErrors} error(s)`);
   else log.success(`All ${browsers.length} browser builds completed`);
+
+  log.summary('Build complete', results.map(r => {
+    const { fileCount, totalBytes } = summarizeDir(r.outDir);
+    return {
+      label: r.browser,
+      value: `${r.outDir}  (${fileCount} files, ${formatFileSize(totalBytes)})`,
+    };
+  }));
+
   return results;
 }
 
