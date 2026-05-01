@@ -22,6 +22,7 @@ import {
   HMR_PROTOCOL_VERSION,
 } from './constants.js';
 import { formatReloadLog } from './client-logic.js';
+import type { PluginRunner } from '../plugins/runner.js';
 
 async function reservePort(start: number, host: string, log: Logger): Promise<number> {
   for (let i = 0; i < MAX_PORT_RETRIES; i++) {
@@ -149,6 +150,7 @@ class ChangeDebouncer {
 export function createHMRServer(options: HMRServerOptions): HMRServer {
   const { projectRoot, config, browser, host = 'localhost' } = options;
   const log = (options.logger ?? createLogger({ scope: 'hmr' })).child(browser);
+  const runner = (config as { __pluginRunner?: PluginRunner }).__pluginRunner;
 
   let wss: WebSocketServer | null = null;
   let watcher: FSWatcher | null = null;
@@ -196,7 +198,9 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       scriptIds = extractScriptIds(absChanged, contentScriptMap);
     }
 
-    broadcast({ type: updateType, files, timestamp: Date.now(), scriptIds });
+    const timestamp = Date.now();
+    broadcast({ type: updateType, files, timestamp, scriptIds });
+    await runner?.fireDevReload({ v: HMR_PROTOCOL_VERSION, type: updateType, files, timestamp, scriptIds });
 
     const durationMs = Math.round(performance.now() - rebuildStart);
     const clientCount = wss ? Array.from(wss.clients).filter(c => c.readyState === WebSocket.OPEN).length : 0;
