@@ -9,6 +9,8 @@ export default defineConfig({
     'core/logger/index': 'src/core/logger/index.ts',
     'core/plugins/index': 'src/core/plugins/index.ts',
     'core/compat/index': 'src/core/compat/index.ts',
+    'core/testing/index': 'src/core/testing/index.ts',
+    'core/testing/vitest': 'src/core/testing/vitest.ts',
   },
   format: ['esm'],
   dts: true,

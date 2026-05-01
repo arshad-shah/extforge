@@ -18,6 +18,14 @@
     "./plugins": {
       "import": "./dist/core/plugins/index.js",
       "types": "./dist/core/plugins/index.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/core/testing/index.js",
+      "types": "./dist/core/testing/index.d.ts"
+    },
+    "./testing/vitest": {
+      "import": "./dist/core/testing/vitest.js",
+      "types": "./dist/core/testing/vitest.d.ts"
     }
   },
   "main": "./dist/core/index.js",
