@@ -304,6 +304,9 @@ export async function scaffold(
   writeFileSync(join(projectDir, '.gitignore'), loadTemplateRaw('gitignore.tpl'));
   writeFileSync(join(projectDir, 'README.md'), loadTemplate('README.md.tpl', vars));
   writeFileSync(join(projectDir, 'tests/extension.test.ts'), loadTemplate('extension.test.ts.tpl', vars));
+  mkdirSync(join(projectDir, 'tests/e2e'), { recursive: true });
+  writeFileSync(join(projectDir, 'tests/e2e/fixture.ts'), loadTemplateRaw('e2e/fixture.ts.tpl'));
+  writeFileSync(join(projectDir, 'tests/e2e/smoke.test.ts'), loadTemplateRaw('e2e/smoke.test.ts.tpl'));
   writeFileSync(join(projectDir, 'icons/icon.svg'), loadTemplateRaw('icon.svg.tpl'));
   writeFileSync(join(projectDir, 'src/styles/globals.css'), loadTemplateRaw('globals.css.tpl'));
   writeFileSync(join(projectDir, 'src/styles/content.css'), loadTemplateRaw('content.css.tpl'));
