@@ -4,7 +4,7 @@
 
 import * as esbuild from 'esbuild';
 import {
-  copyFileSync, existsSync, mkdirSync, readdirSync, statSync,
+  copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync,
   writeFileSync,
 } from 'node:fs';
 import { join, resolve, dirname } from 'pathe';
@@ -16,6 +16,7 @@ import type { ExtForgeConfig } from '../config.js';
 import { ExtForgeError } from '../errors/index.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
+import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ export interface BuildOptions {
   minify?: boolean;
   hmrPort?: number;
   hmrHost?: string;
+  strictCompat?: boolean;
 }
 
 function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
@@ -249,6 +251,35 @@ export async function build(
     errors.push('No entry points found in src/');
     log.error('No entry points discovered');
     return { browser: opts.browser, outDir, duration: 0, files: [], errors };
+  }
+
+  // ─── Compat scan ────────────────────────────────────────────────────────────
+  {
+    const browsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
+    const allEntryFiles = [
+      ...Object.values(esmEntries),
+      ...Object.values(iifeEntries),
+    ];
+    const allIssues: CompatIssue[] = [];
+    for (const entryFile of allEntryFiles) {
+      try {
+        const src = readFileSync(entryFile, 'utf8');
+        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers }));
+      } catch { /* ignore unreadable files */ }
+    }
+    if (allIssues.length > 0) {
+      log.warn(`[compat] ${allIssues.length} cross-browser issue(s) found:`);
+      for (const i of allIssues) {
+        log.warn(`  ${i.file}:${i.line}:${i.column}  ${i.api}  unsupported in: ${i.unsupported.join(', ')}`);
+      }
+      if (opts.strictCompat) {
+        throw new ExtForgeError({
+          code: 'EXT_COMPAT_UNSUPPORTED',
+          message: `Cross-browser compat check failed (${allIssues.length} issue(s), --strict)`,
+          hint: 'Suppress with `// extforge-ignore-compat: <reason>` or remove the call.',
+        });
+      }
+    }
   }
 
   // ─── Main ESM pass (background, UI) ────────────────────────────────────────

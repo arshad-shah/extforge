@@ -78,6 +78,7 @@ const main = defineCommand({
         browser:   { type: 'string', description: 'Single browser target' },
         dev:       { type: 'boolean', description: 'Development build', default: false },
         sourcemap: { type: 'boolean', description: 'Include source maps', default: false },
+        strict:    { type: 'boolean', description: 'Treat compat warnings as errors', default: false },
       },
       async run({ args }) {
         const { buildAll, build } = await import('../core/builder/index.js');
@@ -89,13 +90,14 @@ const main = defineCommand({
         const config = await loadExtForgeConfig(process.cwd());
         const isDev = args.dev as boolean;
         const sm = (args.sourcemap as boolean) || isDev;
+        const strictCompat = args.strict as boolean;
 
         if (args.browser) {
           if (!ALL_BROWSERS.includes(args.browser as any)) { log.error(`Invalid browser: ${args.browser}`); process.exit(1); }
-          const r = await build(process.cwd(), config, { browser: args.browser as any, dev: isDev, sourcemap: sm }, log);
+          const r = await build(process.cwd(), config, { browser: args.browser as any, dev: isDev, sourcemap: sm, strictCompat }, log);
           if (r.errors.length > 0) process.exit(1);
         } else {
-          const results = await buildAll(process.cwd(), config, { dev: isDev, sourcemap: sm }, log);
+          const results = await buildAll(process.cwd(), config, { dev: isDev, sourcemap: sm, strictCompat }, log);
           if (results.some(r => r.errors.length > 0)) process.exit(1);
         }
       },
@@ -140,12 +142,13 @@ const main = defineCommand({
         const { permissionsKnownCheck } = await import('../core/doctor/checks/permissions-known.js');
         const { browserOverridesCheck } = await import('../core/doctor/checks/browser-overrides.js');
         const { scriptsPresentCheck } = await import('../core/doctor/checks/scripts-present.js');
+        const { compatCheck } = await import('../core/doctor/checks/compat.js');
         const { createLogger } = await import('../core/logger/index.js');
 
         const checks = [
           nodeVersionCheck, configValidCheck, iconsPresentCheck, portFreeCheck,
           distGitignoredCheck, permissionsKnownCheck, browserOverridesCheck,
-          scriptsPresentCheck,
+          scriptsPresentCheck, compatCheck,
         ];
         const report = await runDoctor(checks, { cwd: process.cwd() });
 
