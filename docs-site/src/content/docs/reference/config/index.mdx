@@ -14,6 +14,6 @@ ExtForge reads its configuration from `extforge.config.ts` (or `.js`/`.mjs`) at 
 | [`manifest`](/reference/config/manifest/) | `unknown` | The MV3 manifest, ExtForge-flavored. Browser-specific quirks are handled automatically. |
 | [`build`](/reference/config/build/) | `object` |  |
 | [`dev`](/reference/config/dev/) | `object` |  |
-| [`framework`](/reference/config/framework/) | `'react' \| 'vue' \| 'svelte' \| 'solid' \| 'vanilla'` | UI framework. Drives auto-injection of first-party plugins. |
+| [`framework`](/reference/config/framework/) | `'react' \| 'vanilla'` | UI framework. Drives auto-injection of first-party plugins (e.g., `presetReact()` when set to `react`). |
 | [`css`](/reference/config/css/) | `'tailwind' \| 'vanilla' \| 'none'` | CSS strategy. |
 | [`plugins`](/reference/config/plugins/) | `Array<unknown>` | List of ExtForge plugins. Both the V1 shape and the legacy thin shape are accepted. |

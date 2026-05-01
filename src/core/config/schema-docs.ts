@@ -17,7 +17,7 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
   'dev.debounce':    { description: 'Debounce window (ms) for collapsing rapid file changes into one rebuild.', defaultValue: '150' },
   'dev.open':        { description: 'Open chrome://extensions automatically when the dev server starts.', defaultValue: 'false' },
   'dev.strictCompat':{ description: 'Treat cross-browser compat warnings as errors.', defaultValue: 'false' },
-  'framework':       { description: 'UI framework. Drives auto-injection of first-party plugins.', defaultValue: '"react"' },
+  'framework':       { description: 'UI framework. Drives auto-injection of first-party plugins (e.g., `presetReact()` when set to `react`).', defaultValue: '"react"' },
   'css':             { description: 'CSS strategy.', defaultValue: '"tailwind"' },
   'plugins':         { description: 'List of ExtForge plugins. Both the V1 shape and the legacy thin shape are accepted.' },
 };

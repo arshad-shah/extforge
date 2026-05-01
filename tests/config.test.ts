@@ -60,7 +60,7 @@ describe('Config System', () => {
     it('should return the config object unchanged', () => {
       const config: ExtForgeConfig = {
         browsers: ['chrome'],
-        framework: 'vue',
+        framework: 'vanilla',
       };
       const result = defineConfig(config);
       expect(result).toEqual(config);
@@ -69,7 +69,7 @@ describe('Config System', () => {
     it('should accept a full config with all fields', () => {
       const config = defineConfig({
         browsers: ['chrome', 'firefox', 'edge'],
-        framework: 'svelte',
+        framework: 'react',
         css: 'none',
         build: {
           outDir: 'build',
