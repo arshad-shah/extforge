@@ -8,6 +8,7 @@ import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
 import { existsSync } from 'node:fs';
 import { join } from 'pathe';
+import pc from 'picocolors';
 
 // ─── Config shape ────────────────────────────────────────────────────────────
 
@@ -16,7 +17,7 @@ export interface ExtForgeConfig {
   browsers?: Browser[];
   manifest?: ManifestConfig;
   build?: { outDir?: string; srcDir?: string; sourcemap?: boolean; esbuild?: Record<string, unknown> };
-  dev?: { port?: number; host?: string; debounce?: number; open?: boolean };
+  dev?: { port?: number; host?: string; debounce?: number; open?: boolean; strictCompat?: boolean };
   framework?: 'react' | 'vue' | 'svelte' | 'solid' | 'vanilla';
   css?: 'tailwind' | 'vanilla' | 'none';
   plugins?: ExtForgePlugin[];
@@ -56,7 +57,13 @@ export async function loadExtForgeConfig(
   if (!parsed.success) {
     const candidates = ['extforge.config.ts', 'extforge.config.js', 'extforge.config.mjs'];
     const file = candidates.map(f => join(cwd, f)).find(existsSync);
-    throw formatZodError(parsed.error, file);
+    const err = formatZodError(parsed.error, file);
+    if (process.env['EXTFORGE_STRICT_CONFIG'] === '1' || (overrides as { _strictConfig?: boolean })?._strictConfig) {
+      throw err;
+    }
+    console.error(pc.yellow('[extforge] Config validation warnings:'));
+    console.error(pc.yellow(err.message));
+    console.error(pc.yellow('These warnings will become errors in v0.4.0.'));
   }
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));

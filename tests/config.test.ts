@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { DEFAULT_CONFIG, defineConfig, type ExtForgeConfig } from '../src/core/config.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { DEFAULT_CONFIG, defineConfig, loadExtForgeConfig, type ExtForgeConfig } from '../src/core/config.js';
 
 describe('Config System', () => {
   describe('Given the default config', () => {
@@ -29,6 +29,30 @@ describe('Config System', () => {
 
     it('should source from src/', () => {
       expect(DEFAULT_CONFIG.build?.srcDir).toBe('src');
+    });
+  });
+
+  describe('Given loadExtForgeConfig with invalid config', () => {
+    afterEach(() => {
+      delete process.env['EXTFORGE_STRICT_CONFIG'];
+    });
+
+    it('should warn but NOT throw on invalid browsers when EXTFORGE_STRICT_CONFIG is unset', async () => {
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      // Pass an invalid browser via overrides — c12 won't find a config file in test cwd
+      // We supply _strictConfig: undefined so warn mode is used
+      await expect(
+        loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
+      ).resolves.toBeDefined();
+      expect(spy).toHaveBeenCalledWith(expect.stringContaining('Config validation warnings'));
+      spy.mockRestore();
+    });
+
+    it('should throw on invalid browsers when EXTFORGE_STRICT_CONFIG=1', async () => {
+      process.env['EXTFORGE_STRICT_CONFIG'] = '1';
+      await expect(
+        loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
+      ).rejects.toThrow('extforge.config is invalid');
     });
   });
 
