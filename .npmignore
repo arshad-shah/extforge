@@ -1,0 +1,7 @@
+docs-site
+docs/superpowers
+.github
+brand
+scripts
+*.test.ts
+tests

@@ -56,6 +56,16 @@ No breaking changes. Existing configs continue to work; legacy plugins continue 
 ### Backwards compatibility (Testing)
 No breaking changes. Existing scaffolded projects are unaffected; the new template applies only to projects created via `extforge init` from this version onward.
 
+### Docs
+- New documentation site at https://extforge.arshadshah.com (Astro Starlight on Cloudflare Pages).
+- Auto-generated reference from code: configuration schema, error codes, plugin API. Drift-checked in CI.
+- Hand-written guides: getting started, configuration, HMR, cross-browser, plugins, testing, deployment.
+- README slimmed to a one-screen pitch. Old anchor IDs preserved (#features, #installation, #quick-start, #docs).
+- Brand guidelines documented at /brand/guidelines.
+
+### Backwards compatibility (Docs)
+No breaking changes. Old README anchors still resolve.
+
 ### Backwards compatibility
 No breaking changes. The Zod schema uses `.passthrough()` so unknown config keys still work today; they will become warnings in v0.4.0 and errors thereafter.
 
