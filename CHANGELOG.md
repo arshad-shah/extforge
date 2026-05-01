@@ -20,6 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - esbuild build failures are now wrapped as `ExtForgeError(EXT_BUILD_FAILED)` with file/line/column.
 - `buildAll` ends with a grouped summary showing each browser's output dir, file count, and total size.
 
+### HMR
+- Versioned websocket protocol envelope (`v: 2`); legacy clients tolerated, future versions ignored with one warning.
+- Targeted content-script reloads — server emits `scriptIds` and the in-page client filters via `__EXTFORGE_SCRIPT_ID__`. Tabs that don't host the changed script are not touched.
+- Infinite reconnect with capped exponential backoff (250ms → 8s) and a visible reconnect badge in matched pages.
+- One-line reload log on both server and client: `[hmr] reloaded <files> — <reason> — <ms> (<n> client(s))`.
+- `extforge dev --verbose` prints per-change file detail.
+- `extforge dev --once` runs a single dev build then exits (CI smoke).
+- `HMR_STRATEGY` constant exposes the per-entry-point reload matrix as the single source of truth.
+- Pure HMR client logic extracted to `src/core/hmr/client-logic.ts` with full unit-test coverage.
+
+### Backwards compatibility (HMR)
+No breaking changes. Old projects rebuilt against this version automatically inherit the new client. Old clients connecting to a new server still receive the same legacy message shapes (the new fields are optional). No `extforge.config.ts` changes required.
+
 ### Backwards compatibility
 No breaking changes. The Zod schema uses `.passthrough()` so unknown config keys still work today; they will become warnings in v0.4.0 and errors thereafter.
 
