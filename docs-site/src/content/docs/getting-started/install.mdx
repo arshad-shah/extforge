@@ -1,6 +1,170 @@
 ---
-title: install
-description: TBD — replaced in Task 5/6/7
+title: Install
+description: Install extforge, scaffold a new project, and load it in Chrome, Firefox, Edge, or Safari.
 ---
 
-Coming soon.
+import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
+
+## Prerequisites
+
+- **Node.js 20 or later.** ExtForge uses native ESM and requires the `fetch` global available in Node 18+, but Node 20 LTS is the tested baseline.
+- **A package manager.** pnpm is recommended; npm, yarn, and bun all work.
+- **A Chromium-based browser** for local testing (Chrome, Edge, or Brave). Firefox requires a separate profile. Safari requires Xcode.
+
+Run `extforge doctor` after installing to confirm your environment is ready. See [Verifying the install](#verifying-the-install) below.
+
+## Per-project install
+
+Install extforge as a dev dependency in your project:
+
+<Tabs>
+  <TabItem label="pnpm">
+```sh
+pnpm add -D extforge
+```
+  </TabItem>
+  <TabItem label="npm">
+```sh
+npm install --save-dev extforge
+```
+  </TabItem>
+  <TabItem label="yarn">
+```sh
+yarn add --dev extforge
+```
+  </TabItem>
+  <TabItem label="bun">
+```sh
+bun add --dev extforge
+```
+  </TabItem>
+</Tabs>
+
+## Global install
+
+A global install gives you `extforge` on your PATH for running `extforge init` outside a project directory.
+
+<Tabs>
+  <TabItem label="pnpm">
+```sh
+pnpm add -g extforge
+```
+  </TabItem>
+  <TabItem label="npm">
+```sh
+npm install -g extforge
+```
+  </TabItem>
+  <TabItem label="yarn">
+```sh
+yarn global add extforge
+```
+  </TabItem>
+  <TabItem label="bun">
+```sh
+bun add -g extforge
+```
+  </TabItem>
+</Tabs>
+
+## Scaffolding a new project
+
+Run `extforge init` with a project name to start the interactive wizard:
+
+```sh
+pnpm dlx extforge init my-extension
+```
+
+The wizard asks:
+
+| Prompt | Options |
+|---|---|
+| Extension name | Free text (letters, numbers, hyphens; max 45 chars) |
+| Description | Free text |
+| Version | Semver (e.g. `0.1.0`) |
+| UI framework | React, Vue, Svelte, Solid, Vanilla |
+| CSS framework | Tailwind CSS, Vanilla CSS, None |
+| Target browsers | Chrome, Firefox, Edge, Safari (multi-select) |
+| Extension features | Popup, Background, Content Script, Options Page, Side Panel |
+| Permissions | Storage, activeTab, and others (multi-select) |
+
+To skip the prompts and accept defaults (React, Tailwind, Chrome + Firefox, popup + background, storage + activeTab):
+
+```sh
+pnpm dlx extforge init my-extension --defaults
+```
+
+After the wizard completes, the project directory is ready. Install dependencies:
+
+```sh
+cd my-extension && pnpm install
+```
+
+See [`extforge init`](/reference/cli/commands/#init) in the CLI reference for all flags.
+
+## Verifying the install
+
+Check the version:
+
+```sh
+pnpm exec extforge --version
+```
+
+Run the environment check:
+
+```sh
+pnpm exec extforge doctor
+```
+
+`extforge doctor` reports:
+
+- Node.js version (✓ if 20+, ✗ if below)
+- Package manager detected
+- `extforge.config.ts` present and valid
+- `icons/` directory present with required sizes
+- HMR port 9100 availability
+
+<Aside type="tip">
+If `doctor` reports a missing config, make sure you are running it from the project root (the directory containing `extforge.config.ts`).
+</Aside>
+
+See [`extforge doctor`](/reference/cli/commands/#doctor) for the full list of checks.
+
+## Loading the extension
+
+### Chrome
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode** (toggle in the top-right).
+3. Click **Load unpacked** and select `dist/chrome/` in your project directory.
+
+The extension loads immediately. The dev server prints the full path to `dist/chrome/` on startup.
+
+### Firefox
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on**.
+3. Select `dist/firefox/manifest.json` (Firefox requires a file, not a directory).
+
+Temporary add-ons are removed when Firefox restarts. For persistent loading, use a dedicated Firefox profile via `extforge dev --browser firefox`.
+
+### Edge
+
+1. Open `edge://extensions`.
+2. Enable **Developer mode** (left sidebar toggle).
+3. Click **Load unpacked** and select `dist/edge/`.
+
+Edge uses the same Chromium extension loader as Chrome.
+
+### Safari
+
+Safari requires converting your extension using Apple's tool before it can be loaded.
+
+1. Build the extension: `pnpm build`.
+2. Run the converter: `xcrun safari-web-extension-converter dist/chrome/ --project-location ./safari-ext --app-name MyExtension`.
+3. Open the generated Xcode project and run the app target on your Mac.
+4. In Safari, go to **Settings → Extensions** and enable the extension.
+
+<Aside type="caution">
+Safari web extensions require a signed macOS/iOS app wrapper. Distribution requires an Apple Developer account.
+</Aside>

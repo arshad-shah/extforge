@@ -1,6 +1,148 @@
 ---
-title: project-layout
-description: TBD — replaced in Task 5/6/7
+title: Project layout
+description: The conventional directory structure ExtForge expects and what each location does.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+ExtForge discovers entry points by convention. If your files are in the right place, no explicit config is needed. This page documents the full layout so you know where to put things.
+
+## At the project root
+
+```
+my-extension/
+├── extforge.config.ts   # Build config — the only required file
+├── package.json
+├── tsconfig.json
+├── icons/               # Extension icons (all sizes required)
+├── public/              # Static assets copied verbatim into every dist/<browser>/
+├── tests/               # Vitest unit tests
+└── dist/                # Build output — gitignored
+```
+
+**`extforge.config.ts`** is the only file ExtForge requires at the root. Everything else is discovered from it or by convention. See the [configuration reference](/reference/config/) for all options.
+
+**`dist/`** is recreated on every build. Add it to `.gitignore` (the scaffold does this automatically).
+
+## Inside `src/`
+
+```
+src/
+├── background/
+│   └── index.ts         # Service worker entry
+├── content/
+│   └── index.ts         # Content script entry (or index.ts for single, *.ts glob for multi)
+├── ui/
+│   ├── popup/
+│   │   ├── index.html   # Popup HTML shell
+│   │   └── index.tsx    # Popup React entry
+│   ├── options/
+│   │   ├── index.html
+│   │   └── index.tsx
+│   └── sidepanel/
+│       ├── index.html
+│       └── index.tsx
+├── components/          # Shared UI components
+├── hooks/               # Shared React hooks
+├── store/               # Zustand store modules
+├── lib/                 # Utility functions
+└── styles/
+    ├── globals.css      # Global styles
+    └── content.css      # Content script styles (injected into host pages)
+```
+
+### `src/background/index.ts`
+
+The service worker entry point. ExtForge bundles this as an ESM module (MV3 supports `"type": "module"` for service workers in Chrome 116+). The output is placed at `dist/<browser>/background/index.js` and registered in the generated manifest.
+
+### `src/content/index.ts`
+
+The content script entry. For a single content script, use `src/content/index.ts`. For multiple scripts targeting different pages, add named files under `src/content/` — ExtForge registers each as a separate content script entry. Content scripts are bundled as IIFE (not ESM) because the content script execution environment does not support ES module imports.
+
+### Injected scripts
+
+Injected scripts run in the page's JavaScript realm (not the extension's isolated world). Place them at `src/injected.ts` for a single script or `src/injected/*.ts` for multiple. These are also bundled as IIFE and must be listed in `manifest.web_accessible_resources` — ExtForge does this automatically.
+
+### `src/ui/popup/`
+
+The toolbar popup. ExtForge expects `index.html` as the HTML shell and `index.tsx` (or `index.ts` for vanilla) as the entry. The HTML file must contain a `div#root` for React or the equivalent mount point for your framework. The scaffold generates both files.
+
+### `src/ui/sidepanel/`
+
+The browser side panel (Chrome 114+, Edge). Same structure as popup. Not supported by Firefox — ExtForge omits the side panel from Firefox builds automatically.
+
+### `src/ui/options/`
+
+The options page, opened via `chrome.runtime.openOptionsPage()` or the browser extensions UI. Same structure as popup.
+
+## `icons/`
+
+```
+icons/
+├── icon-16.png    # Required
+├── icon-32.png    # Required
+├── icon-48.png    # Required
+├── icon-128.png   # Required
+└── icon.svg       # Optional — source for extforge icons regeneration
+```
+
+All four PNG sizes are required. The manifest references them by size. If you include `icon.svg`, run `pnpm exec extforge icons` to regenerate all PNG sizes from the SVG (requires `sharp`).
+
+<Aside type="caution">
+Missing icon sizes produce an `EXT_MANIFEST_MISSING_ICON` error at build time. The build fails — it does not produce a manifest with missing icon references.
+</Aside>
+
+## `public/`
+
+Any file placed in `public/` is copied verbatim into every `dist/<browser>/` at the end of each build. Use this for static assets like `_locales/`, fonts, or images referenced from your HTML files.
+
+## `tests/`
+
+```
+tests/
+├── extension.test.ts    # Unit tests (vitest)
+└── e2e/
+    ├── fixture.ts       # Playwright extension fixture
+    └── smoke.test.ts    # End-to-end smoke test
+```
+
+Vitest unit tests live directly in `tests/`. The scaffold generates a `vitest.config.ts` that includes the `extforge/testing/vitest` setup file, which installs `chrome.*` API fakes automatically — no manual mocking needed. See the [Vitest preset reference](/reference/testing/vitest-preset/) for the full list of faked APIs.
+
+The `tests/e2e/` directory contains Playwright tests. The scaffold generates a fixture that launches Chrome with the extension loaded, so your tests can interact with the popup, options page, and content scripts directly.
+
+## `dist/<browser>/`
+
+```
+dist/
+├── chrome/
+│   ├── manifest.json    # Generated for Chrome MV3
+│   ├── background/
+│   │   └── index.js
+│   ├── ui/
+│   │   └── popup/
+│   │       ├── index.html
+│   │       └── index.js
+│   └── icons/
+└── firefox/
+    ├── manifest.json    # Generated for Firefox MV3 (with gecko_id)
+    └── ...
+```
+
+Each browser gets its own output directory. The manifests differ by browser — ExtForge handles the per-browser differences (gecko ID for Firefox, `side_panel` for Chrome, etc.). Load `dist/chrome/` or `dist/firefox/` as an unpacked extension.
+
+## What ExtForge picks up automatically
+
+| File / directory | Auto-registered as |
+|---|---|
+| `src/background/index.ts` | Service worker |
+| `src/content/index.ts` | Content script (IIFE) |
+| `src/content/*.ts` | Multiple content scripts |
+| `src/injected.ts` | Injected script (IIFE, web-accessible) |
+| `src/injected/*.ts` | Multiple injected scripts |
+| `src/ui/popup/index.html` | `action.default_popup` |
+| `src/ui/options/index.html` | `options_page` |
+| `src/ui/sidepanel/index.html` | `side_panel.default_path` (Chrome only) |
+| `icons/icon-*.png` | Manifest icon sizes |
+| `public/**` | Copied to `dist/<browser>/` |
+
+To override any of these defaults — change entry paths, add multiple content scripts with different match patterns, or opt out of a feature — use `extforge.config.ts`. See the [configuration guide](/guides/configuration/).

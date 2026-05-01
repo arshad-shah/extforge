@@ -1,6 +1,6 @@
 ---
 title: ExtForge
-description: The build system for Manifest V3 browser extensions.
+description: The build system for Manifest V3 browser extensions — zero config, esbuild speed, real HMR.
 template: splash
 hero:
   tagline: The build system for Manifest V3 browser extensions.
@@ -16,11 +16,33 @@ hero:
       icon: external
 ---
 
-import { Card, CardGrid } from '@astrojs/starlight/components';
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
 
 <CardGrid>
-  <Card title="Quick start" icon="rocket">First reload in 60 seconds.</Card>
-  <Card title="Cross-browser" icon="puzzle">Chrome, Firefox, Edge, Safari from one config.</Card>
-  <Card title="HMR that works" icon="random">Targeted reloads, infinite reconnect.</Card>
-  <Card title="Typed APIs" icon="seti:typescript">Plugins, testing, errors — all typed.</Card>
+  <Card title="Quick start" icon="rocket">Scaffold, install, and load your first extension in under 60 seconds.</Card>
+  <Card title="Cross-browser" icon="puzzle">Chrome, Firefox, Edge, and Safari from a single config file.</Card>
+  <Card title="HMR that works" icon="random">Targeted reloads via script-id matching. Infinite WebSocket reconnect.</Card>
+  <Card title="Typed APIs" icon="seti:typescript">Plugins, testing helpers, and error codes — all fully typed.</Card>
 </CardGrid>
+
+## Why ExtForge
+
+Browser extension tooling has not kept up with web development. You end up stitching together webpack configs, custom manifest transformers, and browser-specific packaging scripts — all of which break when Chrome ships a new MV3 restriction.
+
+ExtForge is a zero-config build system built specifically for Manifest V3. It uses esbuild under the hood for sub-second rebuilds, ships a WebSocket-based HMR layer that targets individual content scripts by ID, and produces a separate `dist/<browser>/` directory for each store you need to submit to.
+
+It is for extension authors who need to ship the same extension to multiple browser stores without maintaining multiple build pipelines.
+
+## What's in the box
+
+- **MV3 bundler** — esbuild pipeline with automatic manifest generation and icon resizing.
+- **Dev server with HMR** — WebSocket server on port 9100, targeted reloads, infinite reconnect on browser restart.
+- **Cross-browser builds** — Per-browser output with polyfill and compat shims applied automatically.
+- **Scaffold (`extforge init`)** — Interactive project generator: framework, CSS, browsers, features, permissions.
+- **Testing helpers** — Vitest preset with Chrome API fakes; Playwright fixtures for end-to-end.
+
+## Ready to start?
+
+- [Quick start](/getting-started/quick-start/) — scaffold and load an extension in 60 seconds.
+- [Configuration reference](/reference/config/) — every option in `extforge.config.ts`.
+- [GitHub](https://github.com/arshadshah/extforge) — source, issues, and releases.

@@ -1,6 +1,77 @@
 ---
-title: quick-start
-description: TBD — replaced in Task 5/6/7
+title: Quick start
+description: Scaffold, install, and load a working Manifest V3 extension in under 60 seconds.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+This walkthrough gets a working extension running in Chrome in about 60 seconds. You need Node 20+, pnpm, and Chrome installed.
+
+## 1. Scaffold
+
+Run the scaffold command with `--defaults` to skip the interactive prompts:
+
+```sh
+pnpm dlx extforge init my-extension --defaults
+```
+
+Defaults: React, Tailwind CSS, Chrome + Firefox, popup + background service worker, `storage` + `activeTab` permissions.
+
+The command creates a `my-extension/` directory with a complete project structure.
+
+## 2. Install dependencies
+
+```sh
+cd my-extension && pnpm install
+```
+
+This installs extforge, TypeScript, esbuild, React, Tailwind, and Vitest as dev dependencies.
+
+## 3. Run the dev server
+
+```sh
+pnpm dev
+```
+
+You will see output like:
+
+```
+  extforge › dev
+  ✔ Built chrome in 312ms
+  ✔ Built firefox in 287ms
+  ⚡ HMR server listening on ws://localhost:9100
+  📂 dist/chrome/
+  📂 dist/firefox/
+```
+
+The bundler runs esbuild for each target browser in parallel, then starts a WebSocket server on port 9100 for HMR. Both build outputs are ready immediately.
+
+## 4. Load the unpacked extension
+
+1. Open `chrome://extensions` in Chrome.
+2. Enable **Developer mode** (toggle, top-right).
+3. Click **Load unpacked** and select the `dist/chrome/` path printed in your terminal.
+
+The extension installs. You will see its icon in the Chrome toolbar. Click it to open the popup.
+
+## 5. Edit and watch HMR
+
+Open `src/ui/popup/index.tsx` in your editor. Find the string `"Your extension is running!"` and change it to something else. Save the file.
+
+Within a second, the popup content updates — no manual reload, no reopening the extensions page. ExtForge's HMR layer sends a targeted reload message over the WebSocket connection, and the popup frame refreshes in place.
+
+<Aside type="note">
+Content scripts are reloaded by script ID, so only the specific script that changed is injected again. The background service worker is restarted only when `src/background/index.ts` changes.
+</Aside>
+
+## 6. What just happened
+
+When you saved the file, esbuild re-bundled only the changed module (typically under 50ms). The HMR WebSocket server broadcast a reload event to the extension's background service worker, which used `chrome.runtime.reload()` scoped to the changed script ID. The popup re-mounted with the new bundle — no full extension reload required.
+
+The pieces involved: the esbuild incremental bundle, the WebSocket server on port 9100 with infinite reconnect logic, and script-id targeting in the HMR client. See [HMR in depth](/guides/hmr/) for how to configure reload strategies and handle edge cases.
+
+## 7. Next steps
+
+- [Configuration guide](/guides/configuration/) — customise `extforge.config.ts`, change browsers, add plugins.
+- [Plugins guide](/guides/plugins/) — extend the build pipeline with first-party and custom plugins.
+- [Testing guide](/guides/testing/) — unit tests with Chrome API fakes, Playwright e2e fixtures.
