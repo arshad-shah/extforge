@@ -7,6 +7,7 @@ export default defineConfig({
     'cli/index': 'src/cli/index.ts',
     'core/index': 'src/core/index.ts',
     'core/logger/index': 'src/core/logger/index.ts',
+    'core/plugins/index': 'src/core/plugins/index.ts',
     'core/compat/index': 'src/core/compat/index.ts',
   },
   format: ['esm'],
