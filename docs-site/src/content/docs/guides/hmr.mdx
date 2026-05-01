@@ -1,6 +1,160 @@
 ---
-title: hmr
-description: TBD — replaced in Task 5/6/7
+title: HMR (Hot Module Replacement)
+description: How ExtForge's dev server decides what to reload for each file change, and how to configure and troubleshoot it.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+ExtForge ships a file-watching dev server that reloads as little as possible on each change. CSS files hot-swap in matched tabs without a page reload. Content scripts reload only the tabs they affect. Background script changes trigger a full extension reload.
+
+Start the dev server with:
+
+```sh
+extforge dev
+extforge dev --browser firefox
+```
+
+---
+
+## Reload strategy matrix
+
+Each category of file change maps to a specific reload strategy. ExtForge classifies a changed file by its path and extension.
+
+| Edit kind | What reloads | Tabs touched | Extension restart needed? |
+|---|---|---|---|
+| CSS file (`.css`, `.scss`, `.less`) | CSS hot swap | Matched content-script tabs only | No |
+| Content-script JS | Tab reload | Matched content-script tabs only | No |
+| Background JS | Full extension reload | All extension surfaces | No — service worker restarts |
+| Popup / sidepanel JS | Full reload of that view | No tabs | No |
+| Options page JS | Full reload of options view | No tabs | No |
+| Manifest / config change | Full extension reload | All extension surfaces | No |
+| Asset (icon, image) | Full extension reload | All extension surfaces | No |
+| Injected script (page-context) | Full extension reload | All extension surfaces | No |
+
+"Full extension reload" means the browser reloads the extension package in-place. Tabs are not closed; the service worker restarts.
+
+CSS hot swap injects new CSS into the tab's document without a navigation. This is the fastest update path and works for both content-script stylesheets and injected CSS.
+
+---
+
+## The reconnect badge
+
+When the HMR WebSocket disconnects — for example, after a full extension reload — ExtForge inserts a small floating badge into active extension pages that reads:
+
+```
+ExtForge HMR — reconnecting (#N)
+```
+
+`#N` is the attempt count. The badge disappears as soon as the connection re-establishes. If you see it persist for more than a few seconds, the dev server may have crashed or the port is in use.
+
+**What to do if the badge gets stuck:**
+
+1. Check the terminal for errors. A port conflict surfaces as [`EXT_HMR_PORT_IN_USE`](/reference/errors/EXT_HMR_PORT_IN_USE/).
+2. Restart with a different port: `extforge dev --port 35730`.
+3. If the badge never appeared and you want to verify HMR is working, reload the extension page manually — the badge will re-appear briefly during the handshake.
+
+The badge is injected only in dev builds. Production builds strip all HMR client code.
+
+---
+
+## CLI flags for dev
+
+### `--once` — single build for CI smoke tests
+
+```sh
+extforge dev --once
+```
+
+Runs a single development build and exits. Useful in CI to verify the project compiles in dev mode without starting the watcher. Exits `0` on success, `1` on build errors.
+
+### `--verbose` — per-change file detail
+
+```sh
+extforge dev --verbose
+```
+
+Logs every file change ExtForge detects, the strategy chosen, and the reload message sent. Produces a lot of output; use for debugging why a specific file is or isn't triggering the expected reload.
+
+### `--quiet` — silence non-warnings
+
+```sh
+extforge dev --quiet
+```
+
+Suppresses info-level messages. Warnings and errors still print. Useful if you're running the dev server in a background terminal and don't want the noise.
+
+### `--json` — machine-readable output
+
+```sh
+extforge dev --json
+```
+
+Emits newline-delimited JSON objects instead of human-readable log lines. Each object has `level`, `message`, and optionally `data`. Combine with `--quiet` to emit only warnings and errors as JSON.
+
+```json
+{"level":"info","message":"HMR server started on ws://localhost:35729"}
+{"level":"info","message":"Change detected","data":{"file":"src/content/index.ts","strategy":"tab-reload-targeted"}}
+```
+
+### `--port` — HMR WebSocket port
+
+```sh
+extforge dev --port 35730
+```
+
+Default is `35729`. If the port is in use, ExtForge will error with [`EXT_HMR_PORT_IN_USE`](/reference/errors/EXT_HMR_PORT_IN_USE/) rather than auto-incrementing, so CI failures are explicit.
+
+### `--browser` — target browser
+
+```sh
+extforge dev --browser firefox
+```
+
+Default is `chrome`. Must be one of the browsers declared in `extforge.config.ts`. Building for a browser not in the `browsers` list will error.
+
+---
+
+## Compat suppression in source files
+
+When cross-browser compat checking is enabled, a file can suppress a specific line with:
+
+```ts
+// extforge-ignore-compat: Chrome-only API, Firefox uses sidebar fallback
+chrome.sidePanel.open({ tabId });
+```
+
+The comment must be on the line immediately before the offending call (blank lines and other comments between the suppression and the call are skipped). A bare `// extforge-ignore-compat` without a reason string is ignored — the reason is required.
+
+This suppression applies to compat warnings only, not to HMR behavior. See the [cross-browser guide](/guides/cross-browser/) for the full compat checker documentation.
+
+---
+
+## Troubleshooting
+
+### Port in use
+
+```
+EXT_HMR_PORT_IN_USE: port 35729 is already bound
+```
+
+Another process is using the HMR port. Either stop that process or pass `--port &lt;other&gt;`. See [`EXT_HMR_PORT_IN_USE`](/reference/errors/EXT_HMR_PORT_IN_USE/) for the full error reference.
+
+You can also set a permanent port in config:
+
+```ts
+export default defineConfig({
+  dev: { port: 35730 },
+});
+```
+
+### Stale clients after manifest edits
+
+When `extforge.config.ts` changes, the manifest is regenerated and a full extension reload fires. Content-script HMR clients are reinitialised as part of that reload. If a client appears stale (badge persisting, no reloads firing), manually reload the extension in `chrome://extensions` — then the new client will connect.
+
+### Content-script ID drift on manifest edits
+
+Each content script in the manifest is assigned a stable ID based on its declaration order. If you add, remove, or reorder `contentScripts` entries in config, the IDs can drift, causing the HMR server to send reload events to the wrong script. After any structural manifest change, do a manual extension reload once to resync.
+
+<Aside type="caution">
+HMR client code is injected into each entry bundle during dev. It communicates on the WebSocket port. Make sure `ws://localhost:PORT` is not blocked by a firewall or proxy in your dev environment.
+</Aside>

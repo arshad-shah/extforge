@@ -1,6 +1,357 @@
 ---
-title: configuration
-description: TBD — replaced in Task 5/6/7
+title: Configuration
+description: Complete reference for extforge.config.ts — defineConfig, manifest, browsers, build, dev, and plugins.
 ---
 
-Coming soon.
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+ExtForge reads its config from `extforge.config.ts` (or `.js` / `.mjs`) in the project root. The file must export a default config object — use `defineConfig` for TypeScript inference.
+
+```ts
+// extforge.config.ts
+import { defineConfig } from 'extforge';
+
+export default defineConfig({
+  browsers: ['chrome', 'firefox'],
+  framework: 'react',
+  css: 'tailwind',
+  manifest: {
+    name: 'My Extension',
+    version: '1.0.0',
+    // ...
+  },
+});
+```
+
+`defineConfig` is an identity function — it returns the object unchanged but gives your editor full TypeScript autocompletion.
+
+---
+
+## `framework`
+
+**Type:** `'react' | 'vue' | 'svelte' | 'solid' | 'vanilla'`  
+**Default:** `'react'`
+
+Setting `framework` drives automatic plugin injection. When `framework: 'react'`, ExtForge injects `presetReact()` before any user plugins so all entry points get the correct JSX transform without extra configuration.
+
+```ts
+export default defineConfig({
+  framework: 'react', // presetReact() injected automatically
+});
+```
+
+See [preset-react](/reference/plugins/preset-react/) for the options you can pass if you need to override the defaults (e.g. Preact or classic runtime).
+
+---
+
+## `css`
+
+**Type:** `'tailwind' | 'vanilla' | 'none'`  
+**Default:** `'tailwind'`
+
+`css: 'tailwind'` scaffolds a `postcss.config.js` and `tailwind.config.js` and assumes Tailwind is installed. It does not inject a Tailwind plugin itself — PostCSS handles that at esbuild's CSS entry point. Set `'vanilla'` to opt out of any preset but keep the CSS pipeline. Set `'none'` to disable CSS processing entirely.
+
+---
+
+## `browsers`
+
+**Type:** `Array<'chrome' | 'firefox' | 'edge' | 'safari'>`  
+**Default:** `['chrome', 'firefox']`
+
+Declares which browsers to build for. `extforge build` iterates this list and produces a separate output under `dist/<browser>/`. `extforge dev` defaults to `chrome`; pass `--browser firefox` to target a different browser in dev mode.
+
+```ts
+export default defineConfig({
+  browsers: ['chrome', 'firefox', 'edge', 'safari'],
+});
+```
+
+Each browser gets its own manifest generated from the shared `manifest` config plus any per-browser overrides. Duplicate entries are deduplicated automatically.
+
+See [`/reference/config/browsers/`](/reference/config/browsers/) for the full spec.
+
+---
+
+## `manifest`
+
+The `manifest` object maps to the Manifest V3 fields ExtForge understands. ExtForge generates the final `manifest.json` from this config — you never write `manifest.json` by hand.
+
+See [`/reference/config/manifest/`](/reference/config/manifest/) for the complete field list.
+
+### `name` and `version`
+
+```ts
+manifest: {
+  name: 'My Extension',
+  version: '1.0.0',
+  description: 'Does something useful.',
+}
+```
+
+`version` must be a dot-separated integer string (e.g. `1.2.3` or `1.2.3.4` for Chrome's four-part format).
+
+### `action` (popup)
+
+```ts
+manifest: {
+  action: {
+    defaultPopup: 'src/ui/popup/popup.html',
+    defaultTitle: 'My Extension',
+  },
+}
+```
+
+### `sidePanel`
+
+```ts
+manifest: {
+  sidePanel: {
+    defaultPath: 'src/ui/sidepanel/sidepanel.html',
+  },
+}
+```
+
+`sidePanel` is Chrome/Edge-only. If you list Firefox in `browsers`, ExtForge omits the `side_panel` key from that browser's manifest automatically. Use a per-browser override if you want a fallback popup on Firefox.
+
+### `optionsPage`
+
+```ts
+manifest: {
+  optionsPage: 'src/ui/options/options.html',
+}
+```
+
+### `background.serviceWorker`
+
+```ts
+manifest: {
+  background: {
+    entrypoint: 'src/background/index.ts',
+  },
+}
+```
+
+ExtForge emits `service_worker` on Chrome/Edge/Safari and `scripts` on Firefox (MV3). You do not need a per-browser override for this field — the manifest generator handles it using the browser capability matrix. See the [cross-browser guide](/guides/cross-browser/) for details.
+
+### `contentScripts`
+
+An array of content script declarations. Each entry maps to a `content_scripts` object in the generated manifest.
+
+```ts
+manifest: {
+  contentScripts: [
+    {
+      matches: ['https://*.example.com/*'],
+      js: ['src/content/index.ts'],
+      css: ['src/content/style.css'],
+      runAt: 'document_idle',
+    },
+  ],
+}
+```
+
+`runAt` accepts `'document_start'`, `'document_end'`, or `'document_idle'`.
+
+### `webAccessibleResources`
+
+```ts
+manifest: {
+  webAccessibleResources: [
+    {
+      resources: ['assets/*'],
+      matches: ['https://*.example.com/*'],
+    },
+  ],
+}
+```
+
+### `permissions`
+
+```ts
+manifest: {
+  permissions: {
+    required: ['storage', 'activeTab', 'scripting'],
+    optional: ['tabs'],
+    host: ['https://*.example.com/*'],
+  },
+}
+```
+
+`required` permissions are listed under `permissions` in the manifest. `optional` maps to `optional_permissions`. `host` patterns go under `host_permissions` (MV3).
+
+The full permission list is in [`/reference/config/manifest/`](/reference/config/manifest/).
+
+### Per-browser manifest overrides
+
+Use `manifest.browserOverrides` to merge browser-specific fields into the generated manifest. Overrides are shallow-merged over the base manifest.
+
+```ts
+manifest: {
+  background: {
+    entrypoint: 'src/background/index.ts',
+  },
+  browserOverrides: {
+    firefox: {
+      firefoxId: 'my-extension@example.com',
+    },
+    safari: {
+      // Safari doesn't support sidePanel; nothing to override here —
+      // ExtForge omits it automatically.
+    },
+  },
+}
+```
+
+See [cross-browser guide](/guides/cross-browser/) for common override patterns.
+
+---
+
+## `build`
+
+```ts
+build: {
+  outDir: 'dist',       // output root; per-browser dirs land under here
+  srcDir: 'src',        // source root for resolving relative paths
+  sourcemap: false,     // generate source maps (true in dev)
+  esbuild: {            // pass-through to esbuild BuildOptions
+    target: 'es2020',
+    define: { 'process.env.NODE_ENV': '"production"' },
+  },
+}
+```
+
+`esbuild` is a free-form object that merges into every esbuild invocation. Use it for `define`, `target`, `external`, `minify`, or any other esbuild option. Plugin hooks can override per-entry options via `onBuildEntry`.
+
+See [`/reference/config/build/`](/reference/config/build/) for all fields.
+
+---
+
+## `dev`
+
+```ts
+dev: {
+  port: 35729,          // HMR WebSocket port
+  host: 'localhost',    // HMR host
+  debounce: 150,        // file-change debounce in ms
+  open: false,          // open browser on start
+  strictCompat: false,  // treat compat warnings as errors in dev
+}
+```
+
+`debounce` controls how long ExtForge waits after the last file change before triggering a reload. Raising it can help if file writes trigger multiple events in quick succession.
+
+See [`/reference/config/dev/`](/reference/config/dev/) and the [HMR guide](/guides/hmr/).
+
+---
+
+## `plugins`
+
+```ts
+plugins: [
+  myPlugin(),
+  anotherPlugin({ option: true }),
+]
+```
+
+User plugins are appended after built-in plugins. The `framework` preset (`presetReact()`, etc.) always runs first.
+
+See the [plugins guide](/guides/plugins/) for writing plugins, or [`/reference/plugins/api/`](/reference/plugins/api/) for the hook reference.
+
+---
+
+## Worked example
+
+A config for an extension with a popup, a content script, a side panel, and two browser targets:
+
+```ts
+// extforge.config.ts
+import { defineConfig } from 'extforge';
+
+export default defineConfig({
+  browsers: ['chrome', 'firefox'],
+  framework: 'react',
+  css: 'tailwind',
+
+  manifest: {
+    name: 'Page Annotator',
+    version: '1.0.0',
+    description: 'Annotate any web page.',
+
+    action: {
+      defaultPopup: 'src/ui/popup/popup.html',
+      defaultTitle: 'Page Annotator',
+    },
+
+    sidePanel: {
+      defaultPath: 'src/ui/sidepanel/sidepanel.html',
+    },
+
+    background: {
+      entrypoint: 'src/background/index.ts',
+    },
+
+    contentScripts: [
+      {
+        matches: ['<all_urls>'],
+        js: ['src/content/index.ts'],
+        css: ['src/content/style.css'],
+        runAt: 'document_idle',
+      },
+    ],
+
+    permissions: {
+      required: ['storage', 'activeTab', 'scripting', 'sidePanel'],
+      optional: ['tabs'],
+      host: [],
+    },
+
+    webAccessibleResources: [
+      {
+        resources: ['assets/*'],
+        matches: ['<all_urls>'],
+      },
+    ],
+
+    browserOverrides: {
+      firefox: {
+        // Firefox does not support sidePanel; provide a fallback action popup
+        action: {
+          defaultPopup: 'src/ui/sidepanel/sidepanel.html',
+          defaultTitle: 'Page Annotator',
+        },
+        firefoxId: 'page-annotator@example.com',
+      },
+    },
+  },
+
+  build: {
+    outDir: 'dist',
+    srcDir: 'src',
+    sourcemap: false,
+    esbuild: {
+      target: 'es2020',
+    },
+  },
+
+  dev: {
+    port: 35729,
+    debounce: 150,
+  },
+});
+```
+
+<Aside type="tip">
+Run `extforge validate` after changing your config to catch schema errors before the next build.
+</Aside>
+
+---
+
+## Config resolution order
+
+1. `extforge.config.ts` (or `.js` / `.mjs`) is loaded from the project root.
+2. Default values fill in missing fields.
+3. The Zod schema validates the result; unknown keys are passed through (`passthrough()`).
+4. Built-in plugins (`presetReact()`, etc.) are prepended to the plugin list.
+5. `onConfigResolved` hooks from all plugins fire.
+
+If the config file is missing, `loadExtForgeConfig` falls back to the defaults and logs a warning. It does not error unless `EXTFORGE_STRICT_CONFIG=1` is set.

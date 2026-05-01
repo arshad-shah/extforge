@@ -1,6 +1,202 @@
 ---
-title: cross-browser
-description: TBD — replaced in Task 5/6/7
+title: Cross-browser builds
+description: Declaring browser targets, per-browser manifest overrides, the compat checker, and common API pitfalls.
 ---
 
-Coming soon.
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+ExtForge produces a separate output directory for each declared browser. The same source compiles to `dist/chrome/`, `dist/firefox/`, `dist/edge/`, and `dist/safari/` — each with its own `manifest.json` generated from your shared config plus per-browser overrides.
+
+---
+
+## Declaring browsers
+
+In `extforge.config.ts`:
+
+```ts
+import { defineConfig } from 'extforge';
+
+export default defineConfig({
+  browsers: ['chrome', 'firefox', 'edge', 'safari'],
+});
+```
+
+`extforge build` iterates this list. `extforge dev` defaults to `chrome`; use `--browser firefox` to run the watcher against a different target.
+
+Valid values: `chrome`, `firefox`, `edge`, `safari`. Duplicates are deduplicated.
+
+---
+
+## Per-browser manifest overrides
+
+Use `manifest.browserOverrides` to merge browser-specific values into the generated manifest. Overrides are shallow-merged over the base manifest fields.
+
+```ts
+manifest: {
+  background: {
+    entrypoint: 'src/background/index.ts',
+  },
+  browserOverrides: {
+    firefox: {
+      firefoxId: 'my-extension@example.com',
+    },
+    safari: {
+      // safari-specific keys here
+    },
+  },
+}
+```
+
+### Why Firefox uses `scripts` and Chrome uses `service_worker`
+
+Manifest V3 specifies `background.service_worker` for Chrome. Firefox MV3 (109+) supports both `background.service_worker` and `background.scripts`. ExtForge writes the correct key per-browser automatically:
+
+| Browser | Background manifest key |
+|---|---|
+| Chrome | `background: { service_worker: "..." }` |
+| Firefox | `background: { scripts: ["..."] }` |
+| Edge | `background: { service_worker: "..." }` |
+| Safari | `background: { service_worker: "..." }` |
+
+You declare a single `background.entrypoint` in config. The manifest generator reads the browser capability matrix and outputs the appropriate key. No override needed.
+
+If you need Firefox to use `service_worker` explicitly (not recommended), you can override via `browserOverrides.firefox.background`.
+
+---
+
+## The compat checker
+
+ExtForge scans your entry-point source files for `chrome.*` and `browser.*` API calls and cross-references them against a committed slice of MDN browser-compat-data (at `src/core/compat/data.json`). It reports which APIs are unsupported by which of your declared browsers.
+
+By default, compat issues are warnings. Pass `--strict` to the `build` command to treat them as errors:
+
+```sh
+extforge build --strict
+```
+
+In `extforge.config.ts` you can make strict mode permanent for dev:
+
+```ts
+export default defineConfig({
+  dev: { strictCompat: true },
+});
+```
+
+### Per-line suppression
+
+Suppress a single compat warning with a comment immediately above the call:
+
+```ts
+// extforge-ignore-compat: Chrome-only; Firefox uses the popup fallback
+chrome.sidePanel.open({ tabId });
+```
+
+The reason string (after the colon) is required. A bare `// extforge-ignore-compat` without a reason is rejected — the checker logs a warning and does not suppress.
+
+The suppression applies to the next non-blank, non-comment line. Blank lines and other comments between the suppression and the call are skipped.
+
+---
+
+## Common pitfalls
+
+### `chrome.tabGroups.*` — not on Safari
+
+`chrome.tabGroups` is Chrome/Edge only. Safari does not implement it.
+
+```ts
+// Wrong — breaks on Safari
+chrome.tabGroups.query({}, (groups) => { /* ... */ });
+
+// Right — guard or drop Safari from browsers[]
+if (typeof chrome.tabGroups !== 'undefined') {
+  chrome.tabGroups.query({}, (groups) => { /* ... */ });
+}
+```
+
+Or, if you need tab groups, drop Safari from your `browsers` list:
+
+```ts
+export default defineConfig({
+  browsers: ['chrome', 'edge'], // no safari
+});
+```
+
+### `chrome.sidePanel.*` — Chrome and Edge only
+
+`chrome.sidePanel` is not available on Firefox or Safari. Provide a fallback popup for those browsers.
+
+```ts
+// extforge-ignore-compat: Chrome/Edge only; Firefox gets a popup via browserOverrides
+chrome.sidePanel.open({ tabId: tab.id! });
+```
+
+In config, provide a Firefox fallback:
+
+```ts
+manifest: {
+  sidePanel: {
+    defaultPath: 'src/ui/sidepanel/sidepanel.html',
+  },
+  browserOverrides: {
+    firefox: {
+      // Firefox sees a popup instead
+      action: {
+        defaultPopup: 'src/ui/sidepanel/sidepanel.html',
+        defaultTitle: 'Open panel',
+      },
+    },
+  },
+}
+```
+
+### `chrome.declarativeNetRequest.*` — partial on Firefox and Safari
+
+`declarativeNetRequest` is in MV3 for Chrome, Edge, and Firefox, but the exact API surface differs. Safari support is partial. Check `src/core/compat/data.json` for the specific method coverage. Gate on `typeof chrome.declarativeNetRequest !== 'undefined'` or audit with `extforge build --strict`.
+
+### Background: service worker vs. scripts
+
+As noted above, ExtForge handles the `service_worker` / `scripts` split automatically. You only need a `browserOverrides` entry if you want to supply different background entry points per-browser, not just different manifest keys.
+
+---
+
+## Loading per-browser builds
+
+After `extforge build`, the output structure is:
+
+```
+dist/
+  chrome/
+    manifest.json
+    background.js
+    popup.html
+    ...
+  firefox/
+    manifest.json
+    background.js
+    popup.html
+    ...
+  edge/
+    manifest.json
+    ...
+  safari/
+    manifest.json
+    ...
+```
+
+Load the extension from `dist/chrome/` in Chrome's extension manager, `dist/firefox/` in Firefox, and so on.
+
+In CI, build all browsers in one command:
+
+```sh
+extforge build
+# or build a single browser:
+extforge build --browser firefox
+```
+
+See [deployment](/guides/deployment/) for packaging and store submission.
+
+<Aside type="note">
+The compat scan covers entry-point source files. Transitive imports are not yet scanned (planned for v0.4). For now, consolidate API calls in entry-point files or manually suppress with `// extforge-ignore-compat`.
+</Aside>
+
+See [`EXT_COMPAT_UNSUPPORTED`](/reference/errors/EXT_COMPAT_UNSUPPORTED/) for the error reference when strict mode is on.
