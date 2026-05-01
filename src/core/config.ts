@@ -80,8 +80,12 @@ export async function loadExtForgeConfig(
       dist: resolve(cwd, merged.build?.outDir ?? 'dist'),
     },
     logger: createLogger({ scope: 'plugins' }),
-    addEntry: () => {},   // wired later in builder Task 6
-    emitFile: () => {},   // wired later in builder Task 6
+    addEntry: () => {
+      throw new Error('PluginContext.addEntry is not yet implemented (planned for v0.4); use onBuildEntry to modify existing entries.');
+    },
+    emitFile: () => {
+      throw new Error('PluginContext.emitFile is not yet implemented (planned for v0.4).');
+    },
   });
   await runner.setup();
   await runner.fireConfigResolved(merged);
