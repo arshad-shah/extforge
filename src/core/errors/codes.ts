@@ -13,7 +13,7 @@ export const ERROR_CODES = {
 
 export type ErrorCode = keyof typeof ERROR_CODES;
 
-export const DOCS_BASE = 'https://extforge.dev/errors';
+export const DOCS_BASE = 'https://extforge.arshadshah.com/errors';
 
 export function docsUrlFor(code: ErrorCode): string {
   return `${DOCS_BASE}/${code}`;
