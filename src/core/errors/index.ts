@@ -21,7 +21,7 @@ export class ExtForgeError extends Error {
   readonly docsUrl?: string;
 
   constructor(init: ExtForgeErrorInit) {
-    super(init.message);
+    super(init.message, init.cause !== undefined ? { cause: init.cause } : undefined);
     this.name = 'ExtForgeError';
     this.code = init.code;
     this.file = init.file;
@@ -29,10 +29,9 @@ export class ExtForgeError extends Error {
     this.column = init.column;
     this.hint = init.hint;
     this.docsUrl = init.docsUrl ?? docsUrlFor(init.code);
-    if (init.cause !== undefined) (this as any).cause = init.cause;
   }
 }
 
 export function isExtForgeError(err: unknown): err is ExtForgeError {
-  return err instanceof Error && (err as any).name === 'ExtForgeError';
+  return err instanceof Error && err.name === 'ExtForgeError';
 }
