@@ -40,15 +40,21 @@ const main = defineCommand({
         browser: { type: 'string', description: 'Target browser', default: 'chrome' },
         port:    { type: 'string', description: 'HMR WebSocket port', default: '35729' },
         host:    { type: 'string', description: 'HMR host', default: 'localhost' },
+        quiet:   { type: 'boolean', description: 'Suppress info-level output', default: false },
+        json:    { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
       },
       async run({ args }) {
         const { createHMRServer } = await import('../core/hmr/index.js');
         const { loadExtForgeConfig } = await import('../core/config.js');
-        const { createLogger, LogLevel } = await import('../core/logger/index.js');
+        const { createLogger, LogLevel, jsonTransport } = await import('../core/logger/index.js');
         const { validateProject } = await import('../core/validator/index.js');
         const { ALL_BROWSERS } = await import('../core/manifest/index.js');
 
-        const log = createLogger({ scope: 'extforge', level: LogLevel.Debug });
+        const log = createLogger({
+          scope: 'extforge',
+          level: args.quiet ? LogLevel.Warn : LogLevel.Debug,
+          transports: args.json ? [jsonTransport()] : undefined,
+        });
         const root = process.cwd();
         const validation = validateProject(root, log.child('validate'));
         if (!validation.valid) { log.error('Fix project errors first'); process.exit(1); }
@@ -79,14 +85,20 @@ const main = defineCommand({
         dev:       { type: 'boolean', description: 'Development build', default: false },
         sourcemap: { type: 'boolean', description: 'Include source maps', default: false },
         strict:    { type: 'boolean', description: 'Treat compat warnings as errors', default: false },
+        quiet:     { type: 'boolean', description: 'Suppress info-level output', default: false },
+        json:      { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
       },
       async run({ args }) {
         const { buildAll, build } = await import('../core/builder/index.js');
         const { loadExtForgeConfig } = await import('../core/config.js');
-        const { createLogger } = await import('../core/logger/index.js');
+        const { createLogger, LogLevel, jsonTransport } = await import('../core/logger/index.js');
         const { ALL_BROWSERS } = await import('../core/manifest/index.js');
 
-        const log = createLogger({ scope: 'extforge' });
+        const log = createLogger({
+          scope: 'extforge',
+          level: args.quiet ? LogLevel.Warn : LogLevel.Info,
+          transports: args.json ? [jsonTransport()] : undefined,
+        });
         const config = await loadExtForgeConfig(process.cwd());
         const isDev = args.dev as boolean;
         const sm = (args.sourcemap as boolean) || isDev;
@@ -105,12 +117,20 @@ const main = defineCommand({
 
     validate: defineCommand({
       meta: { name: 'validate', description: 'Validate project structure and config' },
-      async run() {
+      args: {
+        quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
+        json:  { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
+      },
+      async run({ args }) {
         const { validateProject } = await import('../core/validator/index.js');
         const { loadExtForgeConfig } = await import('../core/config.js');
         const { validateManifestConfig } = await import('../core/manifest/index.js');
-        const { createLogger } = await import('../core/logger/index.js');
-        const log = createLogger({ scope: 'extforge' });
+        const { createLogger, LogLevel, jsonTransport } = await import('../core/logger/index.js');
+        const log = createLogger({
+          scope: 'extforge',
+          level: args.quiet ? LogLevel.Warn : LogLevel.Info,
+          transports: args.json ? [jsonTransport()] : undefined,
+        });
 
         const result = validateProject(process.cwd(), log);
         try {
@@ -130,7 +150,8 @@ const main = defineCommand({
     doctor: defineCommand({
       meta: { name: 'doctor', description: 'Diagnose project & environment' },
       args: {
-        json: { type: 'boolean', description: 'Emit JSON', default: false },
+        json:  { type: 'boolean', description: 'Emit JSON', default: false },
+        quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
       },
       async run({ args }) {
         const { runDoctor } = await import('../core/doctor/index.js');
@@ -143,7 +164,7 @@ const main = defineCommand({
         const { browserOverridesCheck } = await import('../core/doctor/checks/browser-overrides.js');
         const { scriptsPresentCheck } = await import('../core/doctor/checks/scripts-present.js');
         const { compatCheck } = await import('../core/doctor/checks/compat.js');
-        const { createLogger } = await import('../core/logger/index.js');
+        const { createLogger, LogLevel } = await import('../core/logger/index.js');
 
         const checks = [
           nodeVersionCheck, configValidCheck, iconsPresentCheck, portFreeCheck,
@@ -156,7 +177,7 @@ const main = defineCommand({
           process.stdout.write(JSON.stringify({ v: 1, ...report }, null, 2) + '\n');
           process.exit(report.exitCode);
         }
-        const log = createLogger({ scope: 'doctor' });
+        const log = createLogger({ scope: 'doctor', level: args.quiet ? LogLevel.Warn : LogLevel.Info });
         for (const r of report.results) {
           const fn = r.status === 'pass' ? log.success.bind(log)
                   : r.status === 'warn' ? log.warn.bind(log)
