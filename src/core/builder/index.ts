@@ -13,6 +13,7 @@ import { createLogger, formatDuration, formatFileSize, type Logger } from '../lo
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
 import { validateProject } from '../validator/index.js';
 import type { ExtForgeConfig } from '../config.js';
+import { ExtForgeError } from '../errors/index.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
 
@@ -201,6 +202,32 @@ function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<strin
   };
 }
 
+// ─── Error wrapping ──────────────────────────────────────────────────────────
+
+type EsbuildErrorLike = {
+  errors?: Array<{
+    text?: string;
+    location?: { file?: string; line?: number; column?: number } | null;
+  }>;
+};
+
+function throwAsBuildError(err: unknown, prefix?: string): never {
+  const e = err as EsbuildErrorLike;
+  if (e && Array.isArray(e.errors) && e.errors.length > 0) {
+    const e0 = e.errors[0]!;
+    throw new ExtForgeError({
+      code: 'EXT_BUILD_FAILED',
+      message: prefix ? `${prefix}: ${e0.text ?? 'Build failed'}` : (e0.text ?? 'Build failed'),
+      file: e0.location?.file ?? undefined,
+      line: e0.location?.line ?? undefined,
+      column: e0.location?.column ?? undefined,
+      hint: 'Fix the syntax error and re-run.',
+      cause: err,
+    });
+  }
+  throw err;
+}
+
 // ─── Build ───────────────────────────────────────────────────────────────────
 
 export async function build(
@@ -228,11 +255,7 @@ export async function build(
   let result: esbuild.BuildResult | undefined;
   if (Object.keys(esmEntries).length > 0) {
     try { result = await esbuild.build(makeBuildConfig(root, { ...opts, outDir }, esmEntries)); }
-    catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(msg); log.error(`Build failed: ${msg}`);
-      return { browser: opts.browser, outDir, duration: performance.now() - start, files: [], errors };
-    }
+    catch (err) { throwAsBuildError(err); }
   }
 
   // ─── IIFE pass (content + injected) ────────────────────────────────────────
@@ -245,11 +268,7 @@ export async function build(
         format: 'iife',
         splitting: false,
       });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      errors.push(`IIFE build failed: ${msg}`);
-      log.error(`IIFE build failed: ${msg}`);
-    }
+    } catch (err) { throwAsBuildError(err, 'IIFE build failed'); }
   }
 
   await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log);
