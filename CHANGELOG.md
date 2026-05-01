@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (breaking — pre-1.0)
+- Aspirational support for Vue, Svelte, and Solid frameworks. Only React and vanilla TypeScript are actually supported today; the schema and scaffold no longer claim Vue/Svelte/Solid. They will return as separate plugin presets when properly implemented.
+
+### Added
+- Vanilla popup scaffolding now writes a working `src/ui/popup/index.ts` (previously only the HTML was written; users had to fill in the script themselves).
+
 ### Added
 - `ExtForgeError` class with codes (`EXT_*` registry) and docs URLs; CLI now renders code, file:line:column, hint, and docs link.
 - Zod-based config validation with pretty error formatting and field-level suggestions.
