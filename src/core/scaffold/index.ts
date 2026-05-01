@@ -38,7 +38,7 @@ export interface ScaffoldAnswers {
 
 async function gatherAnswers(options: ScaffoldOptions): Promise<ScaffoldAnswers | null> {
   console.log('');
-  console.log(pc.bold(pc.cyan('  ⚡ ExtForge — Create a new browser extension')));
+  console.log('  ' + pc.bold(pc.magenta('extforge')) + pc.dim(' › ') + pc.bold('create a new browser extension'));
   console.log(pc.dim('  Answer a few questions to scaffold your project.\n'));
 
   const response = await prompts([

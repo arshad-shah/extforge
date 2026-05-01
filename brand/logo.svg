@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 32 32" fill="none" role="img" aria-label="ExtForge logo">
+  <title>ExtForge</title>
+  <rect x="4" y="4" width="6" height="24" rx="1.5" fill="#5B21B6"/>
+  <rect x="10" y="4" width="14" height="6" rx="1.5" fill="#5B21B6"/>
+  <rect x="10" y="22" width="14" height="6" rx="1.5" fill="#5B21B6"/>
+  <path d="M10 13 H22 L28 16 L22 19 H10 Z" fill="#FBBF24"/>
+</svg>

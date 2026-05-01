@@ -1,10 +1,22 @@
-# ExtForge
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/logo-wordmark-dark.svg">
+    <img src="brand/logo-wordmark.svg" alt="ExtForge" width="320">
+  </picture>
+</p>
 
-> ⚡ Lightning-fast browser extension build system with first-class HMR, interactive scaffolding, and cross-browser support.
+<p align="center">
+  <em>The build system for Manifest V3 browser extensions.</em>
+</p>
 
-[![npm version](https://img.shields.io/npm/v/extforge.svg)](https://www.npmjs.com/package/extforge)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Node](https://img.shields.io/node/v/extforge)](https://nodejs.org)
+<p align="center">
+  <a href="https://www.npmjs.com/package/extforge"><img src="https://img.shields.io/npm/v/extforge.svg?color=5B21B6" alt="npm version"></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-FBBF24.svg" alt="License: MIT"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/extforge?color=0F172A" alt="Node"></a>
+  <a href="https://extforge.arshadshah.com"><img src="https://img.shields.io/badge/docs-extforge.arshadshah.com-5B21B6" alt="Docs"></a>
+</p>
+
+---
 
 ExtForge is a zero-config build system for Manifest V3 browser extensions. It scaffolds new projects, runs an esbuild-powered dev server with hot module reloading, generates per-browser manifests, and packages your extension for the Chrome, Firefox, Safari, and Edge stores — all from a single CLI.
 

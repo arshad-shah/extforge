@@ -13,7 +13,7 @@ import { withErrorHandler } from './error-handler.js';
 const version = getVersion();
 
 const main = defineCommand({
-  meta: { name: 'extforge', version, description: '⚡ Lightning-fast browser extension build system' },
+  meta: { name: 'extforge', version, description: 'The build system for Manifest V3 browser extensions' },
   subCommands: {
 
     init: defineCommand({
