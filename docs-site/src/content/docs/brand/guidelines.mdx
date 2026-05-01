@@ -1,6 +1,155 @@
 ---
-title: Guidelines
-description: Brand guidelines — replaced in Task 7
+title: Brand guidelines
+description: ExtForge visual identity — logo, color palette, typography, and usage rules.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+This page covers the public brand rules for ExtForge. Use it if you're writing about ExtForge, creating integrations, or building plugins that appear alongside ExtForge in marketplaces and documentation.
+
+---
+
+## Logo
+
+The ExtForge mark is a geometric "Ef" — three violet bars forming the letter shape, with an amber chevron in the middle row. The chevron reads as both a forward arrow (`>`) and a forge spark.
+
+### Primary mark (light background)
+
+![ExtForge logo](/logo.svg)
+
+Use on white or light-gray surfaces. The mark is `#5B21B6` (violet) with `#FBBF24` (amber) for the chevron.
+
+### Wordmark (light background)
+
+![ExtForge wordmark](/logo-wordmark.svg)
+
+The mark paired with the wordmark in Inter Bold, lowercase, with `letter-spacing: -0.02em`.
+
+### Wordmark (dark background)
+
+![ExtForge wordmark dark](/logo-wordmark-dark.svg)
+
+For dark surfaces. The mark uses `#A78BFA` (violet-soft); the wordmark uses `#F8FAFC` (ink-dark primary).
+
+---
+
+## Wordmark casing rules
+
+| Form | When to use |
+|---|---|
+| `extforge` | Package name, CLI command, imports, npm, shell snippets, and the mark itself |
+| `ExtForge` | Product name in prose: "ExtForge builds Manifest V3 extensions." |
+| `EXTFORGE` | Never |
+
+The wordmark always renders lowercase, consistent with peers like Vite, Bun, esbuild, and swc.
+
+---
+
+## Color palette
+
+Sourced from `brand/tokens.json`.
+
+### Brand colors
+
+| Token | Hex | Use |
+|---|---|---|
+| `violet` | `#5B21B6` | Mark on light backgrounds; bold/active color; primary buttons |
+| `violet-soft` | `#A78BFA` | Mark on dark backgrounds; links on dark |
+| `amber` | `#FBBF24` | The chevron; focus ring; accent highlights — use sparingly |
+| `amber-deep` | `#D97706` | Pressed / active amber state |
+
+### Ink (text)
+
+| Token | Hex | Use |
+|---|---|---|
+| `ink.primary` | `#0F172A` | Body text on light bg |
+| `ink.secondary` | `#475569` | Secondary/supporting text |
+| `ink.muted` | `#94A3B8` | Placeholder, disabled |
+
+### Surface (light mode)
+
+| Token | Hex | Use |
+|---|---|---|
+| `surface.page` | `#FFFFFF` | Page background |
+| `surface.subtle` | `#F8FAFC` | Sidebar, code block backgrounds |
+| `surface.raised` | `#F1F5F9` | Cards, tooltips |
+| `surface.border` | `#E2E8F0` | Dividers, input borders |
+
+### Dark mode equivalents
+
+| Token | Hex |
+|---|---|
+| `surface-dark.page` | `#0B0F1A` |
+| `surface-dark.subtle` | `#0F172A` |
+| `surface-dark.raised` | `#1E293B` |
+| `surface-dark.border` | `#334155` |
+| `ink-dark.primary` | `#F8FAFC` |
+| `ink-dark.secondary` | `#CBD5E1` |
+| `ink-dark.muted` | `#64748B` |
+
+### Semantic colors
+
+| Token | Hex | Use |
+|---|---|---|
+| `semantic.success` | `#10B981` | Passing checks, success states |
+| `semantic.warning` | `#F59E0B` | Warnings (`⚠`) |
+| `semantic.error` | `#EF4444` | Errors (`✗`) |
+| `semantic.info` | `#3B82F6` | Info notes |
+
+---
+
+## Typography
+
+| Role | Family | Weight | Notes |
+|---|---|---|---|
+| Body / UI | Inter (variable) | 400, 500, 700 | System fallbacks: `ui-sans-serif, system-ui, -apple-system` |
+| Code / CLI | JetBrains Mono | 400 | System fallbacks: `ui-monospace, SFMono-Regular, Menlo, Consolas` |
+| Wordmark | Inter Bold | 700 | `letter-spacing: -0.02em`, always lowercase |
+
+Never load fonts from a CDN at runtime in the CLI or in compiled extensions. Font declarations belong in the docs site and marketing only.
+
+### Sizing scale
+
+| Token | Value |
+|---|---|
+| `font.size.xs` | 12px |
+| `font.size.sm` | 14px |
+| `font.size.base` | 16px |
+| `font.size.lg` | 18px |
+| `font.size.xl` | 24px |
+| `font.size.2xl` | 32px |
+| `font.size.3xl` | 48px |
+
+---
+
+## What to avoid
+
+**On the mark:**
+- Gradients. The mark is flat — a single violet plus amber. No linear or radial gradients.
+- Drop shadows. The mark sits on a surface; it does not float.
+- Pastel washes. Use the token colors at full saturation.
+- Recoloring. Do not change violet to another hue or amber to another color.
+
+**In copy:**
+- `EXTFORGE` — never.
+- Stock developer iconography: gears, angle brackets `&lt;/&gt;`, terminal cursors as standalone decorators.
+- Filler phrases: "zero configuration", "blazing fast", "developer experience". State facts instead.
+- Emojis outside the brand set (`✔ ✗ ⚠`). No 🎉, 🚀, 💪 in CLI output or error messages.
+
+**In layout:**
+- Placing the mark on a busy or low-contrast background without a clear safe zone (minimum padding = half the mark's height on all sides).
+
+---
+
+## Docs voice
+
+- Lead with the code example. Explanation supports the code.
+- Headings in sentence case: "Getting started", not "Getting Started".
+- Code blocks are always language-tagged.
+- Errors lead with the code: `EXT_CONFIG_INVALID`. Hints are one line.
+- Direct: say "ExtForge does X", not "ExtForge can optionally do X if you want."
+- Honest: when something is partial, say so. "Cross-browser compat scan covers entry files (transitive imports land in v0.4)."
+
+<Aside type="note">
+Questions about brand use not covered here? Open an issue at `github.com/arshadshah/extforge`.
+</Aside>

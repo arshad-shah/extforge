@@ -1,6 +1,314 @@
 ---
-title: commands
-description: TBD — replaced in Task 7
+title: CLI commands
+description: Reference for every extforge subcommand — synopsis, flags, and example output.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+ExtForge's CLI is invoked as `extforge <command>`. All commands read `extforge.config.ts` from the current working directory unless otherwise noted.
+
+---
+
+## `init`
+
+Create a new browser extension project from an interactive scaffold.
+
+### Synopsis
+
+```sh
+extforge init [name] [--defaults] [--dir <path>]
+```
+
+### Arguments and flags
+
+| Argument / Flag | Type | Description |
+|---|---|---|
+| `name` | positional (optional) | Project name. Prompted if not supplied. |
+| `--defaults` | boolean | Skip all prompts and use defaults (`react`, `tailwind`, `chrome firefox`, `popup background`). |
+| `--dir` | string | Target directory. Defaults to a subdirectory named after the project. |
+
+### What it does
+
+Runs the interactive scaffold:
+
+1. Prompts for project name, framework (`react`, `vue`, `svelte`, `solid`, `vanilla`), CSS (`tailwind`, `vanilla`, `none`), browsers, and features (`popup`, `background`, `content`, `options`, `sidepanel`).
+2. Creates the directory structure, `extforge.config.ts`, `package.json`, `tsconfig.json`, and source templates.
+3. Writes `.gitignore`, `vitest.config.ts`, and E2E fixtures.
+
+### Example output
+
+```
+✔ Project name: my-extension
+✔ Framework: react
+✔ CSS: tailwind
+✔ Browsers: chrome, firefox
+✔ Features: popup, background
+
+Scaffolding my-extension...
+✔ Created my-extension/extforge.config.ts
+✔ Created my-extension/src/ui/popup/popup.tsx
+✔ Created my-extension/src/background/index.ts
+✔ Done. cd my-extension && pnpm install && extforge dev
+```
+
+---
+
+## `dev`
+
+Start the development server with file watching and HMR.
+
+### Synopsis
+
+```sh
+extforge dev [--browser <name>] [--port <n>] [--host <host>]
+             [--quiet] [--verbose] [--json] [--once]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--browser` | `chrome` | Browser target for the dev build. |
+| `--port` | `35729` | HMR WebSocket port. |
+| `--host` | `localhost` | HMR host. |
+| `--quiet` | `false` | Suppress info-level output. |
+| `--verbose` | `false` | Log every file change and reload decision. |
+| `--json` | `false` | Emit newline-delimited JSON log lines. |
+| `--once` | `false` | Run a single dev build then exit (useful in CI). |
+
+### What it does
+
+1. Validates the project structure.
+2. Builds the extension in dev mode (source maps on, HMR client injected).
+3. Starts a WebSocket server on `--port`.
+4. Watches the `src/` directory for changes and applies the appropriate reload strategy per change type.
+
+Exits `0` on clean shutdown (SIGINT / SIGTERM). Exits `1` if `--once` is passed and the build has errors.
+
+See the [HMR guide](/guides/hmr/) for reload strategies and troubleshooting.
+
+---
+
+## `build`
+
+Build the extension for production.
+
+### Synopsis
+
+```sh
+extforge build [--browser <name>] [--dev] [--sourcemap] [--strict] [--quiet] [--json]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--browser` | (all from config) | Build a single browser instead of all. |
+| `--dev` | `false` | Development build (source maps on, HMR client injected). |
+| `--sourcemap` | `false` | Include source maps (implied by `--dev`). |
+| `--strict` | `false` | Treat cross-browser compat warnings as errors. |
+| `--quiet` | `false` | Suppress info-level output. |
+| `--json` | `false` | Emit newline-delimited JSON log lines. |
+
+### What it does
+
+Iterates `config.browsers` (or the single `--browser` target), runs esbuild on each entry point, generates `manifest.json` for each browser, and writes output to `dist/<browser>/`.
+
+Exits `0` on success, `1` if any browser's build has errors.
+
+### Example output
+
+```
+✔ chrome: 3 entries bundled in 412ms → dist/chrome/
+✔ firefox: 3 entries bundled in 398ms → dist/firefox/
+```
+
+---
+
+## `validate`
+
+Validate project structure and config without building.
+
+### Synopsis
+
+```sh
+extforge validate [--quiet] [--json]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--quiet` | `false` | Suppress info-level output. |
+| `--json` | `false` | Emit newline-delimited JSON log lines. |
+
+### What it does
+
+1. Checks that `extforge.config.ts` exists and passes the Zod schema.
+2. Validates the `manifest` config for required fields and known permission names.
+3. Checks that declared entry-point files exist.
+
+Exits `0` if all checks pass, `1` if any error is found. Warnings print but do not affect the exit code.
+
+### Example output
+
+```
+✔ Config valid
+✔ Manifest: name, version, permissions OK
+⚠ Manifest: sidePanel declared but sidePanel permission not in required[]
+✔ All checks passed
+```
+
+---
+
+## `doctor`
+
+Diagnose the project and environment, checking for common problems.
+
+### Synopsis
+
+```sh
+extforge doctor [--json] [--quiet]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--json` | `false` | Emit the full report as a JSON object to stdout. |
+| `--quiet` | `false` | Suppress info-level output. |
+
+### What it does
+
+Runs a fixed set of checks:
+
+| Check | What it tests |
+|---|---|
+| `node-version` | Node.js meets the minimum version requirement |
+| `config-valid` | Config file loads and validates without error |
+| `icons-present` | PNG icons exist at expected sizes (16, 32, 48, 128) |
+| `port-free` | HMR port (`dev.port`) is not already bound |
+| `dist-gitignored` | `dist/` is listed in `.gitignore` |
+| `permissions-known` | All declared permissions are in the known MV3 permission list |
+| `browser-overrides` | Browser override keys are valid browser names |
+| `scripts-present` | Declared entry-point files exist on disk |
+| `compat` | No cross-browser compat issues (warn-only by default) |
+
+Each check has a status: `pass`, `warn`, `fail`, or `info`. `doctor` exits `0` if no check fails, `1` if any check has `fail` status.
+
+### Example output (human)
+
+```
+✔ node-version: Node 22.4.0 meets requirement
+✔ config-valid: Config loaded successfully
+✖ icons-present: icons/icon-48.png missing
+  hint: Run `extforge icons` to generate from icons/icon.svg
+⚠ compat: chrome.tabGroups.query not supported on safari (src/background/index.ts:12)
+
+Summary  pass: 7  warn: 1  fail: 1
+```
+
+### Example output (`--json`)
+
+```json
+{
+  "v": 1,
+  "summary": { "pass": 7, "warn": 1, "fail": 1 },
+  "exitCode": 1,
+  "results": [
+    { "name": "icons-present", "status": "fail", "message": "icons/icon-48.png missing", "hint": "Run `extforge icons`" }
+  ]
+}
+```
+
+---
+
+## `package`
+
+Create `.zip` archives of built extensions for store submission.
+
+### Synopsis
+
+```sh
+extforge package [--browser <name>]
+```
+
+### Flags
+
+| Flag | Description |
+|---|---|
+| `--browser` | Package a single browser only. |
+
+### What it does
+
+For each browser in `config.browsers` (or the single `--browser` target):
+
+1. Checks that `dist/<browser>/` exists. Skips with a warning if not.
+2. Creates `packages/<name>-<browser>-v<version>.zip` from all files in the dist directory.
+
+The filename components come from `manifest.name` and `manifest.version`.
+
+### Example output
+
+```
+✔ Packaged chrome → packages/My Extension-chrome-v1.0.0.zip
+✔ Packaged firefox → packages/My Extension-firefox-v1.0.0.zip
+⚠ No build for safari — run `extforge build` first
+```
+
+---
+
+## `icons`
+
+Generate PNG icons from an SVG source.
+
+### Synopsis
+
+```sh
+extforge icons
+```
+
+### What it does
+
+Reads `icons/icon.svg` and generates `icons/icon-16.png`, `icon-32.png`, `icon-48.png`, and `icon-128.png`.
+
+Tries `sharp-cli` first (`npx sharp-cli`). Falls back to `cairosvg` (Python). If neither is available, prints an install hint and exits `1`.
+
+```
+✔ Generated icon-16.png
+✔ Generated icon-32.png
+✔ Generated icon-48.png
+✔ Generated icon-128.png
+```
+
+---
+
+## `upgrade`
+
+Check whether your config uses any deprecated fields.
+
+### Synopsis
+
+```sh
+extforge upgrade
+```
+
+### What it does
+
+Loads `extforge.config.ts` through the current schema. If the load succeeds, reports that the config is up to date. If the load fails (e.g. an old field is no longer valid), reports the error so you can fix it manually.
+
+<Aside type="note">
+Automated codemods are planned for a future release. For now, `upgrade` is a read-only check.
+</Aside>
+
+### Example output
+
+```
+✔ Your extforge.config is up to date.
+```
+
+Or, on failure:
+
+```
+✖ Config is invalid; fix it before running upgrade.
+```

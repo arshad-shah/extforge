@@ -1,6 +1,267 @@
 ---
-title: testing
-description: TBD — replaced in Task 5/6/7
+title: Testing
+description: Unit tests with the chrome fakes, integration tests with Vitest, and E2E tests with Playwright.
 ---
 
-Coming soon.
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
+
+ExtForge ships a testing library at `extforge/testing` that installs `chrome.*` fakes globally for Vitest, resets them between tests, and provides Playwright fixtures for E2E browser tests.
+
+---
+
+## Installing the Vitest preset
+
+Add a single import to your `vitest.config.ts` `setupFiles`:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    setupFiles: ['extforge/testing/vitest'],
+  },
+});
+```
+
+That is the entire setup. The preset:
+
+1. Calls `installChromeFakes()` once to mount fake namespaces on `globalThis.chrome`
+2. Registers a `beforeEach` hook that resets all fakes between tests
+3. Exports the `fakes` bag so your tests can interact with them
+
+Import the fakes in your test file:
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+```
+
+---
+
+## Unit tests
+
+### `chrome.storage.local` round-trip
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { describe, it, expect } from 'vitest';
+
+describe('storage round-trip', () => {
+  it('stores and retrieves a value', async () => {
+    await chrome.storage.local.set({ count: 42 });
+    const result = await chrome.storage.local.get('count');
+    expect(result).toEqual({ count: 42 });
+  });
+
+  it('starts fresh in each test', async () => {
+    // The beforeEach reset wipes all storage state
+    const result = await chrome.storage.local.get('count');
+    expect(result).toEqual({});
+  });
+
+  it('tracks call counts via spy', async () => {
+    await chrome.storage.local.set({ x: 1 });
+    expect(fakes.storage.chrome.local.set.calls).toHaveLength(1);
+  });
+});
+```
+
+### `chrome.runtime.onMessage`
+
+Register a listener, fire a message, and await the reply:
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { describe, it, expect } from 'vitest';
+
+// the handler under test (normally lives in background/index.ts)
+function registerHandler() {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg.type === 'PING') {
+      sendResponse({ type: 'PONG' });
+      return true; // async response
+    }
+  });
+}
+
+describe('message handler', () => {
+  it('replies PONG to PING', async () => {
+    registerHandler();
+    const reply = await fakes.runtime.fireOnMessage({ type: 'PING' });
+    expect(reply).toEqual({ type: 'PONG' });
+  });
+});
+```
+
+`fireOnMessage` collects any `sendResponse` call from your listeners and resolves the promise. If no listener calls `sendResponse`, the promise resolves `undefined`.
+
+### `chrome.tabs.query` with seeded tabs
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+
+describe('tab query', () => {
+  beforeEach(() => {
+    fakes.tabs.__seed([
+      { id: 1, url: 'https://example.com/', active: true },
+      { id: 2, url: 'https://other.com/', active: false },
+    ]);
+  });
+
+  it('returns only active tabs', async () => {
+    const tabs = await chrome.tabs.query({ active: true });
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]!.url).toBe('https://example.com/');
+  });
+
+  it('filters by url', async () => {
+    const tabs = await chrome.tabs.query({ url: 'https://other.com/' });
+    expect(tabs).toHaveLength(1);
+    expect(tabs[0]!.id).toBe(2);
+  });
+});
+```
+
+`__seed` replaces the tab list entirely. Repeated calls overwrite, not append.
+
+---
+
+## Per-namespace fakes for granular tests
+
+If you prefer to skip the global install and construct fakes manually:
+
+```ts
+import {
+  createRuntimeFake,
+  createStorageFake,
+  createTabsFake,
+  createActionFake,
+  createScriptingFake,
+} from 'extforge/testing';
+
+const runtime = createRuntimeFake();
+const storage = createStorageFake();
+// pass to your code as needed
+```
+
+This pattern is useful for testing code that accepts injected dependencies, or for testing in environments where a pre-existing `chrome` global conflicts with `installChromeFakes()`.
+
+---
+
+## The not-modeled trap
+
+ExtForge fakes only model the APIs listed in the namespace sections below. Accessing an unmodeled method or property throws immediately:
+
+```ts
+// chrome.history is not modeled
+chrome.history.search({ text: '' });
+// Throws: chrome.history.search is not modeled by extforge/testing v1;
+//         supply your own mock or extend the fake.
+//         Docs: https://extforge.arshadshah.com/testing#unmodeled
+```
+
+To extend a fake with your own stub, spread your method over the namespace:
+
+```ts
+// Extend the global chrome object in your test file
+(globalThis as any).chrome.history = {
+  search: vi.fn().mockResolvedValue([]),
+};
+```
+
+Or, for the manual-construction path, add the method before passing the fake to your code.
+
+---
+
+## Playwright E2E tests
+
+### The fixture
+
+`extforge init` scaffolds a fixture at `tests/e2e/fixture.ts`:
+
+```ts
+import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { resolve, dirname } from 'pathe';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const EXT_PATH = resolve(__dirname, '../../dist/chrome');
+
+type Fixtures = { context: BrowserContext; extensionId: string };
+
+export const test = base.extend<Fixtures>({
+  context: async ({}, use) => {
+    const ctx = await chromium.launchPersistentContext('', {
+      headless: false,
+      args: [
+        `--disable-extensions-except=${EXT_PATH}`,
+        `--load-extension=${EXT_PATH}`,
+      ],
+    });
+    await use(ctx);
+    await ctx.close();
+  },
+  extensionId: async ({ context }, use) => {
+    let [sw] = context.serviceWorkers();
+    if (!sw) sw = await context.waitForEvent('serviceworker');
+    const id = sw.url().split('/')[2]!;
+    await use(id);
+  },
+});
+
+export const expect = test.expect;
+```
+
+### Why `launchPersistentContext`
+
+Playwright's `launch()` creates an ephemeral browser profile that does not support loading extensions. `launchPersistentContext` creates a real user-data directory and accepts `--load-extension`. Extensions require this even for a throw-away test profile (pass `''` as the path to get a temp directory).
+
+### Getting `extensionId`
+
+The fixture waits for the service worker to register, then extracts the extension ID from its URL:
+
+```ts
+// Service worker URL format:
+// chrome-extension://<id>/background.js
+const id = sw.url().split('/')[2];
+```
+
+Use `extensionId` to construct `chrome-extension://` URLs for opening extension pages:
+
+```ts
+test('opens popup', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(page.getByRole('heading', { name: 'My Extension' })).toBeVisible();
+});
+```
+
+### Opening popup vs. side panel
+
+```ts
+// Popup (static page)
+await page.goto(`chrome-extension://${extensionId}/popup.html`);
+
+// Side panel (same approach — it's just a page)
+await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+```
+
+### Headed vs. headless
+
+Extensions cannot run headless in Playwright. The fixture sets `headless: false`. If you try `headless: true`, Chrome will silently refuse to load the extension and `waitForEvent('serviceworker')` will time out.
+
+In CI, use a virtual display (Xvfb on Linux) or the `playwright/chromium` Docker image that ships with a virtual framebuffer.
+
+```yaml
+# GitHub Actions snippet
+- name: Run E2E tests
+  run: pnpm test:e2e
+  env:
+    DISPLAY: ':99'
+```
+
+<Aside type="tip">
+Build the extension before running E2E tests: `extforge build --browser chrome`. The fixture loads from `dist/chrome/`.
+</Aside>
+
+See [`/reference/testing/chrome-fakes/`](/reference/testing/chrome-fakes/) for the complete fake API reference, [`/reference/testing/vitest-preset/`](/reference/testing/vitest-preset/) for the preset reference, and [`/reference/testing/playwright/`](/reference/testing/playwright/) for the Playwright fixture reference.

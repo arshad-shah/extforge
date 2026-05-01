@@ -1,6 +1,167 @@
 ---
-title: deployment
-description: TBD — replaced in Task 5/6/7
+title: Deployment
+description: Packaging browser extensions, submitting to stores, versioning, and a GitHub Actions CI snippet.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+## Building for production
+
+Run a production build for all browsers declared in your config:
+
+```sh
+extforge build
+```
+
+Or target a single browser:
+
+```sh
+extforge build --browser chrome
+```
+
+Outputs land in `dist/chrome/`, `dist/firefox/`, etc.
+
+---
+
+## Packaging with `extforge package`
+
+`extforge package` creates a `.zip` for each built browser into a `packages/` directory:
+
+```sh
+extforge package
+```
+
+Output:
+
+```
+packages/
+  My Extension-chrome-v1.0.0.zip
+  My Extension-firefox-v1.0.0.zip
+```
+
+The filename is derived from `manifest.name` and `manifest.version` in your config. Run `extforge build` first — `package` skips any browser that does not have a `dist/<browser>/` directory.
+
+Package a single browser:
+
+```sh
+extforge package --browser chrome
+```
+
+---
+
+## Versioning
+
+`manifest.version` drives the package filename and the `version` field in the generated `manifest.json`. Chrome and Edge accept up to a four-part version string (`1.2.3.4`). Firefox and Safari accept the standard three-part form.
+
+```ts
+manifest: {
+  version: '1.2.0',
+}
+```
+
+Bump the version before each store submission. There is no `extforge version` command — edit the config directly.
+
+---
+
+## Submitting to stores
+
+### Chrome Web Store
+
+1. Sign in to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole).
+2. Click **New item** and upload `packages/My Extension-chrome-v<version>.zip`.
+3. Fill in the store listing: description, screenshots, category, and privacy policy URL.
+4. Submit for review. Initial reviews typically take 1–3 business days.
+
+Chrome requires a privacy policy URL if your extension uses any data-access permissions (`storage`, `tabs`, `cookies`, etc.).
+
+### Firefox Add-ons (AMO)
+
+1. Sign in to [addons.mozilla.org/developers](https://addons.mozilla.org/en-US/developers/).
+2. Click **Submit a new add-on** and upload `packages/My Extension-firefox-v<version>.zip`.
+3. Choose **On AMO** (public listing) or **By yourself** (self-distribution, signed by Mozilla).
+4. Firefox requires source code submission for extensions using `eval` or similar constructs. ExtForge-built extensions do not use `eval` by default.
+
+AMO signs the `.xpi` and makes it available for download. Self-distributed builds can be installed via `about:debugging`.
+
+### Edge Add-ons
+
+1. Sign in to [Microsoft Partner Center](https://partner.microsoft.com/en-us/dashboard/microsoftedge/overview).
+2. Click **Create new extension** and upload `packages/My Extension-edge-v<version>.zip`.
+3. Fill the listing and submit. Edge uses the same extension format as Chrome.
+
+### Safari
+
+Safari requires a native app wrapper. Use `xcrun safari-web-extension-converter` to wrap the built extension:
+
+```sh
+xcrun safari-web-extension-converter dist/safari/ \
+  --project-location ./safari-wrapper \
+  --app-name "My Extension"
+```
+
+This generates an Xcode project. Open it in Xcode, build for macOS/iOS, then submit via App Store Connect. Safari extension review follows the standard App Store review process.
+
+<Aside type="caution">
+You must have Xcode installed and a valid Apple Developer account. Safari extension submission requires a paid Apple Developer membership.
+</Aside>
+
+---
+
+## GitHub Actions snippet
+
+Build, package, and attach zips to a release on tag push:
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm build        # extforge build
+      - run: pnpm package      # extforge package
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packages/*.zip
+```
+
+Add `"build": "extforge build"` and `"package": "extforge package"` to your `package.json` scripts (the scaffold generates these).
+
+---
+
+## Pre-submission checklist
+
+Before uploading a zip to any store:
+
+- ✓ Icons present: `icons/icon-16.png`, `icon-32.png`, `icon-48.png`, `icon-128.png`. Run `extforge icons` to generate from `icons/icon.svg`.
+- ✓ `extforge validate` exits `0` — no config or manifest errors.
+- ✓ `extforge doctor` shows no `fail` results.
+- ✓ No `console.error` calls left in production source (search the `dist/` output).
+- ✓ `manifest.version` is bumped from the previous submission.
+- ✓ Privacy policy URL is set if any sensitive permissions are declared.
+- ✓ Store listing text, screenshots, and categories are up to date.
+
+<Aside type="tip">
+Run `extforge doctor --json | jq '.results[] | select(.status == "fail")'` to surface only failures in CI.
+</Aside>

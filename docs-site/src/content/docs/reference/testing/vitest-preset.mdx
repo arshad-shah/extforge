@@ -1,6 +1,63 @@
 ---
-title: vitest-preset
-description: TBD — replaced in Task 7
+title: Vitest preset
+description: Reference for extforge/testing/vitest — installation, what it installs, and the fakes export.
 ---
 
-Coming soon.
+## Installation
+
+Add a single entry to `vitest.config.ts`:
+
+```ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    setupFiles: ['extforge/testing/vitest'],
+  },
+});
+```
+
+No other setup is required.
+
+---
+
+## What it does
+
+On first import, the preset:
+
+1. **Calls `installChromeFakes()`** — mounts fake `chrome.*` namespaces on `globalThis.chrome`. Each namespace is wrapped in a Proxy so accessing an unmodeled method throws immediately with a descriptive error.
+2. **Registers a `beforeEach` hook** — calls `resetChromeFakes(fakes)` before every test to clear storage state, listener arrays, and spy call counts.
+3. **Exports the `fakes` bag** — so test files can fire events and inspect state.
+
+---
+
+## The `fakes` export
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+```
+
+`fakes` is a `ChromeFakes` object:
+
+```ts
+interface ChromeFakes {
+  runtime:   RuntimeFake;   // fakes.runtime.fireOnMessage(...)
+  storage:   StorageFake;   // fakes.storage.chrome.local.__state()
+  tabs:      TabsFake;      // fakes.tabs.__seed([...])
+  action:    ActionFake;    // fakes.action.reset()
+  scripting: ScriptingFake; // fakes.scripting.__nextResult(value)
+  reset():   void;          // called automatically by beforeEach
+}
+```
+
+Each namespace's fake is documented in [chrome-fakes](/reference/testing/chrome-fakes/).
+
+---
+
+## When NOT to use the preset
+
+Do not use the preset if:
+
+- You already define `globalThis.chrome` in your test environment (the preset throws if `chrome` is already defined).
+- You need fine-grained control over which fakes are installed per test suite. Use `createChromeFakes()` or the per-namespace factories (`createRuntimeFake()`, etc.) instead and install them manually.
+- You are testing in a non-Vitest environment (e.g. Jest). The preset imports `beforeEach` from Vitest. For Jest, construct fakes manually and register `beforeEach(() => fakes.reset())` yourself.

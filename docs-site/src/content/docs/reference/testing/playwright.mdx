@@ -1,6 +1,145 @@
 ---
-title: playwright
-description: TBD — replaced in Task 7
+title: Playwright fixture
+description: Reference for the ExtForge Playwright E2E fixture — launchPersistentContext, extensionId, and test patterns.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+## The fixture shape
+
+`extforge init` scaffolds `tests/e2e/fixture.ts`. Import from it instead of from `@playwright/test`:
+
+```ts
+import { test, expect } from '../e2e/fixture';
+```
+
+The fixture provides two additional properties on top of standard Playwright fixtures:
+
+| Fixture | Type | Description |
+|---|---|---|
+| `context` | `BrowserContext` | A persistent browser context with the extension loaded. |
+| `extensionId` | `string` | The extension's ID extracted from the service worker URL. |
+
+---
+
+## Why `launchPersistentContext`
+
+Playwright's `browser.launch()` starts a browser with an ephemeral profile that does not support extensions. The `--load-extension` flag requires a real user-data directory, which only `launchPersistentContext` creates.
+
+Passing `''` as the first argument (the profile path) tells Playwright to create a temporary directory automatically. The directory is cleaned up when `ctx.close()` is called.
+
+```ts
+const ctx = await chromium.launchPersistentContext('', {
+  headless: false,
+  args: [
+    `--disable-extensions-except=${EXT_PATH}`,
+    `--load-extension=${EXT_PATH}`,
+  ],
+});
+```
+
+`--disable-extensions-except` prevents other installed extensions from loading, keeping tests isolated.
+
+---
+
+## Getting `extensionId`
+
+The fixture waits for the extension's service worker to register, then extracts the ID from its URL:
+
+```ts
+let [sw] = context.serviceWorkers();
+if (!sw) sw = await context.waitForEvent('serviceworker');
+const id = sw.url().split('/')[2]!;
+// Service worker URL: chrome-extension://<id>/background.js
+```
+
+`extensionId` is stable for a given build. Use it to construct `chrome-extension://` URLs:
+
+```ts
+await page.goto(`chrome-extension://${extensionId}/popup.html`);
+```
+
+---
+
+## Opening the popup
+
+The popup is a regular HTML page served from the extension. Open it with `page.goto`:
+
+```ts
+test('popup renders', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  await expect(page.getByRole('heading', { name: 'My Extension' })).toBeVisible();
+});
+```
+
+Playwright interacts with extension pages identically to normal web pages. The full Playwright API (`click`, `fill`, `evaluate`, `waitForSelector`, etc.) works.
+
+---
+
+## Opening the side panel
+
+The side panel is also a regular HTML page:
+
+```ts
+test('sidepanel renders', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+  await expect(page.locator('h1')).toContainText('Page Annotator');
+});
+```
+
+---
+
+## Headed vs. headless
+
+Extensions cannot load in headless Chromium. The fixture sets `headless: false`. Attempting `headless: true` will result in `waitForEvent('serviceworker')` timing out because Chrome refuses to run extensions without a display.
+
+In CI, use a virtual display:
+
+**Linux (GitHub Actions):**
+
+```yaml
+- name: Install virtual display
+  run: sudo apt-get install -y xvfb
+
+- name: Run E2E tests
+  run: Xvfb :99 -screen 0 1280x800x24 & DISPLAY=:99 pnpm test:e2e
+```
+
+The `playwright/chromium` base Docker image also ships with a virtual framebuffer.
+
+**macOS CI:** macOS GitHub Actions runners have a display attached; `headless: false` works without Xvfb.
+
+---
+
+## Sample test patterns
+
+### Assert badge text set by background
+
+```ts
+test('background sets badge on install', async ({ context, extensionId, page }) => {
+  // Navigate to a page so the popup is accessible
+  await page.goto(`chrome-extension://${extensionId}/popup.html`);
+  // If the background sets a badge on install, read it via evaluate in the extension context
+  const badge = await context.serviceWorkers()[0]!.evaluate(
+    () => new Promise<string>(resolve => chrome.action.getBadgeText({}, resolve))
+  );
+  expect(badge).toBe('ON');
+});
+```
+
+### Inject content script and read DOM
+
+```ts
+test('content script annotates page', async ({ context, extensionId }) => {
+  const page = await context.newPage();
+  await page.goto('https://example.com');
+  // Wait for the content script to run
+  await page.waitForSelector('[data-extforge-annotated]');
+  const attr = await page.getAttribute('body', 'data-extforge-annotated');
+  expect(attr).toBe('true');
+});
+```
+
+<Aside type="note">
+E2E tests that navigate to real external URLs (like `example.com`) require network access and can be flaky in CI. Consider using a local HTTP server for deterministic page content.
+</Aside>

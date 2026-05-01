@@ -1,6 +1,187 @@
 ---
-title: plugins
-description: TBD — replaced in Task 5/6/7
+title: Plugins
+description: Writing and using ExtForge plugins — the plugin shape, hooks, ordering, and worked examples.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+ExtForge plugins let you hook into every stage of the build: config resolution, manifest generation, entry point transformation, and dev reloads. Built-in presets (`presetReact()`) are plugins too — they use the same API.
+
+---
+
+## The plugin shape
+
+A v1 plugin is a plain object:
+
+```ts
+import type { ExtForgePluginV1 } from 'extforge';
+
+const myPlugin = (): ExtForgePluginV1 => ({
+  name: 'my-plugin',
+  apiVersion: 1,
+  setup(ctx) {
+    // register hooks via ctx.hooks.*
+  },
+});
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | yes | Unique name; appears in logs and error messages |
+| `apiVersion` | `1` | yes | Discriminates from the legacy shape |
+| `setup` | `(ctx: PluginContext) => void \| Promise&lt;void&gt;` | yes | Called once after config resolution; register hooks here |
+
+The `ctx` object passed to `setup` gives you the resolved config, project paths, a scoped logger, and the hook registration methods.
+
+---
+
+## Hooks summary
+
+All hooks are registered inside `setup` via `ctx.hooks`:
+
+| Hook | When it fires | Signature |
+|---|---|---|
+| `onConfigResolved` | Once, after config is loaded | `(config: ExtForgeConfig) => void` |
+| `onManifestTransform` | Once per browser, after manifest assembly | `(manifest, browser) => manifest` |
+| `onBuildStart` | Once per browser build | `({ browser, dev }) => void` |
+| `onBuildEntry` | Once per entry point | `(entry) => entry \| void` |
+| `onBuildEnd` | Once per browser, after all entries bundled | `(result) => void` |
+| `onDevReload` | Each HMR reload event in dev mode | `(event) => void` |
+
+See [`/reference/plugins/api/`](/reference/plugins/api/) for full type signatures.
+
+---
+
+## Plugin ordering
+
+Plugins run in the order they are resolved:
+
+1. Built-in plugins (`presetReact()`, etc.) — injected first based on `framework`
+2. User plugins — in the order declared in `plugins: [...]`
+
+For reduce-style hooks (`onManifestTransform` and `onBuildEntry`), the output of each plugin is the input to the next. This means the first plugin in the chain sees the base manifest; the last sees the fully transformed one. Order matters if two plugins modify the same field.
+
+---
+
+## Worked example 1: `presetTailwind()`
+
+A plugin that enables esbuild minification and runs a pre-build step before each browser build:
+
+```ts
+import type { ExtForgePluginV1 } from 'extforge';
+import { spawnSync } from 'node:child_process';
+
+export function presetTailwind(): ExtForgePluginV1 {
+  return {
+    name: 'extforge:preset-tailwind',
+    apiVersion: 1,
+    setup({ hooks, logger }) {
+      // Run Tailwind CLI before each browser build
+      hooks.onBuildStart(({ browser }) => {
+        logger.info(`[preset-tailwind] Running tailwindcss for ${browser}`);
+        spawnSync('npx', ['tailwindcss', '-i', 'src/styles/globals.css', '-o', 'src/styles/out.css'], {
+          stdio: 'pipe',
+        });
+      });
+
+      // Enable minification in all esbuild entry builds
+      hooks.onBuildEntry((entry) => ({
+        ...entry,
+        esbuildOptions: {
+          ...(entry.esbuildOptions ?? {}),
+          minify: true,
+        },
+      }));
+    },
+  };
+}
+```
+
+Register it in your config:
+
+```ts
+import { defineConfig } from 'extforge';
+import { presetTailwind } from './plugins/preset-tailwind';
+
+export default defineConfig({
+  plugins: [presetTailwind()],
+});
+```
+
+---
+
+## Worked example 2: manifest stamp plugin
+
+A plugin that adds a custom field to the generated manifest using `onManifestTransform`:
+
+```ts
+import type { ExtForgePluginV1 } from 'extforge';
+
+interface StampOptions {
+  buildId: string;
+}
+
+export function manifestStamp(options: StampOptions): ExtForgePluginV1 {
+  return {
+    name: 'extforge:manifest-stamp',
+    apiVersion: 1,
+    setup({ hooks }) {
+      hooks.onManifestTransform((manifest, browser) => ({
+        ...manifest,
+        // Chrome allows arbitrary extra fields; other browsers may strip them
+        _buildId: options.buildId,
+        _builtFor: browser,
+      }));
+    },
+  };
+}
+```
+
+Usage:
+
+```ts
+export default defineConfig({
+  plugins: [
+    manifestStamp({ buildId: process.env.GITHUB_SHA ?? 'local' }),
+  ],
+});
+```
+
+`onManifestTransform` receives the current manifest object and must return the (possibly modified) manifest. The browser argument lets you apply overrides only for specific targets.
+
+---
+
+## Error handling
+
+If a plugin throws during `setup` or any hook, ExtForge wraps the error in [`EXT_PLUGIN_FAILED`](/reference/errors/EXT_PLUGIN_FAILED/) and surfaces the plugin name and hook name alongside the original message:
+
+```
+EXT_PLUGIN_FAILED
+  Plugin "extforge:manifest-stamp" failed in onManifestTransform: Cannot read property 'x' of undefined
+```
+
+The build exits with code `1`. Fix the plugin and re-run.
+
+---
+
+## Legacy plugin shape
+
+ExtForge still accepts the pre-v1 shape for backwards compatibility:
+
+```ts
+const legacyPlugin = {
+  name: 'legacy-compat',
+  // no apiVersion field
+  setup(config) { /* config is ExtForgeConfig */ },
+  buildStart() { /* called before each build */ },
+  buildEnd(result) { /* called after each build */ },
+};
+```
+
+The runner detects the missing `apiVersion` and adapts the legacy plugin automatically. Legacy plugins do not have access to `onManifestTransform`, `onBuildEntry`, or `onDevReload`. Migrate to `apiVersion: 1` to use those hooks.
+
+<Aside type="note">
+`ctx.addEntry()` and `ctx.emitFile()` are declared in the type but not yet implemented (planned for v0.4). Calling either will throw a descriptive error at build time.
+</Aside>
+
+See [`/reference/plugins/api/`](/reference/plugins/api/) for the complete hook type reference, and [`/reference/plugins/preset-react/`](/reference/plugins/preset-react/) for the built-in React preset docs.

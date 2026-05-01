@@ -1,6 +1,258 @@
 ---
-title: chrome-fakes
-description: TBD — replaced in Task 7
+title: Chrome fakes
+description: Reference for every modeled chrome.* namespace in extforge/testing — what each fake models, test-side controls, and the not-modeled trap.
 ---
 
-Coming soon.
+import { Aside } from '@astrojs/starlight/components';
+
+The fakes are installed by the [Vitest preset](/reference/testing/vitest-preset/) or by calling `installChromeFakes()` directly. Each namespace is wrapped in a Proxy that throws on access to unmodeled members.
+
+---
+
+## `runtime`
+
+**Import:** `import { createRuntimeFake } from 'extforge/testing';`
+
+### What it models
+
+| Member | Type | Notes |
+|---|---|---|
+| `chrome.runtime.id` | `string` | Fixed to `'extforge-test-extension-id'` |
+| `chrome.runtime.onInstalled` | event | `.addListener` / `.removeListener` |
+| `chrome.runtime.onStartup` | event | `.addListener` / `.removeListener` |
+| `chrome.runtime.onMessage` | event | `.addListener` / `.removeListener` |
+| `chrome.runtime.sendMessage` | spy | Resolves `undefined` by default |
+| `chrome.runtime.reload` | spy | No-op |
+
+### What it does not model
+
+`getURL`, `connect`, `onConnect`, `getManifest`, `openOptionsPage`, and all other `runtime.*` members throw the not-modeled trap error.
+
+### Test-side controls
+
+| Control | Description |
+|---|---|
+| `fakes.runtime.fireOnInstalled(details?)` | Calls all `onInstalled` listeners. Default `details`: `{ reason: 'install' }`. |
+| `fakes.runtime.fireOnStartup()` | Calls all `onStartup` listeners. |
+| `fakes.runtime.fireOnMessage(message, sender?)` | Calls all `onMessage` listeners and returns a Promise that resolves to the `sendResponse` argument. If no listener calls `sendResponse`, resolves `undefined`. |
+| `fakes.runtime.reset()` | Clears all listeners and resets spy call counts. |
+
+### Example
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { expect, it } from 'vitest';
+
+it('fires onInstalled with reason update', () => {
+  let receivedReason = '';
+  chrome.runtime.onInstalled.addListener(({ reason }) => {
+    receivedReason = reason;
+  });
+  fakes.runtime.fireOnInstalled({ reason: 'update' });
+  expect(receivedReason).toBe('update');
+});
+```
+
+---
+
+## `storage`
+
+**Import:** `import { createStorageFake } from 'extforge/testing';`
+
+### What it models
+
+Three storage areas: `chrome.storage.local`, `chrome.storage.sync`, and `chrome.storage.session`. Each area models:
+
+| Method | Behavior |
+|---|---|
+| `get(keys?)` | Returns matching keys from in-memory state. Pass `null` or omit for all keys. |
+| `set(items)` | Merges `items` into in-memory state. |
+| `remove(keys)` | Deletes keys from state. |
+| `clear()` | Empties the state object. |
+
+All methods are spies with `.calls` and `.reset()`.
+
+### What it does not model
+
+`chrome.storage.managed`, `chrome.storage.onChanged`, and any method other than the four above.
+
+### Test-side controls
+
+| Control | Description |
+|---|---|
+| `fakes.storage.chrome.local.__state()` | Returns a snapshot of the current local storage state. Same for `sync` and `session`. |
+| `fakes.storage.reset()` | Clears state and resets call counts for all three areas. |
+
+### Example
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { expect, it } from 'vitest';
+
+it('persists storage across calls within a test', async () => {
+  await chrome.storage.local.set({ theme: 'dark' });
+  await chrome.storage.local.set({ font: 'mono' });
+  const all = fakes.storage.chrome.local.__state();
+  expect(all).toEqual({ theme: 'dark', font: 'mono' });
+});
+```
+
+---
+
+## `tabs`
+
+**Import:** `import { createTabsFake } from 'extforge/testing';`
+
+### What it models
+
+| Method | Behavior |
+|---|---|
+| `chrome.tabs.query(info)` | Filters the seeded tab list by `active` and `url`. |
+| `chrome.tabs.sendMessage(tabId, message)` | Spy; resolves `undefined`. |
+| `chrome.tabs.create(props)` | Adds a new tab to the internal list; returns the tab record. |
+| `chrome.tabs.reload(tabId)` | Spy; no-op. |
+
+### What it does not model
+
+`get`, `update`, `remove`, `onActivated`, `onUpdated`, `onRemoved`, and all other `tabs.*` members.
+
+### Test-side controls
+
+| Control | Description |
+|---|---|
+| `fakes.tabs.__seed(tabs)` | Replaces the tab list. Each entry: `{ id, url, active? }`. Repeated calls overwrite. |
+| `fakes.tabs.reset()` | Clears the tab list and resets all spy call counts. |
+
+### Example
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { expect, it, beforeEach } from 'vitest';
+
+beforeEach(() => {
+  fakes.tabs.__seed([
+    { id: 100, url: 'https://example.com/', active: true },
+    { id: 101, url: 'https://other.com/', active: false },
+  ]);
+});
+
+it('finds the active tab', async () => {
+  const [tab] = await chrome.tabs.query({ active: true });
+  expect(tab!.id).toBe(100);
+});
+```
+
+---
+
+## `action`
+
+**Import:** `import { createActionFake } from 'extforge/testing';`
+
+### What it models
+
+| Method | Behavior |
+|---|---|
+| `chrome.action.setBadgeText({ text, tabId? })` | Stores `text` keyed by `tabId` (or `'global'`). |
+| `chrome.action.getBadgeText({ tabId? })` | Returns stored text for that key. |
+| `chrome.action.setIcon(details)` | Spy; no-op. |
+| `chrome.action.enable(tabId?)` | Spy; no-op. |
+| `chrome.action.disable(tabId?)` | Spy; no-op. |
+
+### What it does not model
+
+`setPopup`, `getPopup`, `setBadgeBackgroundColor`, `openPopup`, and all other `action.*` members.
+
+### Test-side controls
+
+| Control | Description |
+|---|---|
+| `fakes.action.reset()` | Clears badge state and resets spy call counts. |
+
+### Example
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { expect, it } from 'vitest';
+
+it('sets and reads badge text', async () => {
+  await chrome.action.setBadgeText({ text: '5' });
+  const text = await chrome.action.getBadgeText({});
+  expect(text).toBe('5');
+});
+```
+
+---
+
+## `scripting`
+
+**Import:** `import { createScriptingFake } from 'extforge/testing';`
+
+### What it models
+
+| Method | Behavior |
+|---|---|
+| `chrome.scripting.executeScript(injection)` | Returns `[{ result: undefined, frameId: 0 }]` by default. Use `__nextResult` to queue a specific return value. |
+
+### What it does not model
+
+`insertCSS`, `removeCSS`, `registerContentScripts`, `getRegisteredContentScripts`, and all other `scripting.*` members.
+
+### Test-side controls
+
+| Control | Description |
+|---|---|
+| `fakes.scripting.__nextResult(value)` | Queues `value` as the `result` field of the next `executeScript` call. Multiple calls queue up in order. |
+| `fakes.scripting.reset()` | Clears the queue and resets spy call counts. |
+
+### Example
+
+```ts
+import { fakes } from 'extforge/testing/vitest';
+import { expect, it } from 'vitest';
+
+it('returns the queued executeScript result', async () => {
+  fakes.scripting.__nextResult(42);
+  const [frame] = await chrome.scripting.executeScript({
+    target: { tabId: 1 },
+    func: () => 42,
+  });
+  expect(frame!.result).toBe(42);
+});
+```
+
+---
+
+## The not-modeled trap
+
+Accessing any member not listed above throws:
+
+```
+chrome.<ns>.<method> is not modeled by extforge/testing v1;
+supply your own mock or extend the fake.
+Docs: https://extforge.arshadshah.com/testing#unmodeled
+```
+
+To add a stub for an unmodeled method in a test file:
+
+```ts
+// Extend globally for the duration of the test file
+(globalThis as any).chrome.history = {
+  search: vi.fn().mockResolvedValue([]),
+};
+```
+
+Or, use the per-namespace factory and spread your method before passing the fake to your code:
+
+```ts
+import { createTabsFake } from 'extforge/testing';
+
+const tabs = createTabsFake();
+const extendedChrome = {
+  ...tabs.chrome,
+  get: vi.fn().mockResolvedValue({ id: 1, url: 'https://example.com' }),
+};
+```
+
+<Aside type="tip">
+The trap is a Proxy on the fake's `chrome` sub-object. It only fires on property access, not on `'prop' in chrome.ns` checks. Use `typeof chrome.ns.method !== 'undefined'` guards to detect the fake in shared code.
+</Aside>

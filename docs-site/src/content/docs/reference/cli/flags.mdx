@@ -1,6 +1,53 @@
 ---
-title: flags
-description: TBD — replaced in Task 7
+title: Global flags
+description: Reference table for all extforge CLI flags and exit codes.
 ---
 
-Coming soon.
+## Flag reference
+
+| Flag | Applies to | Default | Description |
+|---|---|---|---|
+| `--browser` | `dev`, `build`, `package` | `chrome` (dev) / all (build, package) | Target browser. Must match a value in `config.browsers`. |
+| `--dev` | `build` | `false` | Build in development mode: source maps on, HMR client injected. |
+| `--sourcemap` | `build` | `false` | Include source maps. Implied by `--dev`. |
+| `--strict` | `build` | `false` | Treat cross-browser compat warnings as errors. Exits `1` on any compat issue. |
+| `--quiet` | `dev`, `build`, `validate`, `doctor` | `false` | Suppress info-level log output. Warnings and errors still print. |
+| `--verbose` | `dev` | `false` | Log every file change, the chosen reload strategy, and each message sent to clients. |
+| `--json` | `dev`, `build`, `validate`, `doctor` | `false` | Emit newline-delimited JSON log objects. Human-readable output is suppressed. |
+| `--once` | `dev` | `false` | Run a single dev build then exit. No watcher, no WebSocket server. |
+| `--port` | `dev` | `35729` | HMR WebSocket port. Overrides `config.dev.port`. |
+| `--host` | `dev` | `localhost` | HMR host. Overrides `config.dev.host`. |
+
+### Notes on `--json`
+
+Each JSON line has at minimum `{ "level": "...", "message": "..." }`. Some lines include `"data"` with structured context. The format is stable within a major version.
+
+```json
+{"level":"info","message":"HMR server started on ws://localhost:35729"}
+{"level":"warn","message":"EXT_COMPAT_UNSUPPORTED","data":{"api":"tabGroups.query","file":"src/background/index.ts","line":12}}
+```
+
+### Notes on `--strict`
+
+Without `--strict`, compat issues from the cross-browser scanner are logged as warnings and the build succeeds. With `--strict`, the first compat issue causes the build to exit `1`.
+
+Equivalent to setting `dev.strictCompat: true` in config for dev mode, or passing `--strict` per-command for build.
+
+---
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. All builds or checks passed. |
+| `1` | Error. Build failed, config invalid, or doctor has at least one `fail` result. |
+| `130` | SIGINT received (Ctrl-C). The dev server or build was interrupted by the user. |
+| `143` | SIGTERM received. The process was terminated externally. |
+
+### `doctor` exit code detail
+
+`extforge doctor` exits `0` if no check has status `fail`. A check with status `warn` does not set a non-zero exit code. Use `--json` and `jq` to filter:
+
+```sh
+extforge doctor --json | jq '.results[] | select(.status == "fail")'
+```
