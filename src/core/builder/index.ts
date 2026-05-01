@@ -29,6 +29,8 @@ export interface BuildOptions {
   hmrPort?: number;
   hmrHost?: string;
   strictCompat?: boolean;
+  /** Internal: set by buildAll after running the one-time compat scan. */
+  _skipCompatScan?: boolean;
 }
 
 function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
@@ -273,9 +275,10 @@ export async function build(
     return { browser: opts.browser, outDir, duration: 0, files: [], errors };
   }
 
-  // ─── Compat scan ────────────────────────────────────────────────────────────
-  {
-    const browsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
+  // ─── Compat scan ─────────────────────────────────────────────────────────────
+  // Skipped when called from buildAll, which runs the scan once for all browsers.
+  if (!opts._skipCompatScan) {
+    const compatBrowsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
     const allEntryFiles = [
       ...Object.values(esmEntries),
       ...Object.values(iifeEntries),
@@ -284,7 +287,7 @@ export async function build(
     for (const entryFile of allEntryFiles) {
       try {
         const src = readFileSync(entryFile, 'utf8');
-        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers }));
+        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers: compatBrowsers }));
       } catch { /* ignore unreadable files */ }
     }
     if (allIssues.length > 0) {
@@ -359,8 +362,42 @@ export async function buildAll(
   const validation = validateProject(root, log.child('validate'));
   if (!validation.valid) { log.error('Fix errors above before building'); return []; }
 
+  // ─── One-time compat scan across all browsers ───────────────────────────────
+  // Run once here so individual browser builds don't each re-read and re-scan
+  // the same source files.
+  {
+    const srcDir = join(root, 'src');
+    const allEntries = discoverEntryPoints(srcDir);
+    const injectedEntries = discoverInjectedEntries(srcDir, log.child('compat'));
+    const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
+    const allEntryFiles = [...Object.values(esmEntries), ...Object.values(iifeEntries)];
+    const compatBrowsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
+    const allIssues: CompatIssue[] = [];
+    const fileCache = new Map<string, string>();
+    for (const entryFile of allEntryFiles) {
+      try {
+        let src = fileCache.get(entryFile);
+        if (src === undefined) { src = readFileSync(entryFile, 'utf8'); fileCache.set(entryFile, src); }
+        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers: compatBrowsers }));
+      } catch { /* ignore unreadable files */ }
+    }
+    if (allIssues.length > 0) {
+      log.warn(`[compat] ${allIssues.length} cross-browser issue(s) found:`);
+      for (const i of allIssues) {
+        log.warn(`  ${i.file}:${i.line}:${i.column}  ${i.api}  unsupported in: ${i.unsupported.join(', ')}`);
+      }
+      if (opts.strictCompat) {
+        throw new ExtForgeError({
+          code: 'EXT_COMPAT_UNSUPPORTED',
+          message: `Cross-browser compat check failed (${allIssues.length} issue(s), --strict)`,
+          hint: 'Suppress with `// extforge-ignore-compat: <reason>` or remove the call.',
+        });
+      }
+    }
+  }
+
   const results: BuildResult[] = [];
-  for (const browser of browsers) results.push(await build(root, config, { ...opts, browser }, log));
+  for (const browser of browsers) results.push(await build(root, config, { ...opts, browser, _skipCompatScan: true } as BuildOptions, log));
 
   log.timeEnd('total-build', 'Total build time');
   const totalErrors = results.reduce((s, r) => s + r.errors.length, 0);
