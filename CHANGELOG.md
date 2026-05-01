@@ -33,6 +33,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Backwards compatibility (HMR)
 No breaking changes. Old projects rebuilt against this version automatically inherit the new client. Old clients connecting to a new server still receive the same legacy message shapes (the new fields are optional). No `extforge.config.ts` changes required.
 
+### Plugins
+- New plugin API: `setup(ctx)` with hooks `onConfigResolved`, `onManifestTransform`, `onBuildStart`, `onBuildEntry`, `onBuildEnd`, `onDevReload`. Plugins are versioned via `apiVersion: 1`.
+- Subpath export: `import { presetReact, type ExtForgePluginV1 } from 'extforge/plugins'`.
+- First-party `presetReact()` ships built-in. Auto-injected when `framework: 'react'` is set; users may also pass it explicitly to override `jsxImportSource` or `jsxRuntime`.
+- Plugin throws now produce `ExtForgeError(EXT_PLUGIN_FAILED)` carrying the plugin name and hook.
+- Legacy thin plugin shape (`{ name, setup(config), buildStart, buildEnd }`) keeps working unchanged via a compatibility shim.
+
+### Removed (internal)
+- Hardcoded `jsxImportSource: 'react'` and `jsx: 'automatic'` in the builder. React JSX is now supplied by `presetReact()`.
+
+### Backwards compatibility (Plugins)
+No breaking changes. Existing configs continue to work; legacy plugins continue to load via a shim.
+
 ### Backwards compatibility
 No breaking changes. The Zod schema uses `.passthrough()` so unknown config keys still work today; they will become warnings in v0.4.0 and errors thereafter.
 
