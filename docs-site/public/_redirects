@@ -1,0 +1,5 @@
+/errors  /reference/errors  301
+/errors/:code  /reference/errors/:code  301
+/config  /reference/config  301
+/plugins  /reference/plugins/api  301
+/testing  /reference/testing/chrome-fakes  301

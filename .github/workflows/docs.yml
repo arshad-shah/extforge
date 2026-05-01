@@ -1,0 +1,30 @@
+name: Docs
+on:
+  pull_request:
+    paths:
+      - 'docs-site/**'
+      - 'scripts/gen-*'
+      - 'src/core/config/**'
+      - 'src/core/errors/**'
+      - 'src/core/plugins/**'
+      - 'brand/**'
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: 'pnpm' }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm docs:gen
+      - name: Check generated content is up to date
+        run: |
+          if ! git diff --exit-code docs-site/src/content/docs/reference docs-site/src/styles/brand.css; then
+            echo "::error::Generated docs are out of date. Run pnpm docs:gen and commit."
+            exit 1
+          fi
+      - run: pnpm --filter extforge-docs build
