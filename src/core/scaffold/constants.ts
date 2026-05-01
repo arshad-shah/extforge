@@ -22,15 +22,6 @@ export const VERSIONS = {
   reactDomTypes:  '^19.0.0',
   zustand:        '^5.0.0',
 
-  // Vue
-  vue:            '^3.5.0',
-
-  // Svelte
-  svelte:         '^5.0.0',
-
-  // Solid
-  solidJs:        '^1.9.0',
-
   // CSS
   tailwindcss:    '^4.0.0',
   postcss:        '^8.4.0',

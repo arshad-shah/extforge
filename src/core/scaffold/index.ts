@@ -27,7 +27,7 @@ export interface ScaffoldAnswers {
   name: string;
   description: string;
   version: string;
-  framework: 'react' | 'vue' | 'svelte' | 'solid' | 'vanilla';
+  framework: 'react' | 'vanilla';
   css: 'tailwind' | 'vanilla' | 'none';
   browsers: Browser[];
   features: string[];
@@ -61,9 +61,6 @@ async function gatherAnswers(options: ScaffoldOptions): Promise<ScaffoldAnswers 
       type: 'select', name: 'framework', message: 'UI framework',
       choices: [
         { title: `${pc.cyan('React')}      — Component-based with JSX/TSX`, value: 'react' },
-        { title: `${pc.green('Vue')}        — Progressive framework with SFCs`, value: 'vue' },
-        { title: `${pc.red('Svelte')}     — Compile-time reactive`, value: 'svelte' },
-        { title: `${pc.blue('Solid')}      — Fine-grained reactive`, value: 'solid' },
         { title: `${pc.yellow('Vanilla')}    — Plain TypeScript`, value: 'vanilla' },
       ],
       initial: 0,
@@ -134,10 +131,6 @@ function buildPackageJson(a: ScaffoldAnswers): string {
     devDeps['@types/react-dom'] = VERSIONS.reactDomTypes;
     deps['zustand'] = VERSIONS.zustand;
   }
-  if (a.framework === 'vue')    deps['vue'] = VERSIONS.vue;
-  if (a.framework === 'svelte') deps['svelte'] = VERSIONS.svelte;
-  if (a.framework === 'solid')  deps['solid-js'] = VERSIONS.solidJs;
-
   if (a.css === 'tailwind') {
     devDeps['tailwindcss'] = VERSIONS.tailwindcss;
     devDeps['postcss'] = VERSIONS.postcss;
@@ -325,6 +318,8 @@ export async function scaffold(
     writeFileSync(join(projectDir, 'src/ui/popup/index.html'), loadTemplate('popup.html.tpl', vars));
     if (answers.framework === 'react')
       writeFileSync(join(projectDir, 'src/ui/popup/index.tsx'), loadTemplate('popup.tsx.tpl', vars));
+    else if (answers.framework === 'vanilla')
+      writeFileSync(join(projectDir, 'src/ui/popup/index.ts'), loadTemplate('popup.ts.tpl', vars));
   }
   if (answers.features.includes('background'))
     writeFileSync(join(projectDir, 'src/background/index.ts'), loadTemplateRaw('background.ts.tpl'));

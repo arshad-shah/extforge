@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const browserSchema = z.enum(['chrome', 'firefox', 'edge', 'safari']);
-export const frameworkSchema = z.enum(['react', 'vue', 'svelte', 'solid', 'vanilla']);
+export const frameworkSchema = z.enum(['react', 'vanilla']);
 export const cssSchema = z.enum(['tailwind', 'vanilla', 'none']);
 
 export const extForgeConfigSchema = z.object({
