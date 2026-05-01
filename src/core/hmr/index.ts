@@ -19,6 +19,7 @@ import { loadTemplate } from '../scaffold/template-loader.js';
 import {
   CSS_EXTENSIONS, ASSET_EXTENSIONS, BACKGROUND_PATTERNS, INJECTED_PATTERNS,
   MANIFEST_PATTERNS, DEBOUNCE_MS, DEFAULT_HMR_PORT, MAX_PORT_RETRIES, WATCH_IGNORED,
+  HMR_PROTOCOL_VERSION,
 } from './constants.js';
 
 async function reservePort(start: number, host: string, log: Logger): Promise<number> {
@@ -43,9 +44,11 @@ async function reservePort(start: number, host: string, log: Logger): Promise<nu
 export type HMRUpdateType = 'css' | 'js' | 'full-reload' | 'manifest' | 'assets';
 
 export interface HMRUpdate {
+  v?: number;
   type: HMRUpdateType;
   files: string[];
   timestamp: number;
+  scriptIds?: number[];
 }
 
 export interface HMRServerOptions {
@@ -132,7 +135,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
 
   const broadcast = (update: HMRUpdate): void => {
     if (!wss) return;
-    const payload = JSON.stringify(update);
+    const payload = JSON.stringify({ ...update, v: HMR_PROTOCOL_VERSION });
     let sent = 0;
     wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) { c.send(payload); sent++; } });
     log.debug(`Broadcast ${update.type} to ${sent} client(s)`);

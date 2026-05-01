@@ -33,3 +33,6 @@ export const WATCH_IGNORED = [
   '**/.git/**',
   '**/.*',
 ] as const;
+
+export const HMR_PROTOCOL_VERSION = 2 as const;
+export type HMRProtocolVersion = typeof HMR_PROTOCOL_VERSION;
