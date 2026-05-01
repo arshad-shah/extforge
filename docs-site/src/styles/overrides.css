@@ -1,0 +1,17 @@
+:root {
+  --sl-color-accent: var(--ef-violet);
+  --sl-color-accent-low: color-mix(in srgb, var(--ef-violet) 18%, var(--ef-surface));
+  --sl-color-accent-high: var(--ef-amber);
+  --sl-color-text-accent: var(--ef-violet);
+  --sl-font: var(--ef-font-sans);
+  --sl-font-mono: var(--ef-font-mono);
+}
+[data-theme='dark'] {
+  --sl-color-accent: var(--ef-violet);
+  --sl-color-accent-low: color-mix(in srgb, var(--ef-violet) 22%, var(--ef-surface));
+  --sl-color-accent-high: var(--ef-amber);
+  --sl-color-text-accent: var(--ef-violet);
+}
+
+.starlight-aside--note { border-inline-start-color: var(--ef-violet); }
+.starlight-aside--tip  { border-inline-start-color: var(--ef-amber); }

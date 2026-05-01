@@ -1,0 +1,7 @@
+packages:
+  - .
+  - docs-site
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
