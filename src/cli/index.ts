@@ -43,12 +43,11 @@ const main = defineCommand({
         quiet:   { type: 'boolean', description: 'Suppress info-level output', default: false },
         verbose: { type: 'boolean', description: 'Verbose HMR output', default: false },
         json:    { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
+        once:    { type: 'boolean', description: 'Run a single build then exit', default: false },
       },
       async run({ args }) {
-        const { createHMRServer } = await import('../core/hmr/index.js');
         const { loadExtForgeConfig } = await import('../core/config.js');
         const { createLogger, LogLevel, jsonTransport } = await import('../core/logger/index.js');
-        const { validateProject } = await import('../core/validator/index.js');
         const { ALL_BROWSERS } = await import('../core/manifest/index.js');
 
         const log = createLogger({
@@ -60,15 +59,24 @@ const main = defineCommand({
           silentHumanOutput: args.json as boolean,
         });
         const root = process.cwd();
-        const validation = validateProject(root, log.child('validate'));
-        if (!validation.valid) { log.error('Fix project errors first'); process.exit(1); }
-
         const config = await loadExtForgeConfig(root);
         const browser = args.browser as string;
         if (!ALL_BROWSERS.includes(browser as any)) {
           log.error(`Invalid browser: ${browser}. Options: ${ALL_BROWSERS.join(', ')}`);
           process.exit(1);
         }
+
+        if (args.once) {
+          const { build } = await import('../core/builder/index.js');
+          const result = await build(root, config, { browser: browser as any, dev: true }, log);
+          process.exit(result.errors.length > 0 ? 1 : 0);
+        }
+
+        const { createHMRServer } = await import('../core/hmr/index.js');
+        const { validateProject } = await import('../core/validator/index.js');
+
+        const validation = validateProject(root, log.child('validate'));
+        if (!validation.valid) { log.error('Fix project errors first'); process.exit(1); }
 
         const server = createHMRServer({
           projectRoot: root, config, browser: browser as any,
