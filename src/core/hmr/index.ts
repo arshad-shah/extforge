@@ -21,6 +21,7 @@ import {
   MANIFEST_PATTERNS, DEBOUNCE_MS, DEFAULT_HMR_PORT, MAX_PORT_RETRIES, WATCH_IGNORED,
   HMR_PROTOCOL_VERSION,
 } from './constants.js';
+import { formatReloadLog } from './client-logic.js';
 
 async function reservePort(start: number, host: string, log: Logger): Promise<number> {
   for (let i = 0; i < MAX_PORT_RETRIES; i++) {
@@ -172,13 +173,8 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     else                          updateType = 'css';
 
     const files = Array.from(changes.keys()).map(f => relative(projectRoot, f));
-    log.hmr(files, updateType);
+    const rebuildStart = performance.now();
 
-    const scriptIds = updateType === 'js'
-      ? extractScriptIds(changes.keys(), contentScriptMap)
-      : undefined;
-
-    log.time('rebuild');
     try {
       if (buildCtx) await buildCtx.rebuild();
       else await build(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log);
@@ -186,9 +182,20 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       log.error(`Rebuild failed: ${err instanceof Error ? err.message : String(err)}`);
       return;
     }
-    log.timeEnd('rebuild', 'Rebuild');
+
+    let scriptIds: number[] | undefined;
+    if (updateType === 'js' && contentScriptMap.size > 0) {
+      const absChanged = Array.from(changes.keys());
+      scriptIds = extractScriptIds(absChanged, contentScriptMap);
+    }
 
     broadcast({ type: updateType, files, timestamp: Date.now(), scriptIds });
+
+    const durationMs = Math.round(performance.now() - rebuildStart);
+    const clientCount = wss ? Array.from(wss.clients).filter(c => c.readyState === WebSocket.OPEN).length : 0;
+    log.info(formatReloadLog({ type: updateType, files, durationMs }, clientCount));
+
+    log.debug(`changed: ${files.join(', ')}`);
   });
 
   return {

@@ -41,6 +41,7 @@ const main = defineCommand({
         port:    { type: 'string', description: 'HMR WebSocket port', default: '35729' },
         host:    { type: 'string', description: 'HMR host', default: 'localhost' },
         quiet:   { type: 'boolean', description: 'Suppress info-level output', default: false },
+        verbose: { type: 'boolean', description: 'Verbose HMR output', default: false },
         json:    { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
       },
       async run({ args }) {
@@ -52,7 +53,9 @@ const main = defineCommand({
 
         const log = createLogger({
           scope: 'extforge',
-          level: args.quiet ? LogLevel.Warn : LogLevel.Debug,
+          level: args.verbose ? LogLevel.Trace
+               : args.quiet   ? LogLevel.Warn
+               :                LogLevel.Debug,
           transports: args.json ? [jsonTransport()] : undefined,
           silentHumanOutput: args.json as boolean,
         });
