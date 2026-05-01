@@ -183,6 +183,13 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       return;
     }
 
+    // Refresh the content-script map when the manifest changes — the user may
+    // have added/removed/reordered content_scripts entries, invalidating the
+    // scriptId mapping captured at start().
+    if (types.has('manifest')) {
+      contentScriptMap = buildContentScriptMap(projectRoot, config);
+    }
+
     let scriptIds: number[] | undefined;
     if (updateType === 'js' && contentScriptMap.size > 0) {
       const absChanged = Array.from(changes.keys());
