@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateHMRClientCode, classifyChange } from '../src/core/hmr/index.js';
 
+
 describe('HMR System', () => {
   describe('Change Classification', () => {
 
@@ -92,9 +93,9 @@ describe('HMR System', () => {
         expect(code).toContain('handleFullReload');
         expect(code).toContain('chrome.runtime.reload');
       });
-      it('should implement reconnection logic', () => {
+      it('should implement reconnection logic with exponential backoff', () => {
         expect(code).toContain('scheduleReconnect');
-        expect(code).toContain('MAX_RECONNECT');
+        expect(code).toContain('nextBackoff');
       });
       it('should support Shadow DOM CSS updates', () => {
         expect(code).toContain('shadowRoot');
@@ -155,5 +156,21 @@ describe('HMR System', () => {
       else result = 'css';
       expect(result).toBe('full-reload');
     });
+  });
+});
+
+describe('hmr client template', () => {
+  it('contains the inlined pure logic and badge code', () => {
+    const code = generateHMRClientCode(35729);
+    expect(code).toContain('shouldReload');
+    expect(code).toContain('nextBackoff');
+    expect(code).toContain('OWN_SCRIPT_ID');
+    expect(code).toContain('data-extforge-hmr-status');
+    expect(code).toContain('isCompatible');
+    expect(code).toContain('formatLog');
+  });
+  it('substitutes host and port', () => {
+    const code = generateHMRClientCode(12345, 'example.test');
+    expect(code).toContain('ws://example.test:12345');
   });
 });
