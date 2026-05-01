@@ -3,25 +3,15 @@
  */
 
 import { loadConfig } from 'c12';
-import type { Browser, ManifestConfig } from './manifest/index.js';
+import type { z } from 'zod';
+import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
 import { existsSync } from 'node:fs';
 import { join } from 'pathe';
 import pc from 'picocolors';
 
-// ─── Config shape ────────────────────────────────────────────────────────────
-
-export interface ExtForgeConfig {
-  root?: string;
-  browsers?: Browser[];
-  manifest?: ManifestConfig;
-  build?: { outDir?: string; srcDir?: string; sourcemap?: boolean; esbuild?: Record<string, unknown> };
-  dev?: { port?: number; host?: string; debounce?: number; open?: boolean; strictCompat?: boolean };
-  framework?: 'react' | 'vue' | 'svelte' | 'solid' | 'vanilla';
-  css?: 'tailwind' | 'vanilla' | 'none';
-  plugins?: ExtForgePlugin[];
-}
+// ─── Config shape (derived from Zod schema — single source of truth) ─────────
 
 export interface ExtForgePlugin {
   name: string;
@@ -29,6 +19,12 @@ export interface ExtForgePlugin {
   buildStart?: () => void | Promise<void>;
   buildEnd?: (result: unknown) => void | Promise<void>;
 }
+
+export type ExtForgeConfig = z.infer<typeof extForgeConfigSchema> & {
+  // These fields are not strictly modeled in the schema today; declared here so callers see them.
+  manifest?: ManifestConfig;
+  plugins?: ExtForgePlugin[];
+};
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
 
