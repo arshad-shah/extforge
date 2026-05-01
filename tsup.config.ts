@@ -7,6 +7,7 @@ export default defineConfig({
     'cli/index': 'src/cli/index.ts',
     'core/index': 'src/core/index.ts',
     'core/logger/index': 'src/core/logger/index.ts',
+    'core/compat/index': 'src/core/compat/index.ts',
   },
   format: ['esm'],
   dts: true,
@@ -27,6 +28,16 @@ export default defineConfig({
       cpSync(src, dest, { recursive: true });
       // eslint-disable-next-line no-console
       console.log(`[tsup] Copied templates → ${dest}`);
+    }
+
+    // Copy compat data.json so the runtime createRequire('./data.json') resolves
+    // relative to dist/core/compat/index.js at runtime.
+    const compatDataSrc = join('src', 'core', 'compat', 'data.json');
+    const compatDataDest = join('dist', 'core', 'compat', 'data.json');
+    if (existsSync(compatDataSrc)) {
+      cpSync(compatDataSrc, compatDataDest);
+      // eslint-disable-next-line no-console
+      console.log(`[tsup] Copied compat data → ${compatDataDest}`);
     }
   },
 });
