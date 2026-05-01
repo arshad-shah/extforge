@@ -39,8 +39,9 @@ export function createTabsFake(): TabsFake {
 
   return {
     chrome: { query, sendMessage, create, reload },
+    /** Replaces the seeded tab list. Repeated calls overwrite, not append. */
     __seed(seed) {
-      for (const t of seed) tabs.push({ id: t.id, url: t.url, active: t.active ?? false });
+      tabs = seed.map(t => ({ id: t.id, url: t.url, active: t.active ?? false }));
     },
     reset() {
       tabs = [];

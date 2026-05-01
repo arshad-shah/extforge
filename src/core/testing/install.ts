@@ -57,9 +57,13 @@ export function installChromeFakes(): ChromeFakes {
     );
   }
   const fakes = createChromeFakes();
+  // Wrap storage in a trap so unmodeled sub-areas (e.g. `managed`) error clearly
+  // instead of returning undefined. The modeled sub-areas (local/sync/session)
+  // pass through unchanged.
+  const storageWithTrap = withNotModeledTrap(fakes.storage.chrome, 'storage');
   (globalThis as any).chrome = {
     runtime:   withNotModeledTrap(fakes.runtime.chrome,   'runtime'),
-    storage:   fakes.storage.chrome, // sub-areas are real objects with no proxy
+    storage:   storageWithTrap,
     tabs:      withNotModeledTrap(fakes.tabs.chrome,      'tabs'),
     action:    withNotModeledTrap(fakes.action.chrome,    'action'),
     scripting: withNotModeledTrap(fakes.scripting.chrome, 'scripting'),
