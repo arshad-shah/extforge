@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   Logger, LogLevel, createLogger, getLogger, setRootLogger,
-  formatDuration, formatFileSize,
+  formatDuration, formatFileSize, jsonTransport,
   type LogEntry, type LogTransport,
 } from '../src/core/logger/index.js';
 
@@ -212,5 +212,41 @@ describe('Format utilities', () => {
     it('should format megabytes', () => {
       expect(formatFileSize(1048576)).toBe('1.00 MB');
     });
+  });
+});
+
+describe('Logger.group/step/summary', () => {
+  it('group emits a header line and runs the callback', () => {
+    const lines: string[] = [];
+    const log = new Logger({ transports: [(e) => lines.push(`${e.scope}|${e.message}`)] });
+    log.group('Build', () => log.info('one'));
+    expect(lines.join('\n')).toMatch(/Build/);
+    expect(lines.join('\n')).toMatch(/one/);
+  });
+
+  it('step succeeds with timing', async () => {
+    const lines: string[] = [];
+    const log = new Logger({ transports: [(e) => lines.push(e.message)] });
+    await log.step('do the thing', async () => 42);
+    expect(lines.some(l => /do the thing/.test(l))).toBe(true);
+  });
+
+  it('quiet level suppresses info but keeps warn/error', () => {
+    const lines: string[] = [];
+    const log = new Logger({ level: LogLevel.Warn, transports: [(e) => lines.push(e.message)] });
+    log.info('hidden'); log.warn('shown'); log.error('shown');
+    expect(lines.find(l => /hidden/.test(l))).toBeUndefined();
+    expect(lines.filter(l => /shown/.test(l)).length).toBe(2);
+  });
+
+  it('jsonTransport emits one JSON object per entry', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    log.info('hello', { a: 1 });
+    const parsed = JSON.parse(lines[0]);
+    expect(parsed.level).toBeTypeOf('number');
+    expect(parsed.message).toContain('hello');
+    expect(parsed.v).toBe(1);
   });
 });

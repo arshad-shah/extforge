@@ -163,9 +163,9 @@ export class Logger {
     });
   }
 
-  private emit(level: LogLevel, message: string, args: unknown[]): void {
+  private emit(level: LogLevel, message: string, args: unknown[], duration?: number): void {
     if (level > this.level) return;
-    const entry: LogEntry = { level, scope: this.scope, message, args, timestamp: Date.now() };
+    const entry: LogEntry = { level, scope: this.scope, message, args, timestamp: Date.now(), duration };
     for (const t of this.transports) t(entry);
   }
 
@@ -220,6 +220,36 @@ export class Logger {
     this.emit(LogLevel.Info, `${tint(BADGES.hmr.color, BADGES.hmr.icon)} ${tint(colorFn, type)} ${fileList}`, []);
   }
 
+  group<T>(title: string, fn: () => T): T;
+  group<T>(title: string, fn: () => Promise<T>): Promise<T>;
+  group<T>(title: string, fn: () => T | Promise<T>): T | Promise<T> {
+    this.emit(LogLevel.Info, tint(pc.bold, title), []);
+    return fn();
+  }
+
+  async step<T>(name: string, fn: () => Promise<T> | T): Promise<T> {
+    const t0 = performance.now();
+    try {
+      const result = await fn();
+      const dur = performance.now() - t0;
+      this.emit(LogLevel.Info, `${tint(pc.green, '✔')} ${name}`, [], dur);
+      return result;
+    } catch (err) {
+      const dur = performance.now() - t0;
+      this.emit(LogLevel.Error, `${tint(pc.red, '✖')} ${name}`, [], dur);
+      throw err;
+    }
+  }
+
+  summary(title: string, rows: Array<{ label: string; value: string }>): void {
+    this.emit(LogLevel.Info, tint(pc.bold, title), []);
+    const w = Math.max(...rows.map(r => r.label.length));
+    for (const r of rows) {
+      const pad = ' '.repeat(w - r.label.length);
+      this.emit(LogLevel.Info, `  ${tint(pc.dim, r.label)}${pad}  ${r.value}`, []);
+    }
+  }
+
   banner(title: string, lines: string[] = []): void {
     const maxLen = Math.max(title.length, ...lines.map(l => l.length));
     const pad = (s: string) => s + ' '.repeat(maxLen - s.length);
@@ -237,6 +267,23 @@ export class Logger {
 
   addTransport(t: LogTransport): void { this.transports.push(t); }
   clearTransports(): void { this.transports = []; }
+}
+
+// ─── JSON transport ──────────────────────────────────────────────────────────
+
+export function jsonTransport(write: (line: string) => void = (s) => process.stdout.write(s + '\n')): LogTransport {
+  return (entry) => {
+    const obj = {
+      v: 1,
+      level: entry.level,
+      scope: entry.scope,
+      message: entry.message.replace(/\x1b\[[0-9;]*m/g, ''),
+      timestamp: entry.timestamp,
+      duration: entry.duration,
+      args: entry.args,
+    };
+    write(JSON.stringify(obj));
+  };
 }
 
 // ─── Factory / singleton ─────────────────────────────────────────────────────
