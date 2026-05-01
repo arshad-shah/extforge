@@ -13,7 +13,7 @@ export default defineConfig({
       },
       favicon: '/favicon.svg',
       social: {
-        github: 'https://github.com/arshadshah/extforge',
+        github: 'https://github.com/arshad-shah/extforge',
       },
       customCss: ['./src/styles/brand.css', './src/styles/overrides.css'],
       sidebar: [
