@@ -1,0 +1,26 @@
+---
+title: presetReact
+description: First-party React preset.
+---
+
+`presetReact()` is auto-injected by ExtForge when `framework: 'react'` is set in `extforge.config.ts`. You may also pass it explicitly to override the JSX import source or runtime.
+
+### `PresetReactOptions`
+Options for `presetReact()`.
+
+| Member | Type | Description |
+|---|---|---|
+| `jsxImportSource?` | `string \| undefined` | JSX import source. Defaults to "react". Set to "preact" to use Preact. |
+| `jsxRuntime?` | `"automatic" \| "classic" \| undefined` | JSX runtime: "automatic" emits jsx-runtime imports; "classic" emits React.createElement calls. Defaults to "automatic". |
+
+
+## Usage
+
+```ts
+import { defineConfig } from 'extforge';
+import { presetReact } from 'extforge/plugins';
+
+export default defineConfig({
+  plugins: [presetReact({ jsxImportSource: 'preact' })],
+});
+```

@@ -1,7 +1,10 @@
 import type { ExtForgePluginV1 } from './types.js';
 
+/** Options for `presetReact()`. */
 export interface PresetReactOptions {
+  /** JSX import source. Defaults to "react". Set to "preact" to use Preact. */
   jsxImportSource?: string;
+  /** JSX runtime: "automatic" emits jsx-runtime imports; "classic" emits React.createElement calls. Defaults to "automatic". */
   jsxRuntime?: 'automatic' | 'classic';
 }
 

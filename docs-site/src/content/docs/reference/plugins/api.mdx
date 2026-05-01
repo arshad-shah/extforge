@@ -1,0 +1,68 @@
+---
+title: Plugin API
+description: Every type you need to write an ExtForge plugin.
+---
+
+ExtForge plugins are TypeScript objects implementing `ExtForgePluginV1`. They register hooks during `setup()` and the runner fires those hooks at well-defined points in the build.
+
+### `EntryDescriptor`
+Describes a single entry point to be bundled by esbuild.
+
+| Member | Type | Description |
+|---|---|---|
+| `name` | `string` | Logical name used to derive the output filename. |
+| `file` | `string` | Absolute or root-relative path to the entry source file. |
+| `format` | `"esm" \| "iife"` | Output bundle format. |
+| `esbuildOptions?` | `Record<string, unknown> \| undefined` | Extra esbuild options merged into this entry's build. |
+| `isContentScript?` | `boolean \| undefined` | Whether this entry is a content script (affects IIFE wrapping). |
+
+### `PluginHooks`
+Hook registration methods available inside a plugin's `setup()` call.
+
+| Member | Type | Description |
+|---|---|---|
+
+### `PluginContext`
+Runtime context injected into every plugin's `setup()` function.
+
+| Member | Type | Description |
+|---|---|---|
+| `config` | `ExtForgeConfig` | The resolved ExtForge configuration for the current build. |
+| `paths` | `{ readonly root: string; readonly src: string; readonly dist: string; }` | Resolved absolute paths for the project root, source, and output directories. |
+| `logger` | `Logger` | Logger instance scoped to the plugin runner. |
+| `hooks` | `PluginHooks` | Hook registration object for this plugin's subscriptions. |
+
+### `ExtForgePluginV1`
+A plugin written against the v1 ExtForge plugin API.
+
+| Member | Type | Description |
+|---|---|---|
+| `name` | `string` | Unique-ish identifier; surfaces in logs and error messages. |
+| `apiVersion` | `1` | Required discriminator; routes the runner to the modern API. |
+
+### `ExtForgePluginLegacy`
+Thin legacy plugin shape accepted for backwards compatibility.
+
+| Member | Type | Description |
+|---|---|---|
+| `name` | `string` | Unique-ish identifier; surfaces in logs and error messages. |
+| `setup?` | `((config: ExtForgeConfig) => void \| Promise<void>) \| undefined` | Optional hook called once with the resolved config. |
+| `buildStart?` | `(() => void \| Promise<void>) \| undefined` | Optional hook called at the start of each build. |
+| `buildEnd?` | `((result: unknown) => void \| Promise<void>) \| undefined` | Optional hook called after each build completes. |
+
+
+## Example
+
+```ts
+import type { ExtForgePluginV1 } from 'extforge/plugins';
+
+export function presetTailwind(): ExtForgePluginV1 {
+  return {
+    name: 'extforge:preset-tailwind',
+    apiVersion: 1,
+    setup({ hooks, logger }) {
+      hooks.onBuildEntry((entry) => entry);
+    },
+  };
+}
+```
