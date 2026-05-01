@@ -3,9 +3,11 @@ import starlight from '@astrojs/starlight';
 
 export default defineConfig({
   site: 'https://extforge.arshadshah.com',
+  trailingSlash: 'always',
   integrations: [
     starlight({
       title: 'ExtForge',
+      pagefind: true,
       logo: {
         light: './src/assets/logo.svg',
         dark: './src/assets/logo-dark.svg',
