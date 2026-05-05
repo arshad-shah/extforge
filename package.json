@@ -80,6 +80,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@mdn/browser-compat-data": "^7.3.14",
+    "@swc/core": "^1.15.0",
     "@types/chrome": "^0.0.290",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
@@ -96,14 +97,22 @@
     "vitest": "^2.1.0"
   },
   "peerDependencies": {
+    "@swc/core": ">=1.7.0",
     "esbuild": ">=0.24.0",
-    "react": ">=18.0.0"
+    "react": ">=18.0.0",
+    "react-refresh": ">=0.14.0"
   },
   "peerDependenciesMeta": {
     "esbuild": {
       "optional": false
     },
+    "@swc/core": {
+      "optional": true
+    },
     "react": {
+      "optional": true
+    },
+    "react-refresh": {
       "optional": true
     }
   },

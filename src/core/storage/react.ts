@@ -65,8 +65,8 @@ export function useStorage<T>(
       unwatch();
     };
     // We deliberately don't include `defaultValue` in deps — changing it
-    // shouldn't re-fetch storage. Callers rarely change it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // shouldn't re-fetch storage. Callers rarely change it. (react-hooks
+    // plugin not installed; this is a comment-only intent declaration.)
   }, [key, storage]);
 
   const setValue = useCallback(

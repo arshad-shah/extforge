@@ -273,6 +273,17 @@ export class Logger {
     process.stdout.write(`  ${hr}\n\n`);
   }
 
+  /**
+   * Print a raw line directly — no badge, no scope, no level filtering.
+   * Use this for interactive UX (scaffold banners, prompt-side output)
+   * where the structured format would interfere with the user's reading
+   * flow. Honors `silentHumanOutput` so `--json` mode still suppresses it.
+   */
+  raw(line: string = ''): void {
+    if (this.silentHumanOutput) return;
+    process.stdout.write(line + '\n');
+  }
+
   addTransport(t: LogTransport): void { this.transports.push(t); }
   clearTransports(): void { this.transports = []; }
 }

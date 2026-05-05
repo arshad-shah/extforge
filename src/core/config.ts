@@ -8,7 +8,6 @@ import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
 import { resolve } from 'node:path/posix';
-import pc from './logger/ansi.js';
 import { PluginRunner } from './plugins/runner.js';
 import { presetReact } from './plugins/preset-react.js';
 import { createLogger } from './logger/index.js';
@@ -56,9 +55,10 @@ export async function loadExtForgeConfig(
     if (process.env['EXTFORGE_STRICT_CONFIG'] === '1' || (overrides as { _strictConfig?: boolean })?._strictConfig) {
       throw err;
     }
-    console.error(pc.yellow('[extforge] Config validation warnings:'));
-    console.error(pc.yellow(err.message));
-    console.error(pc.yellow('These warnings will become errors in v0.4.0.'));
+    const log = createLogger({ scope: 'config' });
+    log.warn('Config validation warnings:');
+    log.warn(err.message);
+    log.warn('These warnings will become errors in v0.4.0.');
   }
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));

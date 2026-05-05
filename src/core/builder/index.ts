@@ -21,6 +21,7 @@ import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 import { loadEnv, publicEnvToDefine } from '../env/index.js';
 import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
+import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -297,15 +298,23 @@ async function runEntryHook(
   return next.esbuildOptions ?? baseOptions;
 }
 
-function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
+function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>, config?: ExtForgeConfig): esbuild.BuildOptions {
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const banner = makeHMRBanner(opts);
+  // React Fast Refresh: opt-in. Active only when (1) dev mode, (2) framework
+  // is react in the user's config, and (3) @swc/core is installed (the plugin
+  // self-disables otherwise).
+  const useRefresh = Boolean(opts.dev && config?.framework === 'react');
+  const plugins: esbuild.Plugin[] = useRefresh
+    ? [refreshPlugin({ enabled: true })]
+    : [];
   return {
     ...makeSharedEsbuildOptions(root, opts),
     entryPoints: entries,
     outdir: outDir,
     format: 'esm',
     splitting: false,
+    plugins,
     ...(banner ? { banner } : {}),
   };
 }
@@ -404,7 +413,7 @@ export async function build(
   // Fire onBuildEntry per-entry (last-write-wins for shared esbuild options).
   let result: esbuild.BuildResult | undefined;
   if (Object.keys(esmEntries).length > 0) {
-    const baseEsmConfig = makeBuildConfig(root, { ...opts, outDir }, esmEntries);
+    const baseEsmConfig = makeBuildConfig(root, { ...opts, outDir }, esmEntries, config);
     const mergedEntryOptions: Record<string, unknown> = {};
     for (const [name, file] of Object.entries(esmEntries)) {
       const returned = await runEntryHook({}, name, file, 'esm', false, runner);
@@ -584,7 +593,7 @@ export async function createBuildContext(
   const srcDir = join(root, 'src');
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const entries = discoverEntryPoints(srcDir);
-  const cfg = makeBuildConfig(root, { ...opts, outDir }, entries);
+  const cfg = makeBuildConfig(root, { ...opts, outDir }, entries, config);
 
   return esbuild.context({
     ...cfg,

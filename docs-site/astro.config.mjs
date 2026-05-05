@@ -14,9 +14,9 @@ export default defineConfig({
         replacesTitle: true,
       },
       favicon: '/favicon.svg',
-      social: {
-        github: 'https://github.com/arshad-shah/extforge',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/arshad-shah/extforge' },
+      ],
       customCss: ['./src/styles/brand.css', './src/styles/overrides.css'],
       sidebar: [
         {

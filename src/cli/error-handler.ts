@@ -47,9 +47,15 @@ export function formatError(err: unknown): FormattedError {
   return { title: 'Command failed', detail: String(err) };
 }
 
+/**
+ * Top-level CLI error renderer. Uses console.error directly because this runs
+ * at the outermost edge — before any per-command logger has been created and
+ * after any logger has potentially been torn down. Going through Logger here
+ * would require a global default that doesn't exist yet.
+ */
 export function printError(err: unknown): void {
   const f = formatError(err);
-  // Always write to stderr so users can pipe stdout cleanly.
+  /* eslint-disable no-console */
   console.error('');
   console.error(pc.bold(pc.red(`✖ ${f.title}`)));
   if (f.detail) console.error(`  ${f.detail}`);
@@ -64,6 +70,7 @@ export function printError(err: unknown): void {
     console.error(pc.dim('  Run with EXTFORGE_DEBUG=1 to see the full stack trace.'));
   }
   console.error('');
+  /* eslint-enable no-console */
 }
 
 /**

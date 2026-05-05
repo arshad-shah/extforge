@@ -91,9 +91,16 @@ test.describe('HMR protocol', () => {
       ])) as { v?: number; type?: string; files?: string[] };
 
       expect(msg).toBeDefined();
-      expect(msg.v).toBe(2);
-      expect(['js', 'full-reload', 'manifest', 'css', 'assets']).toContain(msg.type);
-      expect(Array.isArray(msg.files)).toBe(true);
+      // Servers since v3 may emit either v2 (reload-style) or v3 (hmr-update)
+      // envelopes depending on what changed. UI-only JS edits land in v3.
+      expect([2, 3]).toContain(msg.v);
+      if (msg.v === 3) {
+        // v3 hmr-update envelope: { v:3, type:'hmr-update', updates:[{id,hash,file}] }
+        expect((msg as unknown as { type: string }).type).toBe('hmr-update');
+      } else {
+        expect(['js', 'full-reload', 'manifest', 'css', 'assets']).toContain(msg.type);
+        expect(Array.isArray(msg.files)).toBe(true);
+      }
     } finally {
       writeFileSync(file, original);
       ws.close();

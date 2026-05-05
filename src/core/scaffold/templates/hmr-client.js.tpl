@@ -9,7 +9,7 @@
   }
 
   var WS_URL = 'ws://{{HMR_HOST}}:{{HMR_PORT}}';
-  var HMR_PROTOCOL_VERSION = 2;
+  var HMR_PROTOCOL_VERSION = 3;
   // keep in sync with src/core/hmr/client-logic.ts — BACKOFF array and nextBackoff
   var BACKOFF = [250, 500, 1000, 2000, 4000, 8000];
   var OWN_SCRIPT_ID = (typeof globalThis !== 'undefined' && typeof globalThis.__EXTFORGE_SCRIPT_ID__ === 'number')
@@ -80,6 +80,7 @@
       }
       var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       switch (update.type) {
+        case 'hmr-update': handleHotUpdate(update, t0); break;
         case 'css':       handleCSSUpdate(update.files); logUpdate(update, t0); break;
         case 'js':        handleJSUpdate(update); logUpdate(update, t0); break;
         case 'full-reload':
@@ -108,6 +109,44 @@
   }
 
   // ─── Update handlers ────────────────────────────────────────────────
+
+  /**
+   * v3 hot-update handler. For each {id, hash, file}, refetch the bundled
+   * chunk with a cache-busting query string. The new module's React Fast
+   * Refresh header re-registers components and calls performReactRefresh,
+   * which updates the DOM in place with state preserved.
+   *
+   * Falls back to full reload if:
+   *   - we're not in an extension page (chrome-extension://...) context,
+   *   - the dynamic import fails for any update,
+   *   - the new module didn't perform an RFR pass within 500ms.
+   */
+  function handleHotUpdate(update, t0) {
+    if (typeof location === 'undefined' || location.protocol !== 'chrome-extension:') {
+      handleFullReload('hmr-update');
+      logUpdate(update, t0);
+      return;
+    }
+    var updates = update.updates || [];
+    if (updates.length === 0) { logUpdate(update, t0); return; }
+
+    var base = location.origin + '/';
+    Promise.all(updates.map(function (u) {
+      var url = base + u.file + '?t=' + encodeURIComponent(u.hash);
+      // Dynamic import gives us a fresh module instance; the RFR header in the
+      // new module re-registers components and triggers a refresh.
+      return import(/* @vite-ignore */ url).catch(function (err) {
+        console.warn('[ExtForge HMR] failed to fetch update for ' + u.file, err);
+        throw err;
+      });
+    }))
+      .then(function () { logUpdate(update, t0); })
+      .catch(function () {
+        // Any failure → fall back to a clean reload.
+        handleFullReload('hmr-update');
+      });
+  }
+
   function handleCSSUpdate(files) {
     var links = document.querySelectorAll('link[rel="stylesheet"]');
     Array.prototype.forEach.call(links, function (link) {

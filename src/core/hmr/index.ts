@@ -53,6 +53,21 @@ export interface HMRUpdate {
   scriptIds?: number[];
 }
 
+/** v3 fine-grained envelope. Client swaps modules via React Fast Refresh. */
+export interface HMRUpdateV3 {
+  v: 3;
+  type: 'hmr-update';
+  updates: Array<{
+    /** Stable module id — relative source path. */
+    id: string;
+    /** Cache-busting hash, also used to dedupe no-op updates. */
+    hash: string;
+    /** Path to the bundled chunk, relative to dist/<browser>/. */
+    file: string;
+  }>;
+  timestamp: number;
+}
+
 export interface HMRServerOptions {
   port?: number;
   host?: string;
@@ -158,12 +173,52 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
   let resolvedPort = options.port ?? DEFAULT_HMR_PORT;
   let contentScriptMap: Map<string, number> = new Map();
 
-  const broadcast = (update: HMRUpdate): void => {
+  const broadcast = (update: HMRUpdate | HMRUpdateV3): void => {
     if (!wss) return;
-    const payload = JSON.stringify({ ...update, v: HMR_PROTOCOL_VERSION });
+    // v3 envelopes set their own `v: 3`; v2 fills in HMR_PROTOCOL_VERSION
+    // (currently 3) without overriding an explicit v from the caller.
+    const finalUpdate = ('v' in update && typeof update.v === 'number')
+      ? update
+      : { ...(update as HMRUpdate), v: HMR_PROTOCOL_VERSION };
+    const payload = JSON.stringify(finalUpdate);
     let sent = 0;
     wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) { c.send(payload); sent++; } });
-    log.debug(`Broadcast ${update.type} to ${sent} client(s)`);
+    log.debug(`Broadcast ${(finalUpdate as { type: string }).type} v=${(finalUpdate as { v: number }).v} to ${sent} client(s)`);
+  };
+
+  /**
+   * Decide whether a batch of changes is hot-applicable via v3:
+   * every changed file must be a .ts/.tsx that lands in popup/options/sidepanel
+   * (no background, no content, no manifest, no asset).
+   *
+   * Returns the list of UI entry files (relative to dist) that need swapping,
+   * or undefined to fall back to v2.
+   */
+  const tryClassifyV3 = (changes: Map<string, HMRUpdateType>): string[] | undefined => {
+    const types = new Set(changes.values());
+    if (types.has('manifest') || types.has('full-reload')) return undefined;
+    if (types.has('css') || types.has('assets')) return undefined;
+    if (!types.has('js')) return undefined;
+
+    // All changes must be inside src/ui/* — anything else falls back to reload.
+    const uiPrefix = `${projectRoot}/src/ui/`;
+    for (const abs of changes.keys()) {
+      if (!abs.startsWith(uiPrefix)) return undefined;
+    }
+
+    // Map each absolute source file to a UI entry output. Only popup/options/
+    // sidepanel are eligible (those are the only ESM UI entries discovered by
+    // discoverEntryPoints).
+    const matchedEntries = new Set<string>();
+    for (const abs of changes.keys()) {
+      const rel = abs.replace(`${projectRoot}/src/`, '');
+      if      (rel.startsWith('ui/popup/'))     matchedEntries.add('ui/popup/index.js');
+      else if (rel.startsWith('ui/options/'))   matchedEntries.add('ui/options/index.js');
+      else if (rel.startsWith('ui/sidepanel/')) matchedEntries.add('ui/sidepanel/index.js');
+      else return undefined;
+    }
+    if (matchedEntries.size === 0) return undefined;
+    return Array.from(matchedEntries);
   };
 
   const debouncer = new ChangeDebouncer(DEBOUNCE_MS, async (changes) => {
@@ -199,6 +254,28 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     }
 
     const timestamp = Date.now();
+
+    // v3 path: hot-applicable UI-only JS change. Emit a v3 envelope. Client
+    // refetches the chunk via chrome-extension://<id>/<file>?t=<hash> and
+    // the React Fast Refresh runtime in the new module performs the swap.
+    const v3Files = tryClassifyV3(changes);
+    if (v3Files && updateType === 'js') {
+      const hash = String(timestamp);
+      const v3Update: HMRUpdateV3 = {
+        v: 3,
+        type: 'hmr-update',
+        timestamp,
+        updates: v3Files.map(f => ({ id: f, hash, file: f })),
+      };
+      broadcast(v3Update);
+      await runner?.fireDevReload({ v: HMR_PROTOCOL_VERSION, type: 'js', files, timestamp, scriptIds });
+      const durationMs = Math.round(performance.now() - rebuildStart);
+      const clientCount = wss ? Array.from(wss.clients).filter(c => c.readyState === WebSocket.OPEN).length : 0;
+      log.info(`[hmr] hot-update ${v3Files.join(', ')} — ${durationMs}ms (${clientCount} client(s))`);
+      log.debug(`changed: ${files.join(', ')}`);
+      return;
+    }
+
     broadcast({ type: updateType, files, timestamp, scriptIds });
     await runner?.fireDevReload({ v: HMR_PROTOCOL_VERSION, type: updateType, files, timestamp, scriptIds });
 

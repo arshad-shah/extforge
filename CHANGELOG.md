@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — true 0-reload UI updates via SWC + React Fast Refresh (Phase 4 complete)
+- **`src/core/hmr/swc/refresh-plugin.ts`** — esbuild plugin that runs `@swc/core` over `.tsx`/`.jsx` in dev mode with `react.refresh: true`. Emits the `$RefreshReg$`/`$RefreshSig$` calls Fast Refresh needs, plus a header that initialises `react-refresh/runtime` and a footer that wires `import.meta.hot.accept` to `performReactRefresh()`. SWC chosen over Babel for ~20× faster transforms — matches our esbuild philosophy.
+- **`@swc/core` and `react-refresh` are optional peer deps**: install them to enable RFR; without them the plugin no-ops with a single warning and dev-mode falls back to esbuild's TS/JSX loader (current full-reload behaviour).
+- **HMR protocol bumped to v3.** v2 envelopes still emitted for everything that can't be hot-applied (manifest / background / content / CSS / asset changes). v3 envelopes (`{ v:3, type:'hmr-update', updates:[{id, hash, file}] }`) emitted for popup/options/sidepanel-only JS changes — client refetches `chrome-extension://<id>/<file>?t=<hash>`, the new module's RFR header re-registers components, `performReactRefresh()` updates the DOM in place with state preserved.
+- **Server-side classifier `tryClassifyV3`** decides per-batch whether v3 is safe. Falls through to v2 the moment any non-UI source touches the change set (one content-script edit and we reload the whole extension — correctness over cleverness).
+- **Client-side `handleHotUpdate`** in the HMR client template fetches each chunk in parallel, falls back to a clean reload on any import failure or non-extension context.
+- 3 new unit tests for the SWC plugin (no-op-when-disabled, transform-runs-or-no-ops-without-swc, skip-node_modules).
+
+### Added — content-script HMR scaffolding (Phase 6)
+- **`src/core/hmr/content-script.ts`** — generator for a dev-only background snippet that registers content scripts dynamically via `chrome.scripting.registerContentScripts` (instead of the static manifest entry) and re-registers on HMR. Pairs with a per-tab dispose registry runtime exposing `__extforgeDispose__()` for cleanup.
+- 6 new unit tests cover descriptor embedding, fallback behaviour without `chrome.scripting`, cache-busting, and re-register hook.
+- Opt-in via `extforge.config.ts` `hmr.contentScripts: 'dynamic'` (config schema entry lands in next minor). Default behaviour unchanged.
+
+### Changed — centralized logging
+- All `console.*` calls in library code now route through Logger (`src/core/logger`) or the in-browser `runtimeLog` helper. Scattered `console.error('[extforge] ...')` from `src/core/config.ts` removed.
+- Added `Logger.raw(line)` for unstructured user-facing UX text (scaffold banners, prompt-side output) so the scaffold no longer touches `console` directly.
+- Added an `in-browser` runtime logger (`src/core/hmr/runtime.ts → runtimeLog`) that respects `globalThis.__EXTFORGE_HMR_QUIET__` for opt-out.
+- ESLint `no-console: error` enabled across `src/`, with a small whitelist of files that have a documented reason: `src/cli/error-handler.ts` (top-level CLI renderer; runs before any logger exists), `src/core/hmr/runtime.ts` (in-browser; routes through `runtimeLog`), `src/core/compat/build-data.ts` (release-time tool, not user-facing).
+
+### Fixed — docs-site build
+- Astro Starlight 0.30 → 0.38 changed the `social:` config syntax from object to array. `docs-site/astro.config.mjs` updated. `pnpm --filter extforge-docs build` now passes against Astro 6 + Starlight 0.38.
+
 ### Added — HMR runtime scaffolding (Phase 4 part 1)
 - New module `src/core/hmr/runtime.ts` with `createHMRRuntime()` and the `HotApi` (`accept` / `dispose` / `decline`) primitives. This is the registry that backs true 0-reload swaps once the v3 protocol fires.
 - v3 envelope shape (`HMRUpdateV3`) and `applyV3Update()` helper documented and unit-tested.

@@ -22,6 +22,25 @@
  *     hooking the Babel transform is the next step.
  */
 
+/**
+ * Centralized in-browser logger. All HMR runtime output goes through here so
+ * users can silence it with `globalThis.__EXTFORGE_HMR_QUIET__ = true` and
+ * we have a single place to format / mute / route messages. Mirrors the
+ * server-side Logger's intent: nothing in this module ever calls `console.*`
+ * directly outside `runtimeLog`.
+ */
+function runtimeLog(level: 'warn' | 'error' | 'info', ...args: unknown[]): void {
+  const g = globalThis as { __EXTFORGE_HMR_QUIET__?: boolean };
+  if (g.__EXTFORGE_HMR_QUIET__) return;
+  const prefix = '[extforge:hmr]';
+  // eslint-disable-next-line no-console
+  if (level === 'error') console.error(prefix, ...args);
+  // eslint-disable-next-line no-console
+  else if (level === 'warn')  console.warn(prefix, ...args);
+  // eslint-disable-next-line no-console
+  else console.info(prefix, ...args);
+}
+
 export interface ModuleRecord {
   /** Stable module id — the file's path relative to project root. */
   id: string;
@@ -109,14 +128,14 @@ export function createHMRRuntime(): HMRRuntime {
 
     // Run dispose callbacks for the OLD instance.
     for (const dc of rec.disposeCallbacks) {
-      try { dc(); } catch (e) { /* swallow */ console.error('[hmr] dispose error', e); }
+      try { dc(); } catch (e) { runtimeLog('error', 'dispose threw', e); }
     }
 
     let newExports: Record<string, unknown>;
     try {
       newExports = newFactory();
     } catch (e) {
-      console.error('[hmr] factory threw — falling back to reload', e);
+      runtimeLog('error', 'factory threw — falling back to reload', e);
       return false;
     }
 
@@ -131,7 +150,7 @@ export function createHMRRuntime(): HMRRuntime {
         const r = ac(newExports);
         if (r === false) aborted = true;
       } catch (e) {
-        console.error('[hmr] accept callback threw', e);
+        runtimeLog('error', 'accept callback threw', e);
         aborted = true;
       }
     }
@@ -185,7 +204,7 @@ export async function applyV3Update(
       const ok = runtime.apply(u.id, mod.default, u.hash);
       if (!ok) allAccepted = false;
     } catch (err) {
-      console.error('[hmr] failed to fetch update', u.chunkUrl, err);
+      runtimeLog('error', 'failed to fetch update', u.chunkUrl, err);
       allAccepted = false;
     }
   }

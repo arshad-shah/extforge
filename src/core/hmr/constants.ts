@@ -35,14 +35,16 @@ export const WATCH_IGNORED = [
 ] as const;
 
 /**
- * v2 — coarse {type, files, scriptIds} envelope. Currently emitted by the
- *      dev server. Triggers reload-style updates on the client.
- * v3 — fine-grained {type:'hmr-update', updates:[{id, hash, chunkUrl}]}
- *      envelope routed through the new module registry runtime
- *      (src/core/hmr/runtime.ts). The server doesn't emit v3 yet — the
- *      esbuild plugin that rewrites user modules into the registry is
- *      tracked as Phase 4 follow-up. Bumping this constant to 3 should
- *      happen alongside that change.
+ * v2 — coarse {type, files, scriptIds} envelope. Server emits this for
+ *      everything that can't be hot-applied: manifest, background, content
+ *      scripts, asset/CSS changes. Client treats it as reload-style.
+ * v3 — fine-grained {type:'hmr-update', updates:[{id, hash, file}]}
+ *      envelope used for UI-only JS changes (popup/options/sidepanel) where
+ *      the React Fast Refresh path can swap components without a reload.
+ *      Client refetches `chrome-extension://<id>/<file>?t=<hash>` and the
+ *      RFR-transformed import calls performReactRefresh() automatically.
+ *      v2 clients see v3 envelopes, fail the isCompatibleEnvelope check,
+ *      and ignore them (one warning) — safe to mix.
  */
-export const HMR_PROTOCOL_VERSION = 2 as const;
+export const HMR_PROTOCOL_VERSION = 3 as const;
 export type HMRProtocolVersion = typeof HMR_PROTOCOL_VERSION;

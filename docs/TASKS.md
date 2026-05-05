@@ -177,8 +177,9 @@ Document removed deps, vuln fixes, and the c12 → custom-loader change under `[
 
 ## Phase 4 — True 0-reload UI: React Fast Refresh for popup/options/sidepanel
 
-> **Status:** §4.1 (registry) ✅ shipped. §4.2–§4.4 (esbuild plugin, RFR
-> transform, server-side v3 emission) are the remaining follow-up.
+> **Status:** §4.1 ✅ §4.2 ✅ §4.3 ✅ §4.4 ✅ — all shipped. SWC-based
+> Fast Refresh, server v3 emission, and client v3 handler are live.
+> Protocol bumped to v3.
 
 ### 4.1 HMR runtime module registry — DONE
 
