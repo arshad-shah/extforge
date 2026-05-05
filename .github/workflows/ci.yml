@@ -10,8 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # pnpm version comes from package.json `packageManager` — single source
+      # of truth shared with Cloudflare Pages (Corepack-style).
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
@@ -24,8 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # pnpm version comes from package.json `packageManager` — single source
+      # of truth shared with Cloudflare Pages (Corepack-style).
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
@@ -41,8 +43,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
+      # pnpm version comes from package.json `packageManager` — single source
+      # of truth shared with Cloudflare Pages (Corepack-style).
       - uses: pnpm/action-setup@v4
-        with: { version: 10 }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
