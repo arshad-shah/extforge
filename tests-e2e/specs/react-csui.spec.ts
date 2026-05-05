@@ -30,25 +30,25 @@ ext('Popup ping → background → response round-trip', async ({ fx }) => {
 });
 
 ext('CSUI mount count increments per tab', async ({ fx }) => {
-  // First tab → CSUI mounts → SW counter becomes 1 (or first non-zero).
-  const tab1 = await fx.openTestPage('https://example.com/page-a');
-  await expect(tab1.locator('[data-testid=csui-widget]')).toBeVisible();
-
-  // Read count via SW (extforge/storage namespace prefix is "extforge-react-csui").
-  const after1 = await fx.serviceWorker.evaluate(async () => {
-    const cur = await chrome.storage.local.get('extforge-react-csui:csuiMounts');
-    return cur['extforge-react-csui:csuiMounts'] as number | undefined;
-  });
-  expect(after1 ?? 0).toBeGreaterThanOrEqual(1);
-
-  // Second tab → counter should bump.
-  const tab2 = await fx.openTestPage('https://example.com/page-b');
-  await expect(tab2.locator('[data-testid=csui-widget]')).toBeVisible();
-
-  await expect.poll(async () => {
-    return await fx.serviceWorker.evaluate(async () => {
+  // Helper: read the namespaced counter via the SW.
+  const readCount = async (): Promise<number> =>
+    fx.serviceWorker.evaluate(async () => {
       const cur = await chrome.storage.local.get('extforge-react-csui:csuiMounts');
       return (cur['extforge-react-csui:csuiMounts'] as number | undefined) ?? 0;
     });
-  }, { timeout: 5_000 }).toBeGreaterThan(after1 ?? 0);
+
+  // First tab → CSUI mounts → SW counter eventually becomes ≥ 1.
+  // The widget's useEffect fires async AFTER first render, so we poll for the
+  // storage value to land rather than reading once.
+  const tab1 = await fx.openTestPage('https://example.com/page-a');
+  await expect(tab1.locator('[data-testid=csui-widget]')).toBeVisible();
+
+  await expect.poll(readCount, { timeout: 5_000 }).toBeGreaterThanOrEqual(1);
+  const after1 = await readCount();
+
+  // Second tab → counter should bump above whatever after1 was.
+  const tab2 = await fx.openTestPage('https://example.com/page-b');
+  await expect(tab2.locator('[data-testid=csui-widget]')).toBeVisible();
+
+  await expect.poll(readCount, { timeout: 5_000 }).toBeGreaterThan(after1);
 });
