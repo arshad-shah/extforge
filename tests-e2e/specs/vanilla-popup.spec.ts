@@ -10,15 +10,17 @@ const ext = test.extend<{ fx: ExtensionFixture }>({
 });
 
 ext('SW boots and answers ping via the messaging envelope', async ({ fx }) => {
-  // Drive the SW directly via chrome.runtime.sendMessage. The new messaging
-  // library wraps payloads in `{ __extforge: 'msg', route, payload }` and
-  // unwraps replies as `{ __extforge: 'ok', result }`.
-  const reply = await fx.serviceWorker.evaluate(async () => {
-    return await new Promise<unknown>((resolve) => {
-      chrome.runtime.sendMessage(
-        { __extforge: 'msg', route: 'ping', payload: undefined },
-        (res: unknown) => resolve(res),
-      );
+  // Send the ping from the popup page rather than the SW itself. SW-to-self
+  // chrome.runtime.sendMessage is reliably unreliable in MV3 (Chrome doesn't
+  // route the message back to the same execution context's onMessage).
+  // A regular extension page (popup) sending into the SW is the canonical
+  // path.
+  const popup = await fx.openPopup();
+  const reply = await popup.evaluate(async () => {
+    return await chrome.runtime.sendMessage({
+      __extforge: 'msg',
+      route: 'ping',
+      payload: undefined,
     });
   });
   expect(reply).toMatchObject({ __extforge: 'ok' });
@@ -26,13 +28,13 @@ ext('SW boots and answers ping via the messaging envelope', async ({ fx }) => {
   expect(r.result).toMatchObject({ type: 'PONG', from: 'background' });
 });
 
-ext('Popup renders and updates count after content script fires', async ({ fx, context }) => {
-  // Open a normal page first so the content script triggers a CONTENT_LOADED
-  // message that bumps the SW's counter.
-  const tab = await context.newPage();
-  await tab.goto('https://example.com/');
+ext('Popup renders and updates count after content script fires', async ({ fx }) => {
+  // Open a hermetic fixture page (Playwright route handler intercepts the
+  // request so we don't depend on the public internet). The content script
+  // matches <all_urls> and injects its marker.
+  const tab = await fx.openTestPage();
+  await expect(tab.locator('#page-marker')).toHaveText('extforge-test-page');
 
-  // The marker injected by the content script should be present.
   const marker = tab.locator('#extforge-vanilla-marker');
   await expect(marker).toHaveAttribute('data-extforge', 'vanilla-popup');
   await expect(marker).toContainText('extforge-vanilla-popup-loaded');
@@ -41,8 +43,6 @@ ext('Popup renders and updates count after content script fires', async ({ fx, c
   const popup = await fx.openPopup();
   const result = popup.locator('[data-testid=result]');
   await expect(result).toContainText('tabs seen:');
-  // Race tolerance: first paint may show 'tabs seen: 0' before the storage
-  // listener resolves. Wait up to 5s for any non-zero count.
   await expect.poll(async () => (await result.textContent()) ?? '', { timeout: 5_000 })
     .toMatch(/tabs seen: [1-9]/);
 

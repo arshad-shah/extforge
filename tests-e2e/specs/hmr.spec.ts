@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..');
 const EXAMPLE = resolve(REPO_ROOT, 'examples/vanilla-popup');
+const EXTFORGE_BIN = resolve(REPO_ROOT, 'dist/cli/index.js');
 
 interface DevServer {
   proc: ChildProcess;
@@ -16,7 +17,10 @@ interface DevServer {
 }
 
 async function startDev(): Promise<DevServer> {
-  const proc = spawn('pnpm', ['exec', 'extforge', 'dev', '--browser', 'chrome'], {
+  // Invoke the local extforge build via its absolute dist path. `pnpm exec
+  // extforge` doesn't work in CI because pnpm's bin symlink is missed when
+  // `pnpm install` runs before the workspace package's `dist/` exists.
+  const proc = spawn(process.execPath, [EXTFORGE_BIN, 'dev', '--browser', 'chrome'], {
     cwd: EXAMPLE,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, FORCE_COLOR: '0' },
@@ -68,7 +72,7 @@ test.describe('HMR protocol', () => {
     await dev.stop();
   });
 
-  test('emits a v=2 envelope on file change', async () => {
+  test('emits a v=2 or v=3 envelope on file change', async () => {
     // Subscribe to the WS first so we don't miss the broadcast.
     const ws = new WebSocket(`ws://localhost:${dev.port}`);
     await new Promise<void>((res, rej) => {

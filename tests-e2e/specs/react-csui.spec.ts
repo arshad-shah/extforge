@@ -9,16 +9,13 @@ const ext = test.extend<{ fx: ExtensionFixture }>({
   },
 });
 
-ext('Auto-discovered CSUI mounts on a normal page', async ({ fx, context }) => {
-  const tab = await context.newPage();
-  await tab.goto('https://example.com/');
+ext('Auto-discovered CSUI mounts on a normal page', async ({ fx }) => {
+  const tab = await fx.openTestPage();
 
   // The host element is in light DOM; the React tree is inside its shadow root.
-  // The CSUI runtime tags hosts with `data-extforge-csui="<id>"`.
   const host = tab.locator('[data-extforge-csui="extforge-csui-demo"]');
   await expect(host).toHaveAttribute('data-extforge-shadow', '');
 
-  // Playwright's selector engine pierces shadow roots for ID/attribute matchers.
   const widget = tab.locator('[data-testid=csui-widget]');
   await expect(widget).toBeVisible();
   await expect(widget.locator('[data-testid=csui-count]')).toContainText('Mounts seen:');
@@ -32,10 +29,9 @@ ext('Popup ping → background → response round-trip', async ({ fx }) => {
   await expect(popup.locator('[data-testid=pong]')).toContainText('PONG');
 });
 
-ext('CSUI mount count increments per tab', async ({ fx, context }) => {
+ext('CSUI mount count increments per tab', async ({ fx }) => {
   // First tab → CSUI mounts → SW counter becomes 1 (or first non-zero).
-  const tab1 = await context.newPage();
-  await tab1.goto('https://example.com/');
+  const tab1 = await fx.openTestPage('https://example.com/page-a');
   await expect(tab1.locator('[data-testid=csui-widget]')).toBeVisible();
 
   // Read count via SW (extforge/storage namespace prefix is "extforge-react-csui").
@@ -46,8 +42,7 @@ ext('CSUI mount count increments per tab', async ({ fx, context }) => {
   expect(after1 ?? 0).toBeGreaterThanOrEqual(1);
 
   // Second tab → counter should bump.
-  const tab2 = await context.newPage();
-  await tab2.goto('https://example.org/');
+  const tab2 = await fx.openTestPage('https://example.com/page-b');
   await expect(tab2.locator('[data-testid=csui-widget]')).toBeVisible();
 
   await expect.poll(async () => {
