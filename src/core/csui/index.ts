@@ -74,9 +74,37 @@ export type Renderer = (root: Element) => void | (() => void) | Promise<void | (
 /**
  * Helper for declaring a CSUI entry. The `matches` field is read by the
  * builder via static AST scan to populate the manifest.
+ *
+ * Side-effecting: when called in a DOM context (the content-script case),
+ * `defineCSUI` schedules `mountCSUI(descriptor)` on the next microtask. This
+ * is what makes `export default defineCSUI(...)` actually mount the widget
+ * at runtime — IIFE content scripts have no caller to consume the default
+ * export, so without auto-mount the descriptor sits inert.
+ *
+ * Opt-out: `globalThis.__EXTFORGE_CSUI_NO_AUTOMOUNT__ = true` before
+ * importing skips the auto-mount (used by unit tests that exercise the
+ * manual `mountCSUI()` path).
  */
 export function defineCSUI(options: CSUIOptions, render: Renderer): CSUIDescriptor<Renderer> {
-  return { options, render };
+  const descriptor: CSUIDescriptor<Renderer> = { options, render };
+  if (
+    typeof document !== 'undefined' &&
+    !(globalThis as { __EXTFORGE_CSUI_NO_AUTOMOUNT__?: boolean }).__EXTFORGE_CSUI_NO_AUTOMOUNT__
+  ) {
+    // Defer one microtask so synchronous module-evaluation order isn't
+    // disturbed (e.g. user code that captures `descriptor.render` after
+    // module load).
+    queueMicrotask(() => {
+      void mountCSUI(descriptor).catch(() => {
+        // Surface failures via the in-browser logger if anything goes wrong.
+        // We don't have access to the runtime logger here; fall back to
+        // console (this file is a content-script runtime, not a Node module).
+        // eslint-disable-next-line no-console
+        console.warn('[extforge:csui] auto-mount failed');
+      });
+    });
+  }
+  return descriptor;
 }
 
 interface ActiveMount {

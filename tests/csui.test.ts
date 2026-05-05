@@ -3,6 +3,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+
+// Opt out of defineCSUI's auto-mount so these tests exercise the manual
+// mountCSUI() path explicitly. Must be set before importing the module.
+(globalThis as { __EXTFORGE_CSUI_NO_AUTOMOUNT__?: boolean }).__EXTFORGE_CSUI_NO_AUTOMOUNT__ = true;
+
 import { defineCSUI, mountCSUI, __resetCSUI } from '../src/core/csui/index.js';
 import { discoverCSUI, extractMatches, extractRunAt } from '../src/core/csui/discovery.js';
 
