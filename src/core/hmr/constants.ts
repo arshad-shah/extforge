@@ -34,5 +34,15 @@ export const WATCH_IGNORED = [
   '**/.*',
 ] as const;
 
+/**
+ * v2 — coarse {type, files, scriptIds} envelope. Currently emitted by the
+ *      dev server. Triggers reload-style updates on the client.
+ * v3 — fine-grained {type:'hmr-update', updates:[{id, hash, chunkUrl}]}
+ *      envelope routed through the new module registry runtime
+ *      (src/core/hmr/runtime.ts). The server doesn't emit v3 yet — the
+ *      esbuild plugin that rewrites user modules into the registry is
+ *      tracked as Phase 4 follow-up. Bumping this constant to 3 should
+ *      happen alongside that change.
+ */
 export const HMR_PROTOCOL_VERSION = 2 as const;
 export type HMRProtocolVersion = typeof HMR_PROTOCOL_VERSION;

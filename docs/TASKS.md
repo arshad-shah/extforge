@@ -177,7 +177,10 @@ Document removed deps, vuln fixes, and the c12 → custom-loader change under `[
 
 ## Phase 4 — True 0-reload UI: React Fast Refresh for popup/options/sidepanel
 
-### 4.1 HMR runtime module registry
+> **Status:** §4.1 (registry) ✅ shipped. §4.2–§4.4 (esbuild plugin, RFR
+> transform, server-side v3 emission) are the remaining follow-up.
+
+### 4.1 HMR runtime module registry — DONE
 
 **Spec.** New `src/core/hmr/runtime/registry.ts` (browser-side). Exports `__EXTFORGE_HMR__` global with:
 ```ts

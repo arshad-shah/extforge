@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — HMR runtime scaffolding (Phase 4 part 1)
+- New module `src/core/hmr/runtime.ts` with `createHMRRuntime()` and the `HotApi` (`accept` / `dispose` / `decline`) primitives. This is the registry that backs true 0-reload swaps once the v3 protocol fires.
+- v3 envelope shape (`HMRUpdateV3`) and `applyV3Update()` helper documented and unit-tested.
+- 12 unit tests cover the runtime: register/swap, accept-with-new-exports, dispose-before-swap ordering, decline → reload fallback, hash-deduped no-op, factory-throw safety, accept-returns-false abort.
+- `HMR_PROTOCOL_VERSION` stays at 2 in this release; bumping to 3 happens alongside the esbuild module-rewrite plugin (Phase 4.2 follow-up).
+
 ### Removed — dep trim (Phases 3, 7, 8)
 - **Production dep tree: 38 → 32 packages.** Total drop since Phase 1: **130 → 32 (-98 packages, -75%).** Vulnerabilities still 0.
 - Dropped runtime deps: `pathe`, `picocolors`, `citty`, `chokidar`, `prompts`. Each replaced by a first-party module:
