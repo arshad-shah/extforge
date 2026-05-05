@@ -5,9 +5,10 @@
   "type": "module",
   "description": "ExtForge React example: popup + content-script-mounted React widget in Shadow DOM. Used by tests-e2e to validate React + content-script + cross-context messaging.",
   "scripts": {
-    "build": "extforge build",
-    "build:chrome": "extforge build --browser chrome",
-    "dev": "extforge dev"
+    "_comment": "We invoke the workspace extforge build directly via its dist path rather than via the bin symlink. This is robust to pnpm's install-vs-build ordering: the bin symlink may not exist until both `pnpm install` and `pnpm build` have run, but a direct relative path works as soon as the build completes.",
+    "build": "node ../../dist/cli/index.js build",
+    "build:chrome": "node ../../dist/cli/index.js build --browser chrome",
+    "dev": "node ../../dist/cli/index.js dev"
   },
   "dependencies": {
     "extforge": "workspace:*",
