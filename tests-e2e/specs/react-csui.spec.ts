@@ -9,17 +9,16 @@ const ext = test.extend<{ fx: ExtensionFixture }>({
   },
 });
 
-ext('Shadow-DOM widget mounts on a normal page', async ({ fx, context }) => {
+ext('Auto-discovered CSUI mounts on a normal page', async ({ fx, context }) => {
   const tab = await context.newPage();
   await tab.goto('https://example.com/');
 
   // The host element is in light DOM; the React tree is inside its shadow root.
-  const host = tab.locator('#extforge-csui-host');
-  await expect(host).toHaveAttribute('data-extforge', 'csui');
+  // The CSUI runtime tags hosts with `data-extforge-csui="<id>"`.
+  const host = tab.locator('[data-extforge-csui="extforge-csui-demo"]');
   await expect(host).toHaveAttribute('data-extforge-shadow', '');
 
-  // Pierce the shadow boundary via Playwright's CSS engine (it goes through
-  // shadow roots by default for ID/attribute matchers).
+  // Playwright's selector engine pierces shadow roots for ID/attribute matchers.
   const widget = tab.locator('[data-testid=csui-widget]');
   await expect(widget).toBeVisible();
   await expect(widget.locator('[data-testid=csui-count]')).toContainText('Mounts seen:');
@@ -30,7 +29,7 @@ ext('Popup ping → background → response round-trip', async ({ fx }) => {
   await expect(popup.locator('[data-testid=title]')).toHaveText('ExtForge React CSUI');
 
   await popup.locator('[data-testid=ping]').click();
-  await expect(popup.locator('[data-testid=pong]')).toContainText('"type":"PONG"');
+  await expect(popup.locator('[data-testid=pong]')).toContainText('PONG');
 });
 
 ext('CSUI mount count increments per tab', async ({ fx, context }) => {
@@ -39,10 +38,10 @@ ext('CSUI mount count increments per tab', async ({ fx, context }) => {
   await tab1.goto('https://example.com/');
   await expect(tab1.locator('[data-testid=csui-widget]')).toBeVisible();
 
-  // Read count via SW.
+  // Read count via SW (extforge/storage namespace prefix is "extforge-react-csui").
   const after1 = await fx.serviceWorker.evaluate(async () => {
-    const cur = await chrome.storage.local.get('csuiMounts');
-    return cur['csuiMounts'] as number | undefined;
+    const cur = await chrome.storage.local.get('extforge-react-csui:csuiMounts');
+    return cur['extforge-react-csui:csuiMounts'] as number | undefined;
   });
   expect(after1 ?? 0).toBeGreaterThanOrEqual(1);
 
@@ -53,8 +52,8 @@ ext('CSUI mount count increments per tab', async ({ fx, context }) => {
 
   await expect.poll(async () => {
     return await fx.serviceWorker.evaluate(async () => {
-      const cur = await chrome.storage.local.get('csuiMounts');
-      return (cur['csuiMounts'] as number | undefined) ?? 0;
+      const cur = await chrome.storage.local.get('extforge-react-csui:csuiMounts');
+      return (cur['extforge-react-csui:csuiMounts'] as number | undefined) ?? 0;
     });
   }, { timeout: 5_000 }).toBeGreaterThan(after1 ?? 0);
 });

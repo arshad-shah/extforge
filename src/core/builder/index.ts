@@ -19,6 +19,8 @@ import { loadTemplate } from '../scaffold/template-loader.js';
 import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
+import { loadEnv, publicEnvToDefine } from '../env/index.js';
+import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -191,6 +193,33 @@ function copyPublic(root: string, outDir: string, log: Logger): void {
 
 // ─── Directory summarizer ─────────────────────────────────────────────────────
 
+/**
+ * Append CSUI discoveries to manifest.content_scripts. Entries with no
+ * statically-extractable matches are skipped with a warning — the user can
+ * still declare them manually in extforge.config.ts.
+ */
+function augmentManifestWithCSUI(
+  manifest: Record<string, unknown>,
+  discoveries: CSUIDiscovery[],
+  log: Logger,
+): void {
+  if (discoveries.length === 0) return;
+  const existing = (manifest['content_scripts'] as Array<Record<string, unknown>> | undefined) ?? [];
+  const merged = [...existing];
+  for (const c of discoveries) {
+    if (!c.matches || c.matches.length === 0) {
+      log.warn(`[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`);
+      continue;
+    }
+    merged.push({
+      matches: c.matches,
+      js: [c.outputJsPath],
+      run_at: c.runAt ?? 'document_idle',
+    });
+  }
+  if (merged.length > 0) manifest['content_scripts'] = merged;
+}
+
 function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
   let fileCount = 0;
   let totalBytes = 0;
@@ -214,6 +243,9 @@ function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
 function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuild.BuildOptions,
   'bundle' | 'platform' | 'target' | 'sourcemap' | 'minify' | 'define' | 'alias' | 'loader' | 'logLevel' | 'metafile'
 > {
+  const mode = opts.dev ? 'development' : 'production';
+  const { publicEnv } = loadEnv({ cwd: root, mode });
+  const envDefine = publicEnvToDefine(publicEnv, mode);
   return {
     bundle: true,
     platform: 'browser',
@@ -225,6 +257,7 @@ function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuil
       'process.env.BROWSER': `"${opts.browser}"`,
       '__DEV__': String(opts.dev),
       '__BROWSER__': `"${opts.browser}"`,
+      ...envDefine,
     },
     alias: { '@': resolve(root, 'src') },
     loader: ESBUILD_LOADERS as Record<string, esbuild.Loader>,
@@ -322,6 +355,14 @@ export async function build(
   const allEntries = discoverEntryPoints(srcDir);
   const injectedEntries = discoverInjectedEntries(srcDir, log);
   const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
+
+  // CSUI discovery: every src/contents/*.csui.{ts,tsx} becomes an IIFE entry
+  // and (if matches: are statically extractable) auto-augments the manifest's
+  // content_scripts.
+  const csuiEntries = discoverCSUI(srcDir);
+  for (const c of csuiEntries) {
+    iifeEntries[c.entryKey] = c.file;
+  }
 
   if (Object.keys(esmEntries).length === 0 && Object.keys(iifeEntries).length === 0) {
     errors.push('No entry points found in src/');
@@ -448,6 +489,7 @@ export async function build(
   if (config.manifest) {
     let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;
     applyInjectedDefaults(manifest as Record<string, unknown>, config.manifest, injectedEntries);
+    augmentManifestWithCSUI(manifest as Record<string, unknown>, csuiEntries, log);
     if (runner) manifest = await runner.fireManifestTransform(manifest, opts.browser);
     mkdirSync(outDir, { recursive: true });
     writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));

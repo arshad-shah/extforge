@@ -9,18 +9,21 @@ const ext = test.extend<{ fx: ExtensionFixture }>({
   },
 });
 
-ext('SW boots and answers PING', async ({ fx }) => {
-  // Drive the SW directly via chrome.runtime.sendMessage from a content-evaluated
-  // closure inside the SW worker.
-  const result = await fx.serviceWorker.evaluate(async () => {
+ext('SW boots and answers ping via the messaging envelope', async ({ fx }) => {
+  // Drive the SW directly via chrome.runtime.sendMessage. The new messaging
+  // library wraps payloads in `{ __extforge: 'msg', route, payload }` and
+  // unwraps replies as `{ __extforge: 'ok', result }`.
+  const reply = await fx.serviceWorker.evaluate(async () => {
     return await new Promise<unknown>((resolve) => {
-      // SW sends a message to itself; the registered onMessage listener
-      // replies. Both endpoints live in the same SW global, but Chrome routes
-      // the message anyway.
-      chrome.runtime.sendMessage({ type: 'PING' }, (res: unknown) => resolve(res));
+      chrome.runtime.sendMessage(
+        { __extforge: 'msg', route: 'ping', payload: undefined },
+        (res: unknown) => resolve(res),
+      );
     });
   });
-  expect(result).toMatchObject({ type: 'PONG', from: 'background' });
+  expect(reply).toMatchObject({ __extforge: 'ok' });
+  const r = reply as { result: { type: string; from: string } };
+  expect(r.result).toMatchObject({ type: 'PONG', from: 'background' });
 });
 
 ext('Popup renders and updates count after content script fires', async ({ fx, context }) => {
@@ -45,7 +48,7 @@ ext('Popup renders and updates count after content script fires', async ({ fx, c
 
   // Click ping → result becomes the JSON PONG.
   await popup.locator('[data-testid=ping]').click();
-  await expect(result).toContainText('"type": "PONG"');
+  await expect(result).toContainText('"PONG"');
 });
 
 ext('manifest references built paths, not source paths', async ({ fx }) => {

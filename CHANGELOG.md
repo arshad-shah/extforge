@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added — Plasmo parity (Phase 5)
+- **`extforge/storage`** — typed `Storage` class wrapping `chrome.storage.{local,sync,session,managed}` with watch API, namespaces, and a transparent `localStorage` fallback for non-extension contexts. Plus `extforge/storage/react` `useStorage()` hook (subpath kept React-free in the core).
+- **`extforge/messaging`** — typed RPC over `chrome.runtime.sendMessage`. Routes register via `defineHandler`; callers use `sendMessage(route, payload)` with full type inference via the augmentable `MessageMap` interface. Also `sendMessageToTab`, `openPort`/`onPort` for long-lived connections.
+- **`extforge/csui`** — Content Script UI. `defineCSUI({ matches, getMountPoint, getStyle, getRootContainer, shouldMount, ...id, runAt })` declares a Shadow-DOM-mounted UI; `mountCSUI(descriptor)` performs idempotent mount/remount with a cleanup contract. Files matching `src/contents/*.csui.{ts,tsx}` are **auto-discovered by the builder** and added to the manifest's `content_scripts` from the statically-extracted `matches:` array — zero manifest configuration required.
+- **`extforge/env`** — build-time `.env` loader with Vite-style precedence (`.env` → `.env.local` → `.env.<mode>` → `.env.<mode>.local` → process env). Variables prefixed `EXTFORGE_PUBLIC_` are inlined into bundles via esbuild's `define` as both `import.meta.env.<KEY>` and `process.env.<KEY>`. Non-public vars stay out of the bundle.
+- Subpath exports wired in `package.json#exports`: `extforge/storage`, `extforge/storage/react`, `extforge/messaging`, `extforge/csui`, `extforge/env`.
+- `react` is now an optional peer dep (used only by `extforge/storage/react`).
+- 43 new unit tests (storage 10, messaging 7, env 13, csui 13). `happy-dom` added as a devDep so CSUI runtime tests can exercise Shadow DOM.
+
+### Changed
+- Both example extensions migrated to use the new packages — the React example deleted its `src/content/` and now relies on auto-discovered CSUI; both backgrounds use `defineHandler` + `Storage`.
+
 ### Security
 - **Production dependency tree now reports 0 vulnerabilities** (`pnpm audit --prod`). Previously 8 (6 high tar CVEs via the c12 → giget → tar 6.2.1 chain, plus 2 moderate esbuild advisories).
 - Bumped `esbuild` from `^0.24.0` to `^0.28.0` — closes [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) (dev-server SSRF).

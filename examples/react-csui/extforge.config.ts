@@ -7,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'ExtForge React CSUI Example',
     version: '0.1.0',
-    description: 'E2E fixture: React popup + content-script Shadow-DOM widget.',
+    description: 'E2E fixture: React popup + CSUI Shadow-DOM widget (auto-discovered).',
     manifestVersion: 3,
     permissions: {
       required: ['storage'],
@@ -19,12 +19,7 @@ export default defineConfig({
       defaultTitle: 'ExtForge React CSUI',
     },
     background: { entrypoint: 'background/index.js' },
-    contentScripts: [
-      {
-        matches: ['<all_urls>'],
-        js: ['content/index.js'],
-        runAt: 'document_idle',
-      },
-    ],
+    // No `contentScripts` — the CSUI under src/contents/widget.csui.tsx is
+    // auto-discovered and registered by the builder.
   },
 });

@@ -10,6 +10,11 @@ export default defineConfig({
     'core/compat/index': 'src/core/compat/index.ts',
     'core/testing/index': 'src/core/testing/index.ts',
     'core/testing/vitest': 'src/core/testing/vitest.ts',
+    'core/storage/index': 'src/core/storage/index.ts',
+    'core/storage/react': 'src/core/storage/react.ts',
+    'core/messaging/index': 'src/core/messaging/index.ts',
+    'core/csui/index': 'src/core/csui/index.ts',
+    'core/env/index': 'src/core/env/index.ts',
   },
   format: ['esm'],
   dts: true,
@@ -18,7 +23,7 @@ export default defineConfig({
   target: 'node20',
   splitting: true,
   treeshake: true,
-  external: ['esbuild'],
+  external: ['esbuild', 'react', 'react-dom', 'react/jsx-runtime'],
   async onSuccess() {
     // Copy scaffold templates so the runtime template-loader can read them
     // from dist/core/scaffold/templates/ (the loader resolves them relative

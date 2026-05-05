@@ -2,15 +2,23 @@
 
 import { createRoot } from 'react-dom/client';
 import { useEffect, useState } from 'react';
+import { sendMessage } from 'extforge/messaging';
+
+declare module 'extforge/messaging' {
+  interface MessageMap {
+    'csui-mounted': { req: void; res: { total: number } };
+    'get-count':    { req: void; res: { count: number } };
+    'ping':         { req: void; res: { type: 'PONG'; from: string; ts: number } };
+  }
+}
 
 function Popup(): JSX.Element {
   const [count, setCount] = useState<number | null>(null);
   const [pong, setPong] = useState<string>('');
 
   useEffect(() => {
-    void chrome.runtime
-      .sendMessage({ type: 'GET_COUNT' })
-      .then((r: { count?: number }) => setCount(r?.count ?? 0))
+    void sendMessage('get-count', undefined as never)
+      .then((r) => setCount(r.count))
       .catch(() => setCount(0));
   }, []);
 
@@ -28,7 +36,7 @@ function Popup(): JSX.Element {
       <button
         data-testid="ping"
         onClick={async () => {
-          const r = await chrome.runtime.sendMessage({ type: 'PING' });
+          const r = await sendMessage('ping', undefined as never);
           setPong(JSON.stringify(r));
         }}
         style={{

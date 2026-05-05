@@ -1,7 +1,14 @@
 /// <reference types="chrome" />
 
-// Content script. Adds a marker element to the DOM so the e2e harness can
-// assert presence, then notifies the background SW.
+import { sendMessage } from 'extforge/messaging';
+
+declare module 'extforge/messaging' {
+  interface MessageMap {
+    'ping':           { req: void;            res: { type: 'PONG'; from: string; ts: number } };
+    'content-loaded': { req: { url: string }; res: { type: 'CONTENT_ACK'; total: number } };
+    'get-tabs-seen':  { req: void;            res: { count: number } };
+  }
+}
 
 const MARKER_ID = 'extforge-vanilla-marker';
 
@@ -17,8 +24,4 @@ function injectMarker(): void {
 
 injectMarker();
 
-chrome.runtime
-  .sendMessage({ type: 'CONTENT_LOADED', url: location.href })
-  .catch(() => {
-    // SW may not be ready yet; harmless.
-  });
+void sendMessage('content-loaded', { url: location.href }).catch(() => {});
