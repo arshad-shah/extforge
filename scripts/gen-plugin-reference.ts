@@ -1,6 +1,6 @@
 import { Project } from 'ts-morph';
 import { writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
-import { resolve, dirname } from 'pathe';
+import { resolve, dirname } from 'node:path/posix';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

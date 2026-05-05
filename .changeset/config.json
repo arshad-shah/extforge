@@ -1,0 +1,19 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": [
+    "@changesets/changelog-github",
+    { "repo": "arshad-shah/extforge" }
+  ],
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "extforge-docs",
+    "@extforge-example/vanilla-popup",
+    "@extforge-example/react-csui",
+    "@extforge/tests-e2e"
+  ]
+}

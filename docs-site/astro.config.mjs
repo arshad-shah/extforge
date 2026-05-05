@@ -14,9 +14,9 @@ export default defineConfig({
         replacesTitle: true,
       },
       favicon: '/favicon.svg',
-      social: {
-        github: 'https://github.com/arshad-shah/extforge',
-      },
+      social: [
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/arshad-shah/extforge' },
+      ],
       customCss: ['./src/styles/brand.css', './src/styles/overrides.css'],
       sidebar: [
         {
@@ -44,6 +44,7 @@ export default defineConfig({
             { label: 'CLI commands', slug: 'reference/cli/commands' },
             { label: 'CLI flags', slug: 'reference/cli/flags' },
             { label: 'Configuration', autogenerate: { directory: 'reference/config' } },
+            { label: 'Runtime packages', autogenerate: { directory: 'reference/runtime' } },
             { label: 'Plugin API', autogenerate: { directory: 'reference/plugins' } },
             { label: 'Testing helpers', autogenerate: { directory: 'reference/testing' } },
             { label: 'Errors', autogenerate: { directory: 'reference/errors' } },

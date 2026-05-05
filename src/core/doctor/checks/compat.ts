@@ -2,7 +2,7 @@ import type { Check } from '../index.js';
 import { loadExtForgeConfig } from '../../config.js';
 import { checkSourceCompat } from '../../compat/index.js';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'pathe';
+import { join } from 'node:path/posix';
 
 const CANDIDATES = ['src/background.ts', 'src/content.ts', 'src/popup.ts', 'src/sidepanel.ts'];
 

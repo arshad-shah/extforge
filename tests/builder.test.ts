@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { resolve } from 'pathe';
+import { resolve } from 'node:path/posix';
 import { discoverInjectedEntries, partitionEntriesForFormat, buildContentScriptMap } from '../src/core/builder/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 

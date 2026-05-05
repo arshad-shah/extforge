@@ -1,0 +1,103 @@
+---
+title: extforge/messaging
+description: Typed RPC over chrome.runtime — define handlers, send messages, attach typed Ports.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`extforge/messaging` is a typed-route RPC layer over `chrome.runtime.sendMessage` / `onMessage`. Routes register their request and response shapes via TypeScript module augmentation, so call sites get full inference both ways.
+
+## Declare a route
+
+Augment the `MessageMap` interface from `extforge/messaging`. Route names are arbitrary strings; the request and response types are whatever your handlers return.
+
+```ts
+declare module 'extforge/messaging' {
+  interface MessageMap {
+    'get-user': { req: { id: number };  res: { name: string; email: string } };
+    'log':      { req: { msg: string }; res: void };
+  }
+}
+```
+
+This block usually lives in a shared `types.ts` imported by every script that talks the protocol (background, popup, content).
+
+## Background — register handlers
+
+```ts
+// src/background/index.ts
+import { defineHandler, setupMessaging } from 'extforge/messaging';
+
+defineHandler('get-user', async (req, sender) => {
+  const user = await db.find(req.id);
+  return { name: user.name, email: user.email };
+});
+
+defineHandler('log', async (req) => {
+  console.log('[client]', req.msg);
+});
+
+setupMessaging(); // installs the chrome.runtime.onMessage listener
+```
+
+`setupMessaging` is idempotent — safe to call on every dev-mode HMR reload.
+
+## Anywhere — send messages
+
+```ts
+// src/ui/popup/index.ts
+import { sendMessage } from 'extforge/messaging';
+
+const user = await sendMessage('get-user', { id: 1 });
+//    ^? { name: string; email: string }
+```
+
+| Function | Use case |
+|---|---|
+| `sendMessage(route, payload)` | Send to background SW (or any other context with a registered handler) |
+| `sendMessageToTab(tabId, route, payload)` | Background → content script in a specific tab |
+
+Both throw if no handler is registered. Handler exceptions become rejections at the caller with the original error message preserved.
+
+## Long-lived connections — Ports
+
+For streaming or many-message conversations, use a port:
+
+```ts
+// background
+import { onPort } from 'extforge/messaging';
+
+onPort<{ tick: number }, void>('clock', (port, sender) => {
+  let n = 0;
+  const interval = setInterval(() => port.post({ tick: n++ }), 1000);
+  port.onMessage(() => {/* receive from the other side */});
+});
+```
+
+```ts
+// popup
+import { openPort } from 'extforge/messaging';
+
+const port = openPort<void, { tick: number }>('clock');
+port.onMessage((msg) => console.log('tick', msg.tick));
+// later: port.close();
+```
+
+Ports survive the SW going to sleep IF the active page keeps the connection open. Chrome documents this lifecycle [here](https://developer.chrome.com/docs/extensions/mv3/service_workers/service-worker-lifecycle/#shutdown).
+
+## Envelope shape (debugging)
+
+Every message is wrapped:
+
+```jsonc
+{ "__extforge": "msg", "route": "get-user", "payload": { "id": 1 } }
+```
+
+Replies:
+
+```jsonc
+{ "__extforge": "ok",  "result": { /* res */ } }
+{ "__extforge": "err", "error":  "stringified Error.message" }
+```
+
+Foreign messages (no `__extforge: 'msg'`) are silently passed through. ExtForge never swallows messages it doesn't recognize.

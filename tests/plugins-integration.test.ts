@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'pathe';
+import { join } from 'node:path/posix';
 import { build } from '../src/core/builder/index.js';
 import { loadExtForgeConfig } from '../src/core/config.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';

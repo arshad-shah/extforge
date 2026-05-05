@@ -34,5 +34,17 @@ export const WATCH_IGNORED = [
   '**/.*',
 ] as const;
 
-export const HMR_PROTOCOL_VERSION = 2 as const;
+/**
+ * v2 — coarse {type, files, scriptIds} envelope. Server emits this for
+ *      everything that can't be hot-applied: manifest, background, content
+ *      scripts, asset/CSS changes. Client treats it as reload-style.
+ * v3 — fine-grained {type:'hmr-update', updates:[{id, hash, file}]}
+ *      envelope used for UI-only JS changes (popup/options/sidepanel) where
+ *      the React Fast Refresh path can swap components without a reload.
+ *      Client refetches `chrome-extension://<id>/<file>?t=<hash>` and the
+ *      RFR-transformed import calls performReactRefresh() automatically.
+ *      v2 clients see v3 envelopes, fail the isCompatibleEnvelope check,
+ *      and ignore them (one warning) — safe to mix.
+ */
+export const HMR_PROTOCOL_VERSION = 3 as const;
 export type HMRProtocolVersion = typeof HMR_PROTOCOL_VERSION;

@@ -38,14 +38,16 @@ describe('Config System', () => {
     });
 
     it('should warn but NOT throw on invalid browsers when EXTFORGE_STRICT_CONFIG is unset', async () => {
-      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      // Pass an invalid browser via overrides — c12 won't find a config file in test cwd
-      // We supply _strictConfig: undefined so warn mode is used
+      // Logger writes warnings to stderr via process.stderr.write. Spy on it
+      // to verify the warning surfaces, regardless of which console.* path
+      // was used internally.
+      const writeSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
       await expect(
         loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
       ).resolves.toBeDefined();
-      expect(spy).toHaveBeenCalledWith(expect.stringContaining('Config validation warnings'));
-      spy.mockRestore();
+      const all = writeSpy.mock.calls.map((c) => String(c[0])).join('');
+      expect(all).toContain('Config validation warnings');
+      writeSpy.mockRestore();
     });
 
     it('should throw on invalid browsers when EXTFORGE_STRICT_CONFIG=1', async () => {

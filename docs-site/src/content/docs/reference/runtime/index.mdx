@@ -1,0 +1,16 @@
+---
+title: Runtime packages
+description: First-party subpaths shipped from the extforge package — typed wrappers for storage, messaging, content-script UI, and env vars.
+---
+
+ExtForge ships first-party runtime packages as subpaths of the `extforge` npm package. No extra installs, no extra lockfile entries.
+
+| Subpath | Use case |
+|---|---|
+| [`extforge/storage`](./storage/) | Typed `chrome.storage` wrapper with watch API and namespaces |
+| [`extforge/storage/react`](./storage/#react-hook--extforgestoragereact) | `useStorage()` React hook |
+| [`extforge/messaging`](./messaging/) | Typed RPC over `chrome.runtime` — `defineHandler`, `sendMessage`, ports |
+| [`extforge/csui`](./csui/) | Mount UI inside a Shadow DOM on matched pages. File-based discovery |
+| [`extforge/env`](./env/) | `.env` loader, `EXTFORGE_PUBLIC_*` keys inlined into bundles |
+
+Each subpath has its own `import` and `types` entry in `package.json#exports`, so tree-shaking only pulls in what you import.

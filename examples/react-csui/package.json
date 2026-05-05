@@ -1,0 +1,23 @@
+{
+  "name": "@extforge-example/react-csui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ExtForge React example: popup + content-script-mounted React widget in Shadow DOM. Used by tests-e2e to validate React + content-script + cross-context messaging.",
+  "scripts": {
+    "_comment": "We invoke the workspace extforge build directly via its dist path rather than via the bin symlink. This is robust to pnpm's install-vs-build ordering: the bin symlink may not exist until both `pnpm install` and `pnpm build` have run, but a direct relative path works as soon as the build completes.",
+    "build": "node ../../dist/cli/index.js build",
+    "build:chrome": "node ../../dist/cli/index.js build --browser chrome",
+    "dev": "node ../../dist/cli/index.js dev"
+  },
+  "dependencies": {
+    "extforge": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.290",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0"
+  }
+}
