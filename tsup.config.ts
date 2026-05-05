@@ -1,6 +1,5 @@
 import { defineConfig } from 'tsup';
 import { cpSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 
 export default defineConfig({
   entry: {
@@ -32,15 +31,7 @@ export default defineConfig({
       // eslint-disable-next-line no-console
       console.log(`[tsup] Copied templates → ${dest}`);
     }
-
-    // Copy compat data.json so the runtime createRequire('./data.json') resolves
-    // relative to dist/core/compat/index.js at runtime.
-    const compatDataSrc = join('src', 'core', 'compat', 'data.json');
-    const compatDataDest = join('dist', 'core', 'compat', 'data.json');
-    if (existsSync(compatDataSrc)) {
-      cpSync(compatDataSrc, compatDataDest);
-      // eslint-disable-next-line no-console
-      console.log(`[tsup] Copied compat data → ${compatDataDest}`);
-    }
+    // Compat data.json is inlined via esbuild's json loader at bundle time
+    // (see src/core/compat/index.ts).
   },
 });

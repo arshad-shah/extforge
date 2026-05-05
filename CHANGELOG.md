@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- **Production dependency tree now reports 0 vulnerabilities** (`pnpm audit --prod`). Previously 8 (6 high tar CVEs via the c12 → giget → tar 6.2.1 chain, plus 2 moderate esbuild advisories).
+- Bumped `esbuild` from `^0.24.0` to `^0.28.0` — closes [GHSA-67mh-4wv8-2f99](https://github.com/advisories/GHSA-67mh-4wv8-2f99) (dev-server SSRF).
+- Bumped `astro` (docs-site) from `^5.0.0` to `^6.1.6` and `@astrojs/starlight` to `^0.38.0` — closes [GHSA-j687-52p2-xcff](https://github.com/advisories/GHSA-j687-52p2-xcff) (define:vars XSS).
+
+### Removed
+- **Replaced `c12` with a 200-line first-party config loader** (`src/core/config/loader.ts`). Kills the entire vulnerable `tar` chain (6 high-severity CVEs) and drops ~25 transitive packages. The new loader supports `.ts`/`.mts`/`.cts`/`.mjs`/`.js`/`.cjs` config files, default + named exports, and shallow-merges over defaults. No public API change — `loadExtForgeConfig()` signature is unchanged.
+- Removed five declared-but-never-imported runtime deps: `fast-glob`, `glob`, `pkg-types`, `defu`, plus the indirect `consola`. **Production dep count: 130 → 38 packages.**
+
 ### Removed (breaking — pre-1.0)
 - Aspirational support for Vue, Svelte, and Solid frameworks. Only React and vanilla TypeScript are actually supported today; the schema and scaffold no longer claim Vue/Svelte/Solid. They will return as separate plugin presets when properly implemented.
 

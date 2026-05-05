@@ -2,13 +2,12 @@
  * ExtForge Configuration
  */
 
-import { loadConfig } from 'c12';
+import { loadConfigFile } from './config/loader.js';
 import type { z } from 'zod';
 import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
-import { existsSync } from 'node:fs';
-import { join, resolve } from 'pathe';
+import { resolve } from 'pathe';
 import pc from 'picocolors';
 import { PluginRunner } from './plugins/runner.js';
 import { presetReact } from './plugins/preset-react.js';
@@ -44,17 +43,16 @@ export async function loadExtForgeConfig(
   cwd: string = process.cwd(),
   overrides?: Partial<ExtForgeConfig>,
 ): Promise<ExtForgeConfig> {
-  const { config } = await loadConfig<ExtForgeConfig>({
-    name: 'extforge', cwd,
+  const { config: loaded, configFile } = await loadConfigFile<ExtForgeConfig>({
+    name: 'extforge',
+    cwd,
     defaults: DEFAULT_CONFIG,
-    overrides: overrides as ExtForgeConfig,
   });
-  const merged = (config ?? DEFAULT_CONFIG) as ExtForgeConfig;
+  // Overrides win over file-loaded values.
+  const merged: ExtForgeConfig = { ...loaded, ...(overrides ?? {}) } as ExtForgeConfig;
   const parsed = extForgeConfigSchema.safeParse(merged);
   if (!parsed.success) {
-    const candidates = ['extforge.config.ts', 'extforge.config.js', 'extforge.config.mjs'];
-    const file = candidates.map(f => join(cwd, f)).find(existsSync);
-    const err = formatZodError(parsed.error, file);
+    const err = formatZodError(parsed.error, configFile);
     if (process.env['EXTFORGE_STRICT_CONFIG'] === '1' || (overrides as { _strictConfig?: boolean })?._strictConfig) {
       throw err;
     }
