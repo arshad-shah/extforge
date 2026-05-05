@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolve } from 'pathe';
+import { resolve } from 'node:path/posix';
 import { buildContentScriptMap } from '../src/core/builder/index.js';
 import { extractScriptIds } from '../src/core/hmr/index.js';
 import type { ExtForgeConfig } from '../src/core/config.js';

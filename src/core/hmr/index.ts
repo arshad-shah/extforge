@@ -6,10 +6,10 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import chokidar, { type FSWatcher } from 'chokidar';
 import { existsSync } from 'node:fs';
+import { createWatcher, type Watcher } from './watcher.js';
 import { createServer as createNetServer } from 'node:net';
-import { join, relative, extname } from 'pathe';
+import { join, relative, extname } from 'node:path/posix';
 import { createLogger, type Logger } from '../logger/index.js';
 import { build, createBuildContext, buildContentScriptMap } from '../builder/index.js';
 import type { Browser } from '../manifest/index.js';
@@ -153,7 +153,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
   const runner = (config as { __pluginRunner?: PluginRunner }).__pluginRunner;
 
   let wss: WebSocketServer | null = null;
-  let watcher: FSWatcher | null = null;
+  let watcher: Watcher | null = null;
   let buildCtx: esbuild.BuildContext | null = null;
   let resolvedPort = options.port ?? DEFAULT_HMR_PORT;
   let contentScriptMap: Map<string, number> = new Map();
@@ -236,14 +236,22 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
 
       const watchPaths = [
         join(projectRoot, 'src'), join(projectRoot, 'public'),
-        join(projectRoot, 'icons'), join(projectRoot, 'extforge.config.ts'),
+        join(projectRoot, 'icons'),
       ].filter(p => existsSync(p));
 
-      watcher = chokidar.watch(watchPaths, {
-        ignoreInitial: true,
-        ignored: [...WATCH_IGNORED],
-        awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
-      });
+      // node:fs.watch doesn't watch single files reliably across platforms,
+      // so we register one recursive watch per directory root.
+      const watchers: Watcher[] = watchPaths.map(p =>
+        createWatcher(p, {
+          ignored: [...WATCH_IGNORED],
+          awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+        }),
+      );
+      // Aggregate watcher facade — closing it closes them all.
+      watcher = {
+        on(event, handler) { for (const w of watchers) w.on(event, handler); return this; },
+        async close() { for (const w of watchers) await w.close(); },
+      };
 
       watcher.on('change', (fp: string) => debouncer.add(fp, classifyChange(fp)));
       watcher.on('add',    (fp: string) => debouncer.add(fp, classifyChange(fp)));

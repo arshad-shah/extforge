@@ -7,7 +7,7 @@ import {
   copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve, dirname } from 'pathe';
+import { join, resolve, dirname } from 'node:path/posix';
 import { execSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';

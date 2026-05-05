@@ -6,7 +6,7 @@
  * exceptions don't dump raw stack traces on users.
  */
 
-import pc from 'picocolors';
+import pc from '../core/logger/ansi.js';
 import { isExtForgeError } from '../core/errors/index.js';
 
 export interface FormattedError {

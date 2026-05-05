@@ -1,5 +1,5 @@
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'pathe';
+import { resolve, dirname } from 'node:path/posix';
 import { fileURLToPath } from 'node:url';
 import { extForgeConfigSchema } from '../src/core/config/schema.js';
 import { SCHEMA_DOCS } from '../src/core/config/schema-docs.js';

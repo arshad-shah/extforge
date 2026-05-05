@@ -5,7 +5,7 @@
  * Constants live at the top of this file for easy editing.
  */
 
-import pc from 'picocolors';
+import pc from './ansi.js';
 
 // ─── Log Levels (co-located constant) ────────────────────────────────────────
 

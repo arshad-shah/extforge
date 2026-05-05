@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed — dep trim (Phases 3, 7, 8)
+- **Production dep tree: 38 → 32 packages.** Total drop since Phase 1: **130 → 32 (-98 packages, -75%).** Vulnerabilities still 0.
+- Dropped runtime deps: `pathe`, `picocolors`, `citty`, `chokidar`, `prompts`. Each replaced by a first-party module:
+  - `pathe` → `node:path/posix` directly. Identical semantics on every Node 20+ platform; saves the whole pathe transitive surface.
+  - `picocolors` → `src/core/logger/ansi.ts` (50 LOC) with NO_COLOR / FORCE_COLOR / TERM=dumb / isTTY detection. Brand-aware.
+  - `citty` → `src/cli/parser.ts` (~250 LOC) — defineCommand/runMain shape preserved so `src/cli/index.ts` only changes its import. Supports subcommands, positional + string + boolean flags, --no-flag, --flag=value, `--`, --help, --version. 10 dedicated unit tests.
+  - `chokidar` → `src/core/hmr/watcher.ts` (~150 LOC) on top of `node:fs.watch({ recursive: true })`. add/change/unlink synthesis from existence tracking, awaitWriteFinish polling, glob-string ignore patterns. No-op fallback when watch isn't supported.
+  - `prompts` → `src/core/scaffold/prompter.ts` (~250 LOC) using `node:readline` raw mode. text/select/multiselect prompts with brand-coloured cursors. Non-TTY mode resolves to defaults (CI-safe).
+
 ### Added — Plasmo parity (Phase 5)
 - **`extforge/storage`** — typed `Storage` class wrapping `chrome.storage.{local,sync,session,managed}` with watch API, namespaces, and a transparent `localStorage` fallback for non-extension contexts. Plus `extforge/storage/react` `useStorage()` hook (subpath kept React-free in the core).
 - **`extforge/messaging`** — typed RPC over `chrome.runtime.sendMessage`. Routes register via `defineHandler`; callers use `sendMessage(route, payload)` with full type inference via the augmentable `MessageMap` interface. Also `sendMessageToTab`, `openPort`/`onPort` for long-lived connections.

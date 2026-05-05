@@ -73,12 +73,7 @@
     "docs:build": "pnpm docs:gen && pnpm --filter extforge-docs build"
   },
   "dependencies": {
-    "chokidar": "^4.0.3",
-    "citty": "^0.1.6",
     "esbuild": "^0.28.0",
-    "pathe": "^1.1.2",
-    "picocolors": "^1.1.1",
-    "prompts": "^2.4.2",
     "ws": "^8.18.0",
     "zod": "^3.25.76"
   },
@@ -87,7 +82,6 @@
     "@mdn/browser-compat-data": "^7.3.14",
     "@types/chrome": "^0.0.290",
     "@types/node": "^22.0.0",
-    "@types/prompts": "^2.4.9",
     "@types/react": "^18.3.0",
     "@types/ws": "^8.5.13",
     "@vitest/coverage-v8": "^2.1.9",

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'pathe';
+import { join } from 'node:path/posix';
 import { runDoctor, type CheckResult } from '../src/core/doctor/index.js';
 import { nodeVersionCheck } from '../src/core/doctor/checks/node-version.js';
 import { iconsPresentCheck } from '../src/core/doctor/checks/icons-present.js';
