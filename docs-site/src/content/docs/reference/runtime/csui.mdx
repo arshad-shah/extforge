@@ -1,0 +1,90 @@
+---
+title: extforge/csui
+description: Mount UI inside a Shadow DOM on any matched page. File-based discovery, framework-agnostic.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`extforge/csui` is the Content Script UI runtime. It encapsulates the four ceremonies every browser-extension UI dev re-implements:
+
+1. Create a host element on the page
+2. Attach a Shadow DOM so site CSS doesn't bleed in
+3. Inject your styles into the shadow tree
+4. Mount your component (React, Vue, vanilla DOM — anything that takes a container element)
+
+Plus auto-discovery: drop a file matching `src/contents/*.csui.{ts,tsx}` and ExtForge registers it in the manifest's `content_scripts` and mounts it at runtime — zero builder config required.
+
+## Hello, CSUI
+
+```tsx
+// src/contents/widget.csui.tsx
+import { defineCSUI } from 'extforge/csui';
+import { createRoot } from 'react-dom/client';
+import { Widget } from './Widget';
+
+export default defineCSUI(
+  {
+    matches: ['https://*.example.com/*'],
+    runAt: 'document_idle',
+    getStyle: () => `
+      :host { all: initial; font-family: system-ui, sans-serif; }
+      .panel { background: #0F172A; color: #fff; padding: 12px; border-radius: 8px; }
+    `,
+  },
+  (root) => {
+    const reactRoot = createRoot(root);
+    reactRoot.render(<Widget />);
+    return () => reactRoot.unmount(); // optional cleanup, runs on HMR
+  },
+);
+```
+
+That's the full integration. The builder reads the `matches:` array statically (no AST parser dep), adds the entry to the manifest's `content_scripts`, builds it as IIFE for content-script context, and the CSUI runtime auto-mounts on script load.
+
+## `defineCSUI(options, render)`
+
+| Option | Type | Description |
+|---|---|---|
+| `matches` | `string[]` | URL match patterns. **Read at build time** — must be a static literal array |
+| `runAt` | `'document_start' \| 'document_end' \| 'document_idle'` | Forwarded to manifest entry. Default `document_idle` |
+| `id` | `string` | Stable identifier for idempotent remount (HMR / SPA route change). Default: derived from filename |
+| `getMountPoint` | `() => Element \| null \| Promise<...>` | Element to insert the host into. Default: `document.documentElement` |
+| `getStyle` | `() => string \| Promise<string>` | CSS injected into the Shadow Root before mount |
+| `getRootContainer` | `() => HTMLElement \| Promise<HTMLElement>` | Build your own host element (e.g. closed shadow root, custom tag) |
+| `shouldMount` | `() => boolean \| Promise<boolean>` | Returning false aborts the mount. Useful for SPA route guards |
+| `hostStyle` | `string` | `host.style.cssText` for the OUTER host element |
+
+`render(root)` receives the inner mount element (the user-facing root inside the shadow tree). MAY return a cleanup function called on unmount.
+
+## Auto-mount
+
+`defineCSUI` is side-effecting in a DOM context: it schedules `mountCSUI(descriptor)` on the next microtask. That's why `export default defineCSUI(...)` is enough — the IIFE content script doesn't need a separate caller.
+
+To opt out (mostly for unit tests that exercise `mountCSUI` manually):
+
+```ts
+(globalThis as any).__EXTFORGE_CSUI_NO_AUTOMOUNT__ = true;
+import { defineCSUI, mountCSUI } from 'extforge/csui';
+```
+
+## Manual `mountCSUI(descriptor)`
+
+```ts
+import { defineCSUI, mountCSUI } from 'extforge/csui';
+
+const descriptor = defineCSUI({...}, render);
+const unmount = await mountCSUI(descriptor);
+// later:
+unmount();
+```
+
+`mountCSUI` is idempotent per `id` — calling it twice replaces the previous instance. HMR uses this to swap a widget without piling Shadow Roots.
+
+## Static `matches:` extraction
+
+The builder uses a string-aware regex pass (no AST parser) to read the `matches:` array out of every `*.csui.tsx`. If your matches aren't a literal array — for example, you compute them from an env var — declare the content script manually in `extforge.config.ts` instead and the builder skips the auto-augmentation.
+
+```ts
+defineCSUI({ matches: process.env.MATCHES.split(',') }, ...) // ⚠ won't extract — declare in config
+defineCSUI({ matches: ['https://example.com/*'] },     ...) // ✅ extracted
+```

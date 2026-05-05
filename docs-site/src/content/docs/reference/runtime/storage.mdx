@@ -1,0 +1,67 @@
+---
+title: extforge/storage
+description: Typed wrapper over chrome.storage with a watch API and React hook.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`extforge/storage` is a typed wrapper over `chrome.storage.{local,sync,session,managed}`. It adds:
+
+- Per-instance namespacing
+- A typed `watch()` API
+- A transparent `localStorage` fallback for content scripts running on real web pages where `chrome.storage` isn't accessible
+- A React hook (`useStorage`) in a separate subpath so the core stays React-free
+
+```ts
+import { Storage } from 'extforge/storage';
+
+const store = new Storage({ area: 'local', namespace: 'app:v1' });
+
+await store.set('user', { id: 1, name: 'Alice' });
+const user = await store.get<{ id: number; name: string }>('user');
+
+const unwatch = store.watch({
+  user: (next, prev) => console.log('user changed', prev, '→', next),
+  '*':   (next, prev) => console.log('any key changed'),
+});
+```
+
+## `new Storage(options?)`
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `area` | `'local' \| 'sync' \| 'session' \| 'managed'` | `'local'` | Chrome storage area to use |
+| `namespace` | `string` | `''` | Prefix prepended to every key — lets multiple `Storage` instances coexist in the same area |
+| `preferChromeStorage` | `boolean` | `true` | If false, force the `localStorage` fallback (mainly useful in tests) |
+
+## Methods
+
+| Method | Description |
+|---|---|
+| `get<T>(key)` | Read a value. Returns `undefined` if missing |
+| `set<T>(key, value)` | Persist a value |
+| `remove(key)` | Delete a key |
+| `clear()` | Remove every key. With `namespace` set, only namespaced keys are removed |
+| `watch(handlers)` | Subscribe to changes. `handlers` is keyed by un-namespaced key, plus `'*'` for every change. Returns an `unwatch()` function |
+
+## React hook — `extforge/storage/react`
+
+```tsx
+import { useStorage } from 'extforge/storage/react';
+
+function Counter() {
+  const { value, setValue, remove, isLoading } = useStorage<number>('count', 0);
+  if (isLoading) return null;
+  return (
+    <button onClick={() => setValue((value ?? 0) + 1)}>
+      Clicked {value} times
+    </button>
+  );
+}
+```
+
+The hook reuses a singleton `Storage` instance per `(area, namespace)` so re-mounts don't tear down the watch subscription.
+
+## localStorage fallback
+
+If `chrome.storage` isn't available (e.g. content script on a page where the API isn't injected, or jsdom test runners), `Storage` writes to `localStorage` with the same namespacing rules. Cross-context sync via the `storage` window event isn't wired in by default — keep the [issue tracker](https://github.com/arshad-shah/extforge/issues) updated if you need it.

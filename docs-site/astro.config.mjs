@@ -44,6 +44,7 @@ export default defineConfig({
             { label: 'CLI commands', slug: 'reference/cli/commands' },
             { label: 'CLI flags', slug: 'reference/cli/flags' },
             { label: 'Configuration', autogenerate: { directory: 'reference/config' } },
+            { label: 'Runtime packages', autogenerate: { directory: 'reference/runtime' } },
             { label: 'Plugin API', autogenerate: { directory: 'reference/plugins' } },
             { label: 'Testing helpers', autogenerate: { directory: 'reference/testing' } },
             { label: 'Errors', autogenerate: { directory: 'reference/errors' } },
