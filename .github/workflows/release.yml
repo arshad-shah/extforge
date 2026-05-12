@@ -64,12 +64,12 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Validate
-        run: |
-          pnpm typecheck
-          pnpm lint
-          pnpm test
-          pnpm build
+      # Typecheck/lint/test already ran on the PR (and on the Version
+      # Packages PR opened by changesets) via `ci.yml`. The merge commit
+      # this workflow runs against is the exact tested SHA. Only `build`
+      # is repeated here because the publish step needs `dist/`.
+      - name: Build
+        run: pnpm build
 
       - name: Upgrade bundled npm for OIDC support
         run: npm install -g npm@11.5.1
