@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/arshad-shah/extforge/actions/workflows/ci.yml"><img src="https://github.com/arshad-shah/extforge/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://www.npmjs.com/package/extforge"><img src="https://img.shields.io/npm/v/extforge.svg?color=5B21B6" alt="npm version"></a>
   <a href="https://www.npmjs.com/package/extforge"><img src="https://img.shields.io/npm/dm/extforge.svg?color=5B21B6" alt="npm downloads"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-FBBF24.svg" alt="License: MIT"></a>
@@ -17,16 +18,9 @@
   <a href="https://extforge.arshadshah.com"><img src="https://img.shields.io/badge/docs-extforge.arshadshah.com-5B21B6" alt="Docs"></a>
 </p>
 
-<p align="center">
-  <a href="https://github.com/arshad-shah/extforge/actions/workflows/ci.yml"><img src="https://github.com/arshad-shah/extforge/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
-  <a href="https://github.com/arshad-shah/extforge/actions/workflows/codeql.yml"><img src="https://github.com/arshad-shah/extforge/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"></a>
-  <a href="https://api.securityscorecards.dev/projects/github.com/arshad-shah/extforge"><img src="https://api.securityscorecards.dev/projects/github.com/arshad-shah/extforge/badge" alt="OpenSSF Scorecard"></a>
-  <a href="https://github.com/arshad-shah/extforge/blob/main/SECURITY.md"><img src="https://img.shields.io/badge/security-policy-FBBF24" alt="Security policy"></a>
-</p>
-
 ---
 
-ExtForge is a zero-config build system for Manifest V3 browser extensions. One config, every browser. esbuild-powered dev server with true 0-reload UI updates via React Fast Refresh. First-party packages for storage, messaging, and Shadow-DOM-mounted content UIs. **0 production CVEs, 32 prod packages.**
+ExtForge is a zero-config build system for Manifest V3 browser extensions. One config, every browser. esbuild-powered dev server with true 0-reload UI updates via React Fast Refresh. First-party packages for storage, messaging, and Shadow-DOM-mounted content UIs.
 
 ## Quick start <span id="quick-start"></span>
 
@@ -90,17 +84,6 @@ Working reference extensions live in [`examples/`](./examples):
 - **[`react-csui`](./examples/react-csui)** — React popup + Shadow-DOM-mounted React widget injected via `extforge/csui` (auto-discovered).
 
 Both build for `chrome` and `firefox` from a single config, exercised end-to-end in [`tests-e2e/`](./tests-e2e) via Playwright with Chrome's new headless mode.
-
-## Security & supply chain
-
-Every release ships with [npm provenance attestations](https://docs.npmjs.com/generating-provenance-statements) and is published via [trusted publishing (OIDC)](https://docs.npmjs.com/trusted-publishers) from a single, required-reviewer GitHub Environment. CI runs CodeQL, OpenSSF Scorecard, and `pnpm audit --prod` on every PR. Verify a release locally with:
-
-```bash
-npm view extforge --json | jq '.dist.attestations'
-npm audit signatures
-```
-
-Full disclosure policy in [SECURITY.md](./SECURITY.md). Pipeline details in the [supply-chain guide](https://extforge.arshadshah.com/guides/supply-chain/).
 
 ## Contributing
 
