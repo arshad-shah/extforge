@@ -12,5 +12,6 @@ ExtForge ships first-party runtime packages as subpaths of the `extforge` npm pa
 | [`extforge/messaging`](./messaging/) | Typed RPC over `chrome.runtime` — `defineHandler`, `sendMessage`, ports |
 | [`extforge/csui`](./csui/) | Mount UI inside a Shadow DOM on matched pages. File-based discovery |
 | [`extforge/env`](./env/) | `.env` loader, `EXTFORGE_PUBLIC_*` keys inlined into bundles |
+| [`extforge/logger`](./logger/) | Structured logger with JSON transport — exported for plugins and CI |
 
 Each subpath has its own `import` and `types` entry in `package.json#exports`, so tree-shaking only pulls in what you import.

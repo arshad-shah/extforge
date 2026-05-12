@@ -72,7 +72,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Upgrade bundled npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
       - name: Publish to npm
         run: pnpm publish --no-git-checks --access public --provenance
         env:
