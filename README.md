@@ -21,7 +21,6 @@
   <a href="https://github.com/arshad-shah/extforge/actions/workflows/ci.yml"><img src="https://github.com/arshad-shah/extforge/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI"></a>
   <a href="https://github.com/arshad-shah/extforge/actions/workflows/codeql.yml"><img src="https://github.com/arshad-shah/extforge/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL"></a>
   <a href="https://api.securityscorecards.dev/projects/github.com/arshad-shah/extforge"><img src="https://api.securityscorecards.dev/projects/github.com/arshad-shah/extforge/badge" alt="OpenSSF Scorecard"></a>
-  <a href="https://www.npmjs.com/package/extforge"><img src="https://img.shields.io/npm/v/extforge?label=provenance&color=10B981&logo=npm" alt="npm provenance"></a>
   <a href="https://github.com/arshad-shah/extforge/blob/main/SECURITY.md"><img src="https://img.shields.io/badge/security-policy-FBBF24" alt="Security policy"></a>
 </p>
 

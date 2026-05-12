@@ -1,4 +1,8 @@
+# Docs site build verification.
+# Hardened: SHA-pinned third-party actions and least-privilege top-level
+# permissions (matches the rest of the workflows in this repo).
 name: Docs
+
 on:
   pull_request:
     paths:
@@ -10,16 +14,24 @@ on:
       - 'brand/**'
   push:
     branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
       # pnpm version comes from package.json `packageManager` — single source
       # of truth shared with Cloudflare Pages (Corepack-style).
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: 22
+          cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm docs:gen
       - name: Check generated content is up to date
