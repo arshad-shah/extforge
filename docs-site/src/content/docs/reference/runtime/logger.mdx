@@ -1,0 +1,138 @@
+---
+title: extforge/logger
+description: Structured logger used by the ExtForge CLI and dev server. Exported for plugin authors and CI scripts.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+`extforge/logger` is the structured logger used internally by the CLI, dev server, and built-in plugins. It is exported so plugin authors and CI scripts can produce log output that matches ExtForge's banner-and-summary style — and so external tooling can pipe ExtForge into JSON consumers.
+
+## Quick start
+
+```ts
+import { createLogger, LogLevel } from 'extforge/logger';
+
+const log = createLogger({ scope: 'my-plugin', level: LogLevel.Info });
+
+log.info('Reading manifest from %s', './src/manifest.ts');
+log.success('Built %d outputs in %s', 3, log.formatDuration(412));
+log.warn('Permission %o looks unused', 'identity.email');
+```
+
+## Log levels
+
+```ts
+enum LogLevel {
+  Silent  = 0,
+  Error   = 1,
+  Warn    = 2,
+  Info    = 3,
+  Success = 3,   // alias for Info
+  Debug   = 4,
+  Trace   = 5,
+}
+```
+
+The level is the **threshold**: everything ≤ the configured level prints, everything above is dropped. `LogLevel.Silent` disables all output.
+
+Level resolution at runtime (highest priority wins):
+
+1. `EXTFORGE_LOG_LEVEL=debug` (or `trace`, `info`, `warn`, `error`, `silent`) — env override.
+2. `--log-level <name>` on the CLI.
+3. `createLogger({ level })` in code.
+4. Default: `LogLevel.Info`.
+
+## Methods
+
+```ts
+log.error(msg, ...args)
+log.warn(msg, ...args)
+log.info(msg, ...args)
+log.success(msg, ...args)
+log.debug(msg, ...args)
+log.trace(msg, ...args)
+
+log.time(label)            // start a timer
+log.timeEnd(label, msg?)   // stop + log duration
+
+log.scope('child-scope')   // returns a Logger with [parent → child] scope
+```
+
+Format placeholders match Node's `util.format`: `%s`, `%d`, `%o`, `%j`.
+
+## Transports
+
+A transport is `(entry: LogEntry) => void`. The default transport is a human-formatted writer with ANSI colour. To capture structured output (for CI, log aggregators, or tests):
+
+```ts
+import { createLogger, jsonTransport } from 'extforge/logger';
+
+const log = createLogger({
+  scope: 'extforge',
+  transports: [jsonTransport()],   // one JSON line per entry to stdout
+  silentHumanOutput: true,         // suppress the colour banner
+});
+```
+
+Each JSON entry has shape:
+
+```jsonc
+{
+  "level": "info",
+  "scope": "extforge → manifest",
+  "message": "Wrote manifest for chrome",
+  "args": [],
+  "timestamp": 1715500000000,
+  "duration": 412   // present on timeEnd entries
+}
+```
+
+You can plug in multiple transports — for example, a JSON file writer alongside the default colour transport.
+
+## Colour handling
+
+ANSI colour is auto-detected via:
+
+- `FORCE_COLOR=1` → force on.
+- `NO_COLOR=1` (or `true`) → force off. Respects [no-color.org](https://no-color.org/).
+- `TERM=dumb` → off.
+- Otherwise: enabled if `process.stdout.isTTY`.
+
+The colour palette is re-exported as `colors` for plugins that want to match ExtForge's look-and-feel:
+
+```ts
+import { colors } from 'extforge/logger';
+console.log(colors.cyan('hello'));
+```
+
+## Formatters
+
+The package also exports the small, dependency-free formatters the CLI uses for banners and summaries:
+
+```ts
+import { formatDuration, formatFileSize, formatPath } from 'extforge/logger';
+
+formatDuration(412);                 // "412ms"
+formatDuration(2_540);               // "2.54s"
+formatFileSize(2_580_000);           // "2.58 MB"
+formatPath('/abs/path/to/foo.ts');   // "./to/foo.ts" (relative to cwd)
+```
+
+## Root logger
+
+ExtForge ships a singleton root logger so plugins emit under a consistent scope tree. Use it when you want to write into the ExtForge banner stream rather than your own:
+
+```ts
+import { getLogger } from 'extforge/logger';
+
+const log = getLogger().scope('my-plugin');
+log.info('hook fired');
+```
+
+<Aside type="caution" title="Don't `setRootLogger` from a plugin">
+`setRootLogger(...)` replaces the root logger and is intended for the CLI / test harness only. Plugins should always `getLogger().scope(...)` instead.
+</Aside>
+
+## Why a custom logger?
+
+ExtForge ships zero runtime dependencies in `extforge/logger` so it stays usable from the CLI, plugins, build hooks, and CI scripts without dragging in `pino`, `winston`, or similar. The trade-off is a smaller feature surface — if you need log rotation, remote shipping, or sampling, pipe `jsonTransport()` into a process that handles that.

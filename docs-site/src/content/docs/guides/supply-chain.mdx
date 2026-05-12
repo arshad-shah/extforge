@@ -1,0 +1,76 @@
+---
+title: Supply-chain security
+description: How ExtForge tarballs are built, signed, and verified — and how to verify them in your own pipeline.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+Every `extforge` tarball on npm is built and published through a hardened pipeline. This page documents what that means so you can independently verify what you install — and decide what to do if a verification step ever fails.
+
+## What ships on every release
+
+Every published version of `extforge` includes:
+
+1. **Source provenance** — an [SLSA provenance attestation](https://slsa.dev/spec/v1.0/provenance) linking the tarball back to:
+   - the GitHub repository (`arshad-shah/extforge`),
+   - the exact commit SHA,
+   - the workflow file (`.github/workflows/release.yml`),
+   - the environment (`npm-publish`).
+2. **A signed manifest** — npm signs the registry metadata.
+3. **`CHANGELOG.md`** entries written by [Changesets](https://github.com/changesets/changesets) at release time. Every user-visible change has a corresponding `.changeset/*.md` in the source tree.
+
+The publish job uses **npm trusted publishing (OIDC)**. There is no long-lived publish token — npm verifies the GitHub-issued OIDC token at the point of publish.
+
+## Verifying a release
+
+Anyone — your CI, a security review, a curious user — can verify a downloaded tarball:
+
+```bash
+# 1. Inspect the attestation
+npm view extforge --json | jq '.dist.attestations'
+
+# 2. Verify provenance + signatures against the public log
+npm audit signatures
+```
+
+`npm audit signatures` will report `0 packages with signature issues`. If a future release fails this check, treat it as a supply-chain alert and open an issue against `arshad-shah/extforge` before installing.
+
+You can also pull the raw attestation from Sigstore's transparency log:
+
+```bash
+npx @sigstore/cli verify-blob \
+  --bundle <(npm view extforge --json | jq '.dist.attestations')
+```
+
+## How the pipeline is hardened
+
+The release workflow (`.github/workflows/release.yml`) and the manual publish workflow (`.github/workflows/publish.yml`) both implement:
+
+- **SHA-pinned third-party actions.** Every `uses:` line points at an immutable commit SHA, with the tag recorded in a trailing comment. Dependabot opens PRs to bump SHAs.
+- **Least-privilege permissions.** Top-level `permissions: contents: read`. Write scopes are added only on the specific job that needs them. `persist-credentials: false` on `actions/checkout` so the default GitHub token isn't left on disk.
+- **OIDC, not long-lived tokens.** `id-token: write` allows GitHub to mint a short-lived OIDC token for npm. The npm side has trusted-publishing configured against this exact repo + workflow + environment.
+- **Required reviewer on publish.** The publish job runs inside the `npm-publish` GitHub Environment, which requires a maintainer approval on every release.
+- **Branch lock.** `if: github.repository == 'arshad-shah/extforge'` plus a `main`-only deployment branch policy on the environment.
+- **Concurrency lock.** Only one release run at a time per ref; in-flight runs are never cancelled mid-publish.
+- **`pnpm install --frozen-lockfile`** rejects any drift in `pnpm-lock.yaml` between PR and release.
+
+## CI guardrails
+
+Every PR runs through:
+
+- **Unit tests + build** on Node 20, 22, and 24.
+- **`pnpm audit --prod`** — production dependency tree must be zero vulnerabilities to merge.
+- **Playwright E2E** on Ubuntu and macOS.
+- **CodeQL** with the `security-and-quality` query suite.
+- **OpenSSF Scorecard** runs weekly and uploads SARIF to the Security tab.
+- **Dependabot** opens grouped weekly PRs for npm + GitHub Actions; major bumps are intentionally ignored so we evaluate them manually.
+
+<Aside type="tip" title="Verifying in your own deployment">
+If you ship a browser extension built on ExtForge to a store with strict supply-chain requirements, gate your store-submission CI on `npm audit signatures && pnpm audit --prod`. That catches the case where someone in your team installs an `extforge` version that wasn't published through this pipeline.
+</Aside>
+
+## Reporting a vulnerability
+
+See [`SECURITY.md`](https://github.com/arshad-shah/extforge/blob/main/SECURITY.md). **Do not** open a public GitHub issue. Use GitHub [private vulnerability reporting](https://github.com/arshad-shah/extforge/security/advisories/new), or email `shaharshad57@gmail.com`.
+
+The maintainer acknowledges within 48 hours and ships a coordinated fix within ~30 days for high-severity issues.

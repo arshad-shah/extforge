@@ -34,9 +34,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+  contents: read
 
 jobs:
   release:
@@ -44,6 +42,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository == 'arshad-shah/extforge'
     environment: npm-publish
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
@@ -70,7 +72,7 @@ jobs:
           pnpm build
 
       - name: Upgrade bundled npm for OIDC support
-        run: npm install -g npm@latest
+        run: npm install -g npm@11.5.1
 
       - name: Create release PR or publish to npm
         id: changesets

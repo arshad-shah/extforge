@@ -161,9 +161,14 @@
   "bugs": {
     "url": "https://github.com/arshad-shah/extforge/issues"
   },
-  "homepage": "https://github.com/arshad-shah/extforge#readme",
+  "homepage": "https://extforge.arshadshah.com",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
+  },
+  "pnpm": {
+    "overrides": {
+      "esbuild@<0.25.0": ">=0.25.0"
+    }
   }
 }
