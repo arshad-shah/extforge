@@ -14,7 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       # pnpm version comes from package.json `packageManager` — single source
       # of truth shared with Cloudflare Pages (Corepack-style).
       - uses: pnpm/action-setup@v4
