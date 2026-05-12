@@ -1,0 +1,101 @@
+name: Bug report
+description: Report something that does not work as documented.
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. The more
+        specific and reproducible the report, the faster we can ship
+        a fix. Please do not file security issues here. See
+        [SECURITY.md](https://github.com/arshad-shah/extforge/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: ExtForge version
+      description: Output of `pnpm exec extforge --version` (or the version from your `package.json`).
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Target browser
+      description: Which browser were you building/running against?
+      options:
+        - Chrome
+        - Firefox
+        - Safari
+        - Edge
+        - Multiple
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node version, pnpm version, framework if relevant.
+      placeholder: "macOS 14.5, Node 22.11.0, pnpm 10.0.0, React 18.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      description: Which part of ExtForge is misbehaving?
+      options:
+        - CLI / build
+        - Dev server / HMR
+        - Manifest generation
+        - extforge/storage
+        - extforge/messaging
+        - extforge/csui
+        - extforge/env
+        - extforge/testing
+        - extforge/logger
+        - Plugin API
+        - Docs / types
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear, factual description of the broken behaviour. Include error messages and stack traces in full.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: |
+        A `extforge.config.ts` + the smallest source files that reproduce
+        the issue. A link to a public repo is ideal. Reports without a
+        reproduction are usually closed.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Logs (`EXTFORGE_LOG=debug`), screenshots, the generated `manifest.json`.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and discussions and did not find a duplicate.
+          required: true
+        - label: I am using the latest published version, or have noted the version above.
+          required: true
+        - label: This is not a security issue.
+          required: true

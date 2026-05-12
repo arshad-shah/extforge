@@ -1,22 +1,49 @@
+# Continuous integration for ExtForge.
+#
+# Runs on every push to `main` and every PR targeting `main`.
+#
+# Hardening:
+# - All third-party actions are SHA-pinned. Comment after each pin records
+#   the human-readable tag for review.
+# - Top-level `permissions: contents: read` is the least-privilege default;
+#   no job here writes anywhere.
+# - `pnpm install --frozen-lockfile` to refuse drift in `pnpm-lock.yaml`.
+# - `pnpm audit --prod` gates merges on a clean production dependency tree.
 name: CI
+
 on:
-  pull_request:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   unit:
-    name: Unit tests
+    name: Unit & build (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22', '24']
     steps:
-      - uses: actions/checkout@v4
-      # pnpm version comes from package.json `packageManager` — single source
-      # of truth shared with Cloudflare Pages (Corepack-style).
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
 
@@ -24,12 +51,14 @@ jobs:
     name: Production audit (must be 0 vulns)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # pnpm version comes from package.json `packageManager` — single source
-      # of truth shared with Cloudflare Pages (Corepack-style).
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - name: pnpm audit --prod
         run: pnpm audit --prod
@@ -37,17 +66,20 @@ jobs:
   e2e:
     name: E2E (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: unit
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-      # pnpm version comes from package.json `packageManager` — single source
-      # of truth shared with Cloudflare Pages (Corepack-style).
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: 'pnpm' }
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm examples:build
@@ -57,7 +89,7 @@ jobs:
         run: pnpm -C tests-e2e exec playwright test
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: playwright-report-${{ matrix.os }}
           path: tests-e2e/playwright-report/

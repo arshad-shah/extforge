@@ -1,0 +1,52 @@
+name: Feature request
+description: Suggest a new option, runtime helper, or behaviour.
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us understand the use case before we discuss the API.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you solving?
+      description: Describe the user-facing scenario. Avoid jumping to a solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: |
+        If you have an API in mind, sketch it. Code blocks are welcome.
+      render: ts
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing options, workarounds, or other tools you tried (Plasmo, WXT, vite-plugin-web-extension, etc.).
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - New CLI command or flag
+        - New config option
+        - New runtime package or helper
+        - Dev server / HMR
+        - Plugin API
+        - Cross-browser compat
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Pre-flight
+      options:
+        - label: I searched existing issues and discussions for this idea.
+          required: true
+        - label: This fits within a "zero-config MV3 build system" and not a different tool.
+          required: true

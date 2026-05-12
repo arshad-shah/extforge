@@ -1,0 +1,80 @@
+# Manual / release-triggered publish.
+#
+# The primary publish path is `release.yml` (changesets). This workflow
+# exists for two extra cases:
+#   1. Publishing to GitHub Packages alongside npm (automatic on every
+#      published GitHub Release).
+#   2. Manually re-publishing to npm if the changesets run failed
+#      mid-flight (workflow_dispatch with registry=npm).
+#
+# Hardening identical to release.yml: SHA-pinned actions, `id-token: write`
+# for OIDC, npm-publish environment with required reviewers, provenance on.
+name: Publish
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: 'Where to publish'
+        required: true
+        default: 'github'
+        type: choice
+        options:
+          - github
+          - npm
+          - both
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish-github-packages:
+    name: Publish to GitHub Packages
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'arshad-shah/extforge' && (github.event_name == 'release' || github.event.inputs.registry == 'github' || github.event.inputs.registry == 'both') }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@arshad-shah'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Publish to GitHub Packages
+        run: pnpm publish --no-git-checks --access public --registry https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    if: ${{ github.repository == 'arshad-shah/extforge' && (github.event.inputs.registry == 'npm' || github.event.inputs.registry == 'both') }}
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Upgrade bundled npm for OIDC support
+        run: npm install -g npm@latest
+      - name: Publish to npm
+        run: pnpm publish --no-git-checks --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

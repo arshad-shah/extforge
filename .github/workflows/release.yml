@@ -1,49 +1,81 @@
+# Automated release powered by Changesets.
+#
+# How it works:
+# 1. Contributors run `pnpm changeset` and commit a `.changeset/*.md` file
+#    on their PR describing the change (patch/minor/major).
+# 2. When that PR merges into `main`, this workflow runs.
+# 3. If pending changesets exist, the action opens (or updates) a "Version
+#    Packages" PR that bumps `package.json`, regenerates `CHANGELOG.md`, and
+#    deletes the consumed changeset files.
+# 4. When the maintainer merges the "Version Packages" PR, this workflow
+#    runs again and publishes the new version to npm + creates a GitHub
+#    release.
+#
+# Hardening:
+# - All third-party actions are SHA-pinned.
+# - The publish step runs in the `npm-publish` GitHub Environment, which is
+#   configured with required reviewers. Any tokens stored there are
+#   environment-scoped, not repo-wide.
+# - npm trusted publishing (OIDC) is configured on npmjs.com against this
+#   repo + workflow + environment. The `id-token: write` permission below
+#   is what lets the OIDC token mint happen.
+# - `if: github.repository == 'arshad-shah/extforge'` prevents forks from
+#   publishing.
+# - `NPM_CONFIG_PROVENANCE: true` attaches an SLSA provenance attestation
+#   to every published tarball.
 name: Release
+
 on:
   push:
     branches: [main]
 
-# Only one Release run at a time. If a new push lands while one is in flight,
-# cancel the old one (the new commit's PR will subsume it).
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
 jobs:
   release:
-    name: Release
+    name: Version & publish
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
+    if: github.repository == 'arshad-shah/extforge'
+    environment: npm-publish
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
         with:
-          # Required by changesets to compute the bump from the full history.
           fetch-depth: 0
+          persist-credentials: false
 
-      # pnpm version comes from package.json `packageManager`.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
         with:
-          node-version: 22
+          node-version: '22'
           cache: 'pnpm'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+      - name: Install
+        run: pnpm install --frozen-lockfile
 
-      - name: Create release PR or publish
-        uses: changesets/action@v1
+      - name: Validate
+        run: |
+          pnpm typecheck
+          pnpm lint
+          pnpm test
+          pnpm build
+
+      - name: Upgrade bundled npm for OIDC support
+        run: npm install -g npm@latest
+
+      - name: Create release PR or publish to npm
+        id: changesets
+        uses: changesets/action@d94a5c301145045a0960133674e003b265942a22  # v1.8.0
         with:
-          # Opens a "Version Packages" PR when there are pending changesets.
-          # Once that PR is merged, this same action runs again and the
-          # publish step fires (because no pending changesets remain and
-          # versions are already bumped).
           version: pnpm exec changeset version
           publish: pnpm exec changeset publish
           commit: 'chore(release): version packages'
@@ -51,3 +83,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/arshad-shah/extforge/discussions
+    about: For "how do I", design discussion, or general support, please open a Discussion instead of an issue.
+  - name: Security vulnerability
+    url: https://github.com/arshad-shah/extforge/security/advisories/new
+    about: Use private vulnerability reporting. Do not open a public issue for security problems.
+  - name: Documentation
+    url: https://extforge.arshadshah.com
+    about: Guides, API reference, and configuration docs.

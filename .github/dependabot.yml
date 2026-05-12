@@ -1,0 +1,90 @@
+version: 2
+updates:
+  # Library + workspace root
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - automerge-candidate
+    groups:
+      typescript:
+        patterns:
+          - "typescript"
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
+          - "tsup"
+          - "tsx"
+          - "ts-morph"
+      eslint:
+        patterns:
+          - "eslint"
+          - "eslint-*"
+          - "@eslint/*"
+          - "globals"
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "happy-dom"
+      swc:
+        patterns:
+          - "@swc/*"
+      types:
+        patterns:
+          - "@types/*"
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major
+
+  # Docs site
+  - package-ecosystem: npm
+    directory: "/docs-site"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:30"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - docs
+    groups:
+      astro:
+        patterns:
+          - "astro"
+          - "@astrojs/*"
+          - "starlight*"
+      typedoc:
+        patterns:
+          - "typedoc"
+          - "typedoc-*"
+
+  # E2E test workspace
+  - package-ecosystem: npm
+    directory: "/tests-e2e"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - tests
+
+  # GitHub Actions versions (SHA-pinned in workflows, dependabot will
+  # propose the new SHA + tag comment together).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+      - github-actions

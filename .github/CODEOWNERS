@@ -1,0 +1,32 @@
+# Default owner for everything
+*                              @arshad-shah
+
+# Build / release / CI
+/.github/                      @arshad-shah
+/.github/workflows/            @arshad-shah
+/tsup.config.ts                @arshad-shah
+/vitest.config.ts              @arshad-shah
+/eslint.config.js              @arshad-shah
+/package.json                  @arshad-shah
+/pnpm-workspace.yaml           @arshad-shah
+/pnpm-lock.yaml                @arshad-shah
+/.changeset/                   @arshad-shah
+
+# Public API surface
+/src/core/index.ts             @arshad-shah
+/src/core/storage/             @arshad-shah
+/src/core/messaging/           @arshad-shah
+/src/core/csui/                @arshad-shah
+/src/core/env/                 @arshad-shah
+/src/core/plugins/             @arshad-shah
+/src/core/testing/             @arshad-shah
+/src/core/logger/              @arshad-shah
+/src/cli/                      @arshad-shah
+
+# Documentation
+/docs/                         @arshad-shah
+/docs-site/                    @arshad-shah
+/README.md                     @arshad-shah
+/SECURITY.md                   @arshad-shah
+/CONTRIBUTING.md               @arshad-shah
+/CODE_OF_CONDUCT.md            @arshad-shah
