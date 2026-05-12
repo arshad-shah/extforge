@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { resolve, dirname } from 'pathe';
+import { resolve, dirname } from 'node:path/posix';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

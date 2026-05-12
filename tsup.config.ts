@@ -1,6 +1,5 @@
 import { defineConfig } from 'tsup';
 import { cpSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
 
 export default defineConfig({
   entry: {
@@ -11,6 +10,11 @@ export default defineConfig({
     'core/compat/index': 'src/core/compat/index.ts',
     'core/testing/index': 'src/core/testing/index.ts',
     'core/testing/vitest': 'src/core/testing/vitest.ts',
+    'core/storage/index': 'src/core/storage/index.ts',
+    'core/storage/react': 'src/core/storage/react.ts',
+    'core/messaging/index': 'src/core/messaging/index.ts',
+    'core/csui/index': 'src/core/csui/index.ts',
+    'core/env/index': 'src/core/env/index.ts',
   },
   format: ['esm'],
   dts: true,
@@ -19,7 +23,7 @@ export default defineConfig({
   target: 'node20',
   splitting: true,
   treeshake: true,
-  external: ['esbuild'],
+  external: ['esbuild', 'react', 'react-dom', 'react/jsx-runtime'],
   async onSuccess() {
     // Copy scaffold templates so the runtime template-loader can read them
     // from dist/core/scaffold/templates/ (the loader resolves them relative
@@ -32,15 +36,7 @@ export default defineConfig({
       // eslint-disable-next-line no-console
       console.log(`[tsup] Copied templates → ${dest}`);
     }
-
-    // Copy compat data.json so the runtime createRequire('./data.json') resolves
-    // relative to dist/core/compat/index.js at runtime.
-    const compatDataSrc = join('src', 'core', 'compat', 'data.json');
-    const compatDataDest = join('dist', 'core', 'compat', 'data.json');
-    if (existsSync(compatDataSrc)) {
-      cpSync(compatDataSrc, compatDataDest);
-      // eslint-disable-next-line no-console
-      console.log(`[tsup] Copied compat data → ${compatDataDest}`);
-    }
+    // Compat data.json is inlined via esbuild's json loader at bundle time
+    // (see src/core/compat/index.ts).
   },
 });

@@ -6,10 +6,10 @@
  * Logic only — no inlined template strings.
  */
 
-import prompts from 'prompts';
-import pc from 'picocolors';
+import { ask, type Prompt } from './prompter.js';
+import pc from '../logger/ansi.js';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'pathe';
+import { join } from 'node:path/posix';
 import { createLogger, type Logger } from '../logger/index.js';
 import { PERMISSION_GROUPS, type Browser } from '../manifest/index.js';
 import { VERSIONS, DEFAULTS, PKG_SCRIPTS, BASE_DIRS, FEATURE_DIRS } from './constants.js';
@@ -36,12 +36,12 @@ export interface ScaffoldAnswers {
 
 // ─── Interactive prompts ─────────────────────────────────────────────────────
 
-async function gatherAnswers(options: ScaffoldOptions): Promise<ScaffoldAnswers | null> {
-  console.log('');
-  console.log('  ' + pc.bold(pc.magenta('extforge')) + pc.dim(' › ') + pc.bold('create a new browser extension'));
-  console.log(pc.dim('  Answer a few questions to scaffold your project.\n'));
+async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<ScaffoldAnswers | null> {
+  log.raw('');
+  log.raw('  ' + pc.bold(pc.magenta('extforge')) + pc.dim(' › ') + pc.bold('create a new browser extension'));
+  log.raw(pc.dim('  Answer a few questions to scaffold your project.\n'));
 
-  const response = await prompts([
+  const promptList: Prompt[] = [
     {
       type: 'text', name: 'name', message: 'Extension name',
       initial: options.name ?? DEFAULTS.name,
@@ -102,14 +102,17 @@ async function gatherAnswers(options: ScaffoldOptions): Promise<ScaffoldAnswers 
         info.permissions.map(perm => ({
           title: `${pc.dim(`[${group}]`)} ${perm}`,
           value: perm,
-          selected: DEFAULTS.permissions.includes(perm as any),
+          selected: DEFAULTS.permissions.includes(perm as never),
         }))
       ),
     },
-  ], { onCancel: () => { console.log(pc.red('\n  Cancelled.\n')); return false; } });
+  ];
 
-  if (!response.name) return null;
-  return response as ScaffoldAnswers;
+  const response = await ask(promptList, {
+    onCancel: () => { log.raw(pc.red('\n  Cancelled.\n')); },
+  });
+  if (!response || !response['name']) return null;
+  return response as unknown as ScaffoldAnswers;
 }
 
 // ─── Package.json builder ────────────────────────────────────────────────────
@@ -258,7 +261,7 @@ export async function scaffold(
         features: [...DEFAULTS.features],
         permissions: [...DEFAULTS.permissions],
       }
-    : (await gatherAnswers(options)) as ScaffoldAnswers;
+    : (await gatherAnswers(options, log)) as ScaffoldAnswers;
 
   if (!answers) return null;
 
@@ -332,16 +335,16 @@ export async function scaffold(
 
   log.timeEnd('scaffold', 'Scaffolded project');
 
-  console.log('');
-  console.log(pc.bold(pc.green('  ✔ Project created!')));
-  console.log('');
-  console.log(pc.dim('  Next steps:'));
-  console.log(`    ${pc.cyan('cd')} ${answers.name}`);
-  console.log(`    ${pc.cyan('npm install')}`);
-  console.log(`    ${pc.cyan('npm run dev')}`);
-  console.log('');
-  console.log(pc.dim(`  Then load the extension from ${pc.cyan('dist/chrome/')} in your browser.`));
-  console.log('');
+  log.raw('');
+  log.raw(pc.bold(pc.green('  ✔ Project created!')));
+  log.raw('');
+  log.raw(pc.dim('  Next steps:'));
+  log.raw(`    ${pc.cyan('cd')} ${answers.name}`);
+  log.raw(`    ${pc.cyan('npm install')}`);
+  log.raw(`    ${pc.cyan('npm run dev')}`);
+  log.raw('');
+  log.raw(pc.dim(`  Then load the extension from ${pc.cyan('dist/chrome/')} in your browser.`));
+  log.raw('');
 
   return projectDir;
 }

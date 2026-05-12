@@ -18,7 +18,7 @@
 
 ---
 
-ExtForge is a zero-config build system for Manifest V3 browser extensions. It scaffolds new projects, runs an esbuild-powered dev server with HMR, generates per-browser manifests, and packages your extension for the Chrome, Firefox, Edge, and Safari stores — all from a single CLI.
+ExtForge is a zero-config build system for Manifest V3 browser extensions. One config, every browser. esbuild-powered dev server with true 0-reload UI updates via React Fast Refresh. First-party packages for storage, messaging, and Shadow-DOM-mounted content UIs. **0 production CVEs, 32 prod packages.**
 
 ## Quick start <span id="quick-start"></span>
 
@@ -35,12 +35,23 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 
 ## What it does <span id="features"></span>
 
+### Build & dev
 - **Cross-browser by default.** One config emits a manifest tailored to each browser. Browser-specific quirks handled automatically.
-- **HMR that works.** Targeted content-script reloads (only matched tabs), CSS hot swap, infinite reconnect.
-- **Typed plugin API.** Hooks for config, manifest, build, and dev-reload events. Legacy plugin shape still works.
-- **Testing helpers.** `extforge/testing` ships chrome.* fakes for runtime/storage/tabs/action/scripting plus a vitest preset.
-- **Cross-browser API compat checking.** Catches `chrome.tabGroups.update()` on Safari at build time, with per-line opt-out.
+- **True 0-reload UI updates.** SWC-powered React Fast Refresh for popup/options/sidepanel — components update with state preserved. Falls back gracefully (full reload) when `@swc/core` isn't installed.
+- **Versioned HMR protocol (v3).** Targeted module swaps for UI-only changes; full reload for manifest / background / content-script changes. CSS hot swap, infinite reconnect.
+- **Cross-browser API compat checking.** MDN BCD-driven — catches `chrome.tabGroups.update()` on Safari at build time, with per-line opt-out.
 - **Production-ready packaging.** `extforge package` produces store-ready `.zip` archives.
+
+### First-party runtime packages
+- **`extforge/storage`** + **`extforge/storage/react`** — typed `chrome.storage` wrapper with watch API and `useStorage()` hook. localStorage fallback for non-extension contexts.
+- **`extforge/messaging`** — typed RPC over `chrome.runtime`. `defineHandler` / `sendMessage` with full inference via the augmentable `MessageMap` interface. Plus typed Ports API.
+- **`extforge/csui`** — Content Script UI. Drop a file at `src/contents/*.csui.tsx`, `export default defineCSUI({matches: [...]}, render)`, and ExtForge auto-discovers it, registers it in the manifest, and mounts it inside a Shadow DOM at runtime.
+- **`extforge/env`** — `.env` loading with Vite-style precedence. `EXTFORGE_PUBLIC_*` keys are inlined into bundles via esbuild's `define`.
+- **`extforge/testing`** — `chrome.*` fakes for runtime/storage/tabs/action/scripting plus a vitest preset.
+
+### Extensibility
+- **Typed plugin API.** Hooks for config, manifest, build, and dev-reload events. Legacy plugin shape still works.
+- **`extforge doctor`** — 9 preflight checks for node version, config validity, icons, HMR port, browser overrides, permissions, and cross-browser API support.
 
 ## Install <span id="installation"></span>
 
@@ -48,21 +59,38 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 pnpm add -D extforge
 ```
 
-Requires Node 20+. See [install guide](https://extforge.arshadshah.com/getting-started/install/) for npm/yarn/bun.
+Requires Node 20+. Optional: `pnpm add -D @swc/core react-refresh` to enable React Fast Refresh in dev. See [install guide](https://extforge.arshadshah.com/getting-started/install/) for npm/yarn/bun.
 
 ## Docs <span id="docs"></span>
 
 Full documentation lives at **[extforge.arshadshah.com](https://extforge.arshadshah.com)**:
 
 - [Configuration](https://extforge.arshadshah.com/reference/config/)
+- [Storage](https://extforge.arshadshah.com/reference/runtime/storage/) · [Messaging](https://extforge.arshadshah.com/reference/runtime/messaging/) · [CSUI](https://extforge.arshadshah.com/reference/runtime/csui/) · [Env](https://extforge.arshadshah.com/reference/runtime/env/)
+- [HMR & Fast Refresh](https://extforge.arshadshah.com/guides/hmr/)
 - [Plugin API](https://extforge.arshadshah.com/reference/plugins/api/)
 - [CLI commands](https://extforge.arshadshah.com/reference/cli/commands/)
 - [Error codes](https://extforge.arshadshah.com/reference/errors/)
 - [Brand guidelines](https://extforge.arshadshah.com/brand/guidelines/)
 
+## Examples
+
+Working reference extensions live in [`examples/`](./examples):
+
+- **[`vanilla-popup`](./examples/vanilla-popup)** — popup + content + background in plain TypeScript. Uses `extforge/messaging` and `extforge/storage`.
+- **[`react-csui`](./examples/react-csui)** — React popup + Shadow-DOM-mounted React widget injected via `extforge/csui` (auto-discovered).
+
+Both build for `chrome` and `firefox` from a single config, exercised end-to-end in [`tests-e2e/`](./tests-e2e) via Playwright with Chrome's new headless mode.
+
 ## Contributing
 
-Issues and PRs welcome. Run `pnpm install && pnpm test` to verify your environment.
+Issues and PRs welcome. Run `pnpm install && pnpm test` to verify your environment. User-visible changes need a changeset:
+
+```bash
+pnpm changeset
+```
+
+See [`.changeset/README.md`](./.changeset/README.md) for the workflow.
 
 ## License
 

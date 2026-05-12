@@ -1,5 +1,5 @@
 import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'pathe';
+import { resolve, dirname } from 'node:path/posix';
 import { fileURLToPath } from 'node:url';
 import { ERROR_CODES } from '../src/core/errors/codes.js';
 import { ERROR_DOCS } from '../src/core/errors/error-docs.js';

@@ -1,6 +1,6 @@
 import type { Check } from '../index.js';
 import { existsSync } from 'node:fs';
-import { join } from 'pathe';
+import { join } from 'node:path/posix';
 
 const REQUIRED = [16, 32, 48, 128];
 

@@ -22,11 +22,11 @@ Each category of file change maps to a specific reload strategy. ExtForge classi
 
 | Edit kind | What reloads | Tabs touched | Extension restart needed? |
 |---|---|---|---|
+| **Popup / options / sidepanel `.tsx` (with RFR)** | **Component-level swap, state preserved** | **No tabs** | **No** |
+| Popup / options / sidepanel JS (no RFR) | Full reload of that view | No tabs | No |
 | CSS file (`.css`, `.scss`, `.less`) | CSS hot swap | Matched content-script tabs only | No |
 | Content-script JS | Tab reload | Matched content-script tabs only | No |
 | Background JS | Full extension reload | All extension surfaces | No — service worker restarts |
-| Popup / sidepanel JS | Full reload of that view | No tabs | No |
-| Options page JS | Full reload of options view | No tabs | No |
 | Manifest / config change | Full extension reload | All extension surfaces | No |
 | Asset (icon, image) | Full extension reload | All extension surfaces | No |
 | Injected script (page-context) | Full extension reload | All extension surfaces | No |
@@ -34,6 +34,51 @@ Each category of file change maps to a specific reload strategy. ExtForge classi
 "Full extension reload" means the browser reloads the extension package in-place. Tabs are not closed; the service worker restarts.
 
 CSS hot swap injects new CSS into the tab's document without a navigation. This is the fastest update path and works for both content-script stylesheets and injected CSS.
+
+---
+
+## React Fast Refresh (true 0-reload)
+
+For `.tsx` / `.jsx` edits in popup, options, or sidepanel, ExtForge can update the React tree **without reloading the page** — component state survives the swap. This is the Vite / Next.js / Plasmo experience for browser extensions.
+
+**Opt in** by installing the optional peer deps:
+
+```sh
+pnpm add -D @swc/core react-refresh
+```
+
+That's it. ExtForge auto-detects `@swc/core`, switches the dev pipeline to run JSX through SWC's `react.refresh: true` transform, and emits a finer-grained HMR envelope (`v: 3`) that the in-page client applies via `performReactRefresh()`.
+
+**Without the peer deps**, dev mode falls back to the v2 envelope (full reload of the popup view) and prints a single warning. No build error — it just gracefully degrades.
+
+### What it does and doesn't update
+
+✅ Component body changes (JSX, hook state, event handlers)
+✅ New components added or removed from a render
+✅ Hook signature additions (`useState` / `useEffect` / etc.)
+
+❌ Module-level side effects (top-level `console.log`, `localStorage.setItem`)
+❌ Non-component exports — those force a full reload
+❌ Anything outside the `src/ui/*` tree — content scripts, background, manifest
+
+### Protocol envelope (v3)
+
+Server emits the same WebSocket protocol as before, but now picks per-batch:
+
+```jsonc
+// Old v2 envelope (still used for non-RFR-eligible changes):
+{ "v": 2, "type": "js", "files": ["src/ui/popup/index.ts"], "scriptIds": [] }
+
+// New v3 envelope (UI-only JS changes):
+{
+  "v": 3,
+  "type": "hmr-update",
+  "updates": [{ "id": "ui/popup/index.js", "hash": "...", "file": "ui/popup/index.js" }],
+  "timestamp": 1234567890
+}
+```
+
+The client refetches each chunk via `chrome-extension://<id>/<file>?t=<hash>`, the new module's RFR header re-registers components, and `performReactRefresh()` updates the DOM in place. Any failure (network, parse, RFR mismatch) falls through to a clean reload.
 
 ---
 

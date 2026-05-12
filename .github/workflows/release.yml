@@ -1,0 +1,53 @@
+name: Release
+on:
+  push:
+    branches: [main]
+
+# Only one Release run at a time. If a new push lands while one is in flight,
+# cancel the old one (the new commit's PR will subsume it).
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Required by changesets to compute the bump from the full history.
+          fetch-depth: 0
+
+      # pnpm version comes from package.json `packageManager`.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Create release PR or publish
+        uses: changesets/action@v1
+        with:
+          # Opens a "Version Packages" PR when there are pending changesets.
+          # Once that PR is merged, this same action runs again and the
+          # publish step fires (because no pending changesets remain and
+          # versions are already bumped).
+          version: pnpm exec changeset version
+          publish: pnpm exec changeset publish
+          commit: 'chore(release): version packages'
+          title: 'chore(release): version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

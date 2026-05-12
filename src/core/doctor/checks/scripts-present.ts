@@ -1,6 +1,6 @@
 import type { Check } from '../index.js';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'pathe';
+import { join } from 'node:path/posix';
 
 const RECOMMENDED = ['dev', 'build', 'package'];
 

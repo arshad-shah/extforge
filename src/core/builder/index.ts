@@ -7,7 +7,7 @@ import {
   copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve, dirname } from 'pathe';
+import { join, resolve, dirname } from 'node:path/posix';
 import { execSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
@@ -19,6 +19,9 @@ import { loadTemplate } from '../scaffold/template-loader.js';
 import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
+import { loadEnv, publicEnvToDefine } from '../env/index.js';
+import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
+import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -191,6 +194,33 @@ function copyPublic(root: string, outDir: string, log: Logger): void {
 
 // ─── Directory summarizer ─────────────────────────────────────────────────────
 
+/**
+ * Append CSUI discoveries to manifest.content_scripts. Entries with no
+ * statically-extractable matches are skipped with a warning — the user can
+ * still declare them manually in extforge.config.ts.
+ */
+function augmentManifestWithCSUI(
+  manifest: Record<string, unknown>,
+  discoveries: CSUIDiscovery[],
+  log: Logger,
+): void {
+  if (discoveries.length === 0) return;
+  const existing = (manifest['content_scripts'] as Array<Record<string, unknown>> | undefined) ?? [];
+  const merged = [...existing];
+  for (const c of discoveries) {
+    if (!c.matches || c.matches.length === 0) {
+      log.warn(`[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`);
+      continue;
+    }
+    merged.push({
+      matches: c.matches,
+      js: [c.outputJsPath],
+      run_at: c.runAt ?? 'document_idle',
+    });
+  }
+  if (merged.length > 0) manifest['content_scripts'] = merged;
+}
+
 function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
   let fileCount = 0;
   let totalBytes = 0;
@@ -214,6 +244,9 @@ function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
 function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuild.BuildOptions,
   'bundle' | 'platform' | 'target' | 'sourcemap' | 'minify' | 'define' | 'alias' | 'loader' | 'logLevel' | 'metafile'
 > {
+  const mode = opts.dev ? 'development' : 'production';
+  const { publicEnv } = loadEnv({ cwd: root, mode });
+  const envDefine = publicEnvToDefine(publicEnv, mode);
   return {
     bundle: true,
     platform: 'browser',
@@ -225,6 +258,7 @@ function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuil
       'process.env.BROWSER': `"${opts.browser}"`,
       '__DEV__': String(opts.dev),
       '__BROWSER__': `"${opts.browser}"`,
+      ...envDefine,
     },
     alias: { '@': resolve(root, 'src') },
     loader: ESBUILD_LOADERS as Record<string, esbuild.Loader>,
@@ -264,15 +298,23 @@ async function runEntryHook(
   return next.esbuildOptions ?? baseOptions;
 }
 
-function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>): esbuild.BuildOptions {
+function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>, config?: ExtForgeConfig): esbuild.BuildOptions {
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const banner = makeHMRBanner(opts);
+  // React Fast Refresh: opt-in. Active only when (1) dev mode, (2) framework
+  // is react in the user's config, and (3) @swc/core is installed (the plugin
+  // self-disables otherwise).
+  const useRefresh = Boolean(opts.dev && config?.framework === 'react');
+  const plugins: esbuild.Plugin[] = useRefresh
+    ? [refreshPlugin({ enabled: true })]
+    : [];
   return {
     ...makeSharedEsbuildOptions(root, opts),
     entryPoints: entries,
     outdir: outDir,
     format: 'esm',
     splitting: false,
+    plugins,
     ...(banner ? { banner } : {}),
   };
 }
@@ -323,6 +365,14 @@ export async function build(
   const injectedEntries = discoverInjectedEntries(srcDir, log);
   const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
 
+  // CSUI discovery: every src/contents/*.csui.{ts,tsx} becomes an IIFE entry
+  // and (if matches: are statically extractable) auto-augments the manifest's
+  // content_scripts.
+  const csuiEntries = discoverCSUI(srcDir);
+  for (const c of csuiEntries) {
+    iifeEntries[c.entryKey] = c.file;
+  }
+
   if (Object.keys(esmEntries).length === 0 && Object.keys(iifeEntries).length === 0) {
     errors.push('No entry points found in src/');
     log.error('No entry points discovered');
@@ -363,7 +413,7 @@ export async function build(
   // Fire onBuildEntry per-entry (last-write-wins for shared esbuild options).
   let result: esbuild.BuildResult | undefined;
   if (Object.keys(esmEntries).length > 0) {
-    const baseEsmConfig = makeBuildConfig(root, { ...opts, outDir }, esmEntries);
+    const baseEsmConfig = makeBuildConfig(root, { ...opts, outDir }, esmEntries, config);
     const mergedEntryOptions: Record<string, unknown> = {};
     for (const [name, file] of Object.entries(esmEntries)) {
       const returned = await runEntryHook({}, name, file, 'esm', false, runner);
@@ -448,6 +498,7 @@ export async function build(
   if (config.manifest) {
     let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;
     applyInjectedDefaults(manifest as Record<string, unknown>, config.manifest, injectedEntries);
+    augmentManifestWithCSUI(manifest as Record<string, unknown>, csuiEntries, log);
     if (runner) manifest = await runner.fireManifestTransform(manifest, opts.browser);
     mkdirSync(outDir, { recursive: true });
     writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
@@ -542,7 +593,7 @@ export async function createBuildContext(
   const srcDir = join(root, 'src');
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const entries = discoverEntryPoints(srcDir);
-  const cfg = makeBuildConfig(root, { ...opts, outDir }, entries);
+  const cfg = makeBuildConfig(root, { ...opts, outDir }, entries, config);
 
   return esbuild.context({
     ...cfg,

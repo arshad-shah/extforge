@@ -6,7 +6,7 @@
  * Version read dynamically from package.json via getVersion().
  */
 
-import { defineCommand, runMain } from 'citty';
+import { defineCommand, runMain } from './parser.js';
 import { getVersion } from '../core/version.js';
 import { withErrorHandler } from './error-handler.js';
 
@@ -228,7 +228,7 @@ const main = defineCommand({
       async run({ args }) {
         const { existsSync, mkdirSync } = await import('node:fs');
         const { execSync } = await import('node:child_process');
-        const { join } = await import('pathe');
+        const { join } = await import('node:path/posix');
         const { loadExtForgeConfig } = await import('../core/config.js');
         const { createLogger } = await import('../core/logger/index.js');
         const { ALL_BROWSERS } = await import('../core/manifest/index.js');
@@ -253,7 +253,7 @@ const main = defineCommand({
       meta: { name: 'icons', description: 'Generate PNG icons from SVG' },
       async run() {
         const { existsSync } = await import('node:fs');
-        const { join } = await import('pathe');
+        const { join } = await import('node:path/posix');
         const { execSync } = await import('node:child_process');
         const { createLogger } = await import('../core/logger/index.js');
 

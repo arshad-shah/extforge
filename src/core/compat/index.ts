@@ -1,10 +1,8 @@
-import { createRequire } from 'node:module';
 import { parseSuppressions } from './suppressions.js';
-
-// data.json is loaded via createRequire so the module works under
-// "moduleResolution: bundler" without import-attribute support.
-const require = createRequire(import.meta.url);
-const COMPAT = require('./data.json') as Record<string, ApiSupport>;
+// Inlined at build time by esbuild's `json` loader so the module survives
+// code-splitting (a top-level chunk has no sibling data.json).
+import compatJson from './data.json';
+const COMPAT = compatJson as Record<string, ApiSupport>;
 
 interface ApiSupport {
   chrome?: string | false;
