@@ -78,6 +78,23 @@ describe('distGitignoredCheck', () => {
     const r = await distGitignoredCheck.run({ cwd });
     expect(r.status).toBe('warn');
   });
+  it.each([
+    ['**/dist', 'glob double-star prefix'],
+    ['dist/*', 'directory-contents shorthand'],
+    ['dist/**', 'directory-contents glob'],
+    ['/dist/', 'absolute root form'],
+  ])('passes for the `%s` form (%s)', async (pattern) => {
+    const cwd = tempDir();
+    writeFileSync(join(cwd, '.gitignore'), `node_modules\n${pattern}\n`);
+    const r = await distGitignoredCheck.run({ cwd });
+    expect(r.status).toBe('pass');
+  });
+  it('ignores trailing comments on a matching line', async () => {
+    const cwd = tempDir();
+    writeFileSync(join(cwd, '.gitignore'), 'dist/   # build output\n');
+    const r = await distGitignoredCheck.run({ cwd });
+    expect(r.status).toBe('pass');
+  });
 });
 
 describe('configValidCheck', () => {
@@ -165,12 +182,22 @@ describe('browserOverridesCheck', () => {
   });
   it('warns on stray override', async () => {
     const cwd = tempDir();
-    // Use 'edge' as the stray override — it's not in DEFAULT_CONFIG.browsers (['chrome','firefox'])
-    // so it remains stray after c12 merges defaults.
     writeFileSync(join(cwd, 'extforge.config.ts'),
       'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", browsers: { edge: {} } } }');
     const r = await browserOverridesCheck.run({ cwd });
     expect(r.status).toBe('warn');
+  });
+
+  it('warns when the user explicitly excluded a default browser but overrode it', async () => {
+    // Regression: the check used cfg.browsers post-defaults-merge.
+    // The deep-merge fix already ensures cfg.browsers reflects the user's
+    // explicit value when set, so this case must flag firefox as stray.
+    const cwd = tempDir();
+    writeFileSync(join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", browsers: { firefox: {} } } }');
+    const r = await browserOverridesCheck.run({ cwd });
+    expect(r.status).toBe('warn');
+    expect(r.message).toContain('firefox');
   });
 });
 

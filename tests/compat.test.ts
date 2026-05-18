@@ -27,6 +27,12 @@ describe('checkSourceCompat', () => {
     const issues = checkSourceCompat({ source: SUPPRESSED, file: 'a.ts', browsers: ['chrome', 'safari'] });
     expect(issues).toHaveLength(0);
   });
+  it('flags optional-chained chrome.* access too', () => {
+    const src = `chrome?.tabGroups?.update(1, { collapsed: true });`;
+    const issues = checkSourceCompat({ source: src, file: 'a.ts', browsers: ['chrome', 'safari'] });
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues[0]!.api).toMatch(/tabGroups/);
+  });
   it('does not honor suppression without a reason', () => {
     const src = `// extforge-ignore-compat\nchrome.tabGroups.update(1, {});`;
     const issues = checkSourceCompat({ source: src, file: 'a.ts', browsers: ['chrome', 'safari'] });

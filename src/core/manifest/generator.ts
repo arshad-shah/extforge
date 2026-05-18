@@ -30,10 +30,16 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
   if (config.manifestVersion !== 3)
     warnings.push('Manifest V2 is deprecated — consider migrating to V3');
 
-  const perms = config.permissions.required;
+  // `config.permissions` is typed required but JS callers may omit it; guard
+  // so we surface a clear validation error instead of a TypeError.
+  const perms = config.permissions?.required ?? [];
+  const hostPerms = config.permissions?.host ?? [];
+  if (!config.permissions) {
+    errors.push('Missing required `permissions` object — expected { required, optional, host }');
+  }
   if (perms.includes('webRequest') && perms.includes('webRequestBlocking'))
     warnings.push('webRequestBlocking is only available in MV2 — use declarativeNetRequest for MV3');
-  if (perms.includes('<all_urls>') || config.permissions.host.includes('<all_urls>'))
+  if (perms.includes('<all_urls>') || hostPerms.includes('<all_urls>'))
     warnings.push('Requesting access to all URLs increases review time on stores');
 
   return { valid: errors.length === 0, errors, warnings };
@@ -109,12 +115,14 @@ export function generateManifest(baseConfig: ManifestConfig, browser: Browser): 
     }));
   }
 
-  // Permissions
-  manifest.permissions = [...config.permissions.required];
-  if (config.permissions.optional.length > 0)
-    manifest.optional_permissions = config.permissions.optional;
-  if (config.permissions.host.length > 0)
-    manifest.host_permissions = config.permissions.host;
+  // Permissions — defensively coerce because JS-side callers may pass a
+  // partial config without the full { required, optional, host } shape.
+  const required = config.permissions?.required ?? [];
+  const optional = config.permissions?.optional ?? [];
+  const hosts = config.permissions?.host ?? [];
+  manifest.permissions = [...required];
+  if (optional.length > 0) manifest.optional_permissions = optional;
+  if (hosts.length > 0) manifest.host_permissions = hosts;
 
   // Options
   if (config.optionsPage) {

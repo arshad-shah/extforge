@@ -95,12 +95,12 @@ export function defineCSUI(options: CSUIOptions, render: Renderer): CSUIDescript
     // disturbed (e.g. user code that captures `descriptor.render` after
     // module load).
     queueMicrotask(() => {
-      void mountCSUI(descriptor).catch(() => {
-        // Surface failures via the in-browser logger if anything goes wrong.
+      void mountCSUI(descriptor).catch((err) => {
+        // Surface the underlying error so the user can actually debug.
         // We don't have access to the runtime logger here; fall back to
         // console (this file is a content-script runtime, not a Node module).
         // eslint-disable-next-line no-console
-        console.warn('[extforge:csui] auto-mount failed');
+        console.warn('[extforge:csui] auto-mount failed', err);
       });
     });
   }

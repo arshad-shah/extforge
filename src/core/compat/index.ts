@@ -26,7 +26,11 @@ export interface CompatInput {
   browsers: ReadonlyArray<'chrome' | 'firefox' | 'edge' | 'safari'>;
 }
 
-const API_RE = /\b(chrome|browser)\.([A-Za-z_$][\w$]*)(?:\.([A-Za-z_$][\w$]*))?(?:\.([A-Za-z_$][\w$]*))?/g;
+// Match `chrome.foo.bar.baz`, `chrome?.foo.bar`, and `chrome.foo?.bar` —
+// optional-chaining `?.` is now common in user code. Bracket access
+// (`chrome['foo']`) is intentionally not matched because the key is often
+// dynamic and a static lookup wouldn't be sound.
+const API_RE = /\b(chrome|browser)\??\.([A-Za-z_$][\w$]*)(?:\??\.([A-Za-z_$][\w$]*))?(?:\??\.([A-Za-z_$][\w$]*))?/g;
 
 /**
  * Replace the contents of string literals and comment bodies with spaces of

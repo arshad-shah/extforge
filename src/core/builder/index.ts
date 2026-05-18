@@ -393,9 +393,25 @@ function throwAsBuildError(err: unknown, prefix?: string): never {
   const e = err as EsbuildErrorLike;
   if (e && Array.isArray(e.errors) && e.errors.length > 0) {
     const e0 = e.errors[0]!;
+    // Surface every esbuild error in the message so users with >1 failure
+    // can fix them in a single pass. The first error stays in the
+    // ExtForgeError fields so editors that linkify file:line still jump
+    // to the most informative one.
+    const extras = e.errors.slice(1)
+      .map((er) => {
+        const loc = er.location
+          ? ` (${er.location.file ?? '?'}:${er.location.line ?? '?'}:${er.location.column ?? '?'})`
+          : '';
+        return `  - ${er.text ?? 'Build failed'}${loc}`;
+      })
+      .join('\n');
+    const base = prefix ? `${prefix}: ${e0.text ?? 'Build failed'}` : (e0.text ?? 'Build failed');
+    const message = extras
+      ? `${base}\n${e.errors.length} error(s) total:\n${extras}`
+      : base;
     throw new ExtForgeError({
       code: 'EXT_BUILD_FAILED',
-      message: prefix ? `${prefix}: ${e0.text ?? 'Build failed'}` : (e0.text ?? 'Build failed'),
+      message,
       file: e0.location?.file ?? undefined,
       line: e0.location?.line ?? undefined,
       column: e0.location?.column ?? undefined,
