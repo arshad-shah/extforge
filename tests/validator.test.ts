@@ -85,6 +85,32 @@ describe('Project Validator', () => {
     });
   });
 
+  describe('Given a project with an invalid manifest config', () => {
+    beforeEach(() => {
+      writeFileSync(join(testDir, 'package.json'), '{}');
+      writeFileSync(join(testDir, 'tsconfig.json'), '{}');
+      writeFileSync(join(testDir, 'extforge.config.ts'), 'export default {}');
+      mkdirSync(join(testDir, 'src/background'), { recursive: true });
+      writeFileSync(join(testDir, 'src/background/index.ts'), '');
+    });
+
+    it('surfaces manifest errors as validation issues when a manifest is supplied', () => {
+      const badManifest = {
+        name: '',
+        version: 'not-semver',
+        description: '',
+        manifestVersion: 3,
+        permissions: { required: [], optional: [], host: [] },
+      } as const;
+      const result = validateProject(testDir, silentLogger, {
+        manifest: badManifest as Parameters<typeof validateProject>[2]['manifest'],
+      });
+      expect(result.valid).toBe(false);
+      const errorCodes = result.issues.filter(i => i.severity === 'error').map(i => i.code);
+      expect(errorCodes).toContain('MANIFEST_INVALID');
+    });
+  });
+
   describe('Given a project with .js files in src/', () => {
     beforeEach(() => {
       writeFileSync(join(testDir, 'package.json'), '{}');

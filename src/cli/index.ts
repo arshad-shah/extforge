@@ -75,7 +75,7 @@ const main = defineCommand({
         const { createHMRServer } = await import('../core/hmr/index.js');
         const { validateProject } = await import('../core/validator/index.js');
 
-        const validation = validateProject(root, log.child('validate'));
+        const validation = validateProject(root, log.child('validate'), { manifest: config.manifest });
         if (!validation.valid) { log.error('Fix project errors first'); process.exit(1); }
 
         const server = createHMRServer({
@@ -137,7 +137,6 @@ const main = defineCommand({
       async run({ args }) {
         const { validateProject } = await import('../core/validator/index.js');
         const { loadExtForgeConfig } = await import('../core/config.js');
-        const { validateManifestConfig } = await import('../core/manifest/index.js');
         const { createLogger, LogLevel, jsonTransport } = await import('../core/logger/index.js');
         const log = createLogger({
           scope: 'extforge',
@@ -145,13 +144,8 @@ const main = defineCommand({
           transports: args.json ? [jsonTransport()] : undefined,
         });
 
-        const result = validateProject(process.cwd(), log);
         const config = await loadExtForgeConfig(process.cwd());
-        if (config.manifest) {
-          const mr = validateManifestConfig(config.manifest);
-          for (const e of mr.errors) log.error(`Manifest: ${e}`);
-          for (const w of mr.warnings) log.warn(`Manifest: ${w}`);
-        }
+        const result = validateProject(process.cwd(), log, { manifest: config.manifest });
 
         if (!result.valid) process.exit(1);
         else log.success('All checks passed');

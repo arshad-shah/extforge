@@ -6,6 +6,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, extname } from 'node:path/posix';
 import { createLogger, type Logger } from '../logger/index.js';
 import { REQUIRED_FILES, REQUIRED_DIRS, ENTRY_DIRS } from './constants.js';
+import { validateManifestConfig } from '../manifest/generator.js';
+import type { ManifestConfig } from '../manifest/types.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -75,13 +77,40 @@ function checkTypeScript(root: string): ValidationIssue[] {
   return issues;
 }
 
+function checkManifestConfig(manifest: ManifestConfig | undefined): ValidationIssue[] {
+  if (!manifest) return [];
+  const r = validateManifestConfig(manifest);
+  const issues: ValidationIssue[] = [];
+  for (const message of r.errors) {
+    issues.push({ severity: 'error', code: 'MANIFEST_INVALID', message, fix: 'Fix the manifest field in extforge.config.' });
+  }
+  for (const message of r.warnings) {
+    issues.push({ severity: 'warning', code: 'MANIFEST_WARNING', message });
+  }
+  return issues;
+}
+
+export interface ValidateProjectOptions {
+  /** When supplied, manifest-level validation runs and contributes issues. */
+  manifest?: ManifestConfig;
+}
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export function validateProject(root: string, logger?: Logger): ProjectValidationResult {
+export function validateProject(
+  root: string,
+  logger?: Logger,
+  opts: ValidateProjectOptions = {},
+): ProjectValidationResult {
   const log = logger ?? createLogger({ scope: 'validator' });
   log.debug('Validating project structure...');
 
-  const issues = [...checkStructure(root), ...checkIcons(root), ...checkTypeScript(root)];
+  const issues = [
+    ...checkStructure(root),
+    ...checkIcons(root),
+    ...checkTypeScript(root),
+    ...checkManifestConfig(opts.manifest),
+  ];
 
   for (const issue of issues) {
     if (issue.severity === 'error') { log.error(`${issue.code}: ${issue.message}`); if (issue.fix) log.info(`  → Fix: ${issue.fix}`); }
