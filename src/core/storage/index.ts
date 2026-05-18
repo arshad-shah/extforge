@@ -64,6 +64,12 @@ export class Storage {
   readonly namespace: string;
   private readonly preferChrome: boolean;
   private readonly fallbackEvents = new EventTarget();
+  // Multiplex all watch() subscribers onto a single chrome.storage.onChanged
+  // listener — N hooks watching the same Storage instance shouldn't register
+  // N listeners against the chrome API.
+  private chromeListenerRegistered = false;
+  private chromeListener: ((changes: Record<string, ChromeChange>, area: string) => void) | null = null;
+  private readonly watchSubs = new Set<WatchHandlers>();
 
   constructor(options: StorageOptions = {}) {
     this.area = options.area ?? 'local';
@@ -100,11 +106,14 @@ export class Storage {
       return;
     }
     if (localStorageAvailable()) {
-      const raw = typeof value === 'string' ? value : JSON.stringify(value);
-      const oldValue = globalThis.localStorage.getItem(k);
+      // Always JSON.stringify — including strings. Without this, a value
+      // like `'{"a":1}'` (a plain string that happens to look like JSON)
+      // round-trips as `{ a: 1 }` because `get` JSON.parses unconditionally.
+      const raw = JSON.stringify(value);
+      const oldRaw = globalThis.localStorage.getItem(k);
       globalThis.localStorage.setItem(k, raw);
       this.fallbackEvents.dispatchEvent(new CustomEvent('change', {
-        detail: { key: k, newValue: value, oldValue: oldValue !== null ? safeJSON(oldValue) : undefined },
+        detail: { key: k, newValue: value, oldValue: oldRaw !== null ? safeJSON(oldRaw) : undefined },
       }));
     }
   }
@@ -152,18 +161,36 @@ export class Storage {
    */
   watch(handlers: WatchHandlers): Unwatch {
     if (this.useChrome()) {
-      const listener = (changes: Record<string, ChromeChange>, area: string): void => {
-        if (area !== this.area) return;
-        for (const [fullKey, change] of Object.entries(changes)) {
-          const userKey = this.namespace && fullKey.startsWith(`${this.namespace}:`)
-            ? fullKey.slice(this.namespace.length + 1)
-            : fullKey;
-          const handler = handlers[userKey] ?? handlers['*'];
-          if (handler) handler(change.newValue, change.oldValue);
+      // Subscribe this handlers map to the shared multiplexer. The single
+      // chrome.storage.onChanged listener is attached lazily on the first
+      // watch() call and removed when the last one unwatches.
+      this.watchSubs.add(handlers);
+      if (!this.chromeListenerRegistered) {
+        this.chromeListener = (changes, area): void => {
+          if (area !== this.area) return;
+          for (const [fullKey, change] of Object.entries(changes)) {
+            const userKey = this.namespace && fullKey.startsWith(`${this.namespace}:`)
+              ? fullKey.slice(this.namespace.length + 1)
+              : fullKey;
+            // Iterate the live set so handlers added/removed mid-broadcast
+            // are picked up (or skipped) consistently.
+            for (const subHandlers of this.watchSubs) {
+              const handler = subHandlers[userKey] ?? subHandlers['*'];
+              if (handler) handler(change.newValue, change.oldValue);
+            }
+          }
+        };
+        chrome.storage.onChanged.addListener(this.chromeListener);
+        this.chromeListenerRegistered = true;
+      }
+      return () => {
+        this.watchSubs.delete(handlers);
+        if (this.watchSubs.size === 0 && this.chromeListenerRegistered) {
+          chrome.storage.onChanged.removeListener(this.chromeListener!);
+          this.chromeListener = null;
+          this.chromeListenerRegistered = false;
         }
       };
-      chrome.storage.onChanged.addListener(listener);
-      return () => chrome.storage.onChanged.removeListener(listener);
     }
     // localStorage fallback: use our internal EventTarget. Cross-tab sync
     // would require listening to the `storage` window event too; keep that

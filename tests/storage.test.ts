@@ -111,6 +111,23 @@ describe('Storage (chrome.storage path)', () => {
     expect(seen.length).toBe(2);
   });
 
+  it('shares a single chrome.storage.onChanged listener across watch() calls on the same instance', async () => {
+    // Without sharing, N useStorage hooks (or N raw watch() calls) register
+    // N listeners on the same chrome event. With N=50 in a list view that
+    // multiplies broadcast cost on every storage mutation.
+    const c = (globalThis as { chrome: unknown }).chrome as {
+      storage: { onChanged: { addListener: ReturnType<typeof vi.fn> } };
+    };
+    const addSpy = vi.spyOn(c.storage.onChanged, 'addListener');
+    const s = new Storage();
+    const u1 = s.watch({ k1: () => {} });
+    const u2 = s.watch({ k2: () => {} });
+    const u3 = s.watch({ k3: () => {} });
+    expect(addSpy).toHaveBeenCalledTimes(1);
+    u1(); u2(); u3();
+    addSpy.mockRestore();
+  });
+
   it('namespaced watch only sees its own keys', async () => {
     const a = new Storage({ namespace: 'app' });
     const b = new Storage({ namespace: 'other' });
@@ -157,6 +174,20 @@ describe('Storage (localStorage fallback)', () => {
     const s = new Storage();
     await s.set('plain', 'hello');
     expect(await s.get('plain')).toBe('hello');
+  });
+
+  it('round-trips a JSON-shaped string as a string, not as a parsed object', async () => {
+    // Regression: the old fallback stored strings raw and JSON.parsed on read,
+    // so `set('k', '{"a":1}')` came back as `{ a: 1 }`. Type guarantee broken.
+    const s = new Storage();
+    await s.set('json-shaped', '{"a":1}');
+    expect(await s.get('json-shaped')).toBe('{"a":1}');
+  });
+
+  it('round-trips a JSON-shaped array string as a string', async () => {
+    const s = new Storage();
+    await s.set('arr', '[1, 2, 3]');
+    expect(await s.get('arr')).toBe('[1, 2, 3]');
   });
 
   it('clear() with namespace only removes namespaced keys', async () => {
