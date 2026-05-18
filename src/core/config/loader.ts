@@ -120,13 +120,44 @@ function pickDefault<T>(mod: unknown): T {
 }
 
 /**
- * Shallow-merge defaults underneath user config (user wins). Adequate for
- * ExtForge's flat config; we deliberately don't deep-merge because that
- * surprised users in c12 (e.g. arrays getting concatenated).
+ * Recursively merge plain-object branches; replace arrays and primitives.
+ * Exported so callers in src/core/config.ts can apply the same merge rule
+ * to user overrides as we apply to the file-loaded config.
+ *
+ * Why this shape: ExtForge's defaults contain nested objects (e.g.
+ * `dev: { port, host, debounce, open }`) that users almost always patch
+ * with a single key (`dev: { port: 9000 }`). A shallow merge silently
+ * dropped the siblings, which surprised users worse than the c12-style
+ * array-concat would. We keep arrays as "replace" so list-shaped config
+ * (browsers, plugins) still behaves as expected.
+ */
+export function mergeConfig<T>(defaults: T, user: Partial<T> | undefined): T {
+  if (!user) return defaults as T;
+  if (!isPlainObject(defaults) || !isPlainObject(user)) return user as T;
+  const out: Record<string, unknown> = { ...(defaults as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(user as Record<string, unknown>)) {
+    const dv = (defaults as Record<string, unknown>)[k];
+    if (isPlainObject(dv) && isPlainObject(v)) {
+      out[k] = mergeConfig(dv, v as Record<string, unknown>);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as T;
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== 'object') return false;
+  if (Array.isArray(v)) return false;
+  const proto = Object.getPrototypeOf(v);
+  return proto === null || proto === Object.prototype;
+}
+
+/**
+ * @deprecated Use mergeConfig — kept as an alias for older callers.
  */
 function mergeDefaults<T>(defaults: T, user: Partial<T> | undefined): T {
-  if (!user) return defaults as T;
-  return { ...(defaults as object), ...(user as object) } as T;
+  return mergeConfig(defaults, user);
 }
 
 /**

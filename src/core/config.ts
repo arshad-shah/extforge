@@ -2,7 +2,7 @@
  * ExtForge Configuration
  */
 
-import { loadConfigFile } from './config/loader.js';
+import { loadConfigFile, mergeConfig } from './config/loader.js';
 import type { z } from 'zod';
 import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
@@ -47,8 +47,10 @@ export async function loadExtForgeConfig(
     cwd,
     defaults: DEFAULT_CONFIG,
   });
-  // Overrides win over file-loaded values.
-  const merged: ExtForgeConfig = { ...loaded, ...(overrides ?? {}) } as ExtForgeConfig;
+  // Overrides win over file-loaded values. Deep-merge nested objects so a
+  // partial override (e.g. `{ dev: { port: 9000 } }`) doesn't drop the
+  // siblings that came from defaults / the config file.
+  const merged: ExtForgeConfig = mergeConfig(loaded, overrides);
   const parsed = extForgeConfigSchema.safeParse(merged);
   if (!parsed.success) {
     const err = formatZodError(parsed.error, configFile);
