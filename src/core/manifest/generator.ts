@@ -6,7 +6,7 @@
  */
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { BROWSER_FEATURES, FIREFOX_MIN_VERSION } from './constants.js';
 import type { Browser, ManifestConfig, ValidationResult } from './types.js';

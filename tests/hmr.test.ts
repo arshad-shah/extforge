@@ -23,6 +23,14 @@ describe('HMR System', () => {
       });
     });
 
+    describe('Given a Windows-style backslash path', () => {
+      it('should classify the same way as the POSIX equivalent', () => {
+        expect(classifyChange('C:\\proj\\src\\background\\index.ts')).toBe('full-reload');
+        expect(classifyChange('C:\\proj\\src\\styles\\globals.css')).toBe('css');
+        expect(classifyChange('C:\\proj\\extforge.config.ts')).toBe('manifest');
+      });
+    });
+
     describe('Given an injected script change', () => {
       it('should classify src/injected.ts as full-reload', () => {
         expect(classifyChange('src/injected.ts')).toBe('full-reload');

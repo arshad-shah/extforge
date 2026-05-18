@@ -1,6 +1,6 @@
 import type { Check } from '../index.js';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 
 export const distGitignoredCheck: Check = {
   name: 'dist-gitignored',

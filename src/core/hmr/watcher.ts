@@ -12,7 +12,7 @@
  */
 
 import { watch, statSync, type FSWatcher as NodeFSWatcher } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 
 export type WatchEventType = 'change' | 'add' | 'unlink';
 export type WatchHandler = (file: string) => void;

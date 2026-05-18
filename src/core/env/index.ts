@@ -16,7 +16,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 
 export const ENV_PREFIX = 'EXTFORGE_PUBLIC_';
 

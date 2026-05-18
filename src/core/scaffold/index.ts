@@ -9,7 +9,7 @@
 import { ask, type Prompt } from './prompter.js';
 import pc from '../logger/ansi.js';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { PERMISSION_GROUPS, type Browser } from '../manifest/index.js';
 import { VERSIONS, DEFAULTS, PKG_SCRIPTS, BASE_DIRS, FEATURE_DIRS } from './constants.js';

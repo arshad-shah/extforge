@@ -15,7 +15,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, basename } from 'node:path/posix';
+import { join, basename } from 'node:path';
 
 export interface CSUIDiscovery {
   /** Absolute path to the source file. */

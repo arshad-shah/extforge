@@ -3,7 +3,7 @@
  */
 
 import { existsSync, readdirSync } from 'node:fs';
-import { join, extname } from 'node:path/posix';
+import { join, extname } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { REQUIRED_FILES, REQUIRED_DIRS, ENTRY_DIRS } from './constants.js';
 import { validateManifestConfig } from '../manifest/generator.js';

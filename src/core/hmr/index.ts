@@ -9,7 +9,10 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { existsSync } from 'node:fs';
 import { createWatcher, type Watcher } from './watcher.js';
 import { createServer as createNetServer } from 'node:net';
-import { join, relative, extname } from 'node:path/posix';
+import { join, relative, extname } from 'node:path';
+
+/** Normalise an OS-native path to forward-slash form. Cheap no-op on POSIX. */
+const toPosix = (p: string): string => p.replace(/\\/g, '/');
 import { createLogger, type Logger } from '../logger/index.js';
 import { build, createBuildContext, buildContentScriptMap } from '../builder/index.js';
 import type { Browser } from '../manifest/index.js';
@@ -193,6 +196,9 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
    *
    * Returns the list of UI entry files (relative to dist) that need swapping,
    * or undefined to fall back to v2.
+   *
+   * Path comparisons are normalised to forward-slash so the same code works
+   * on Windows (where node:path emits `\`) and POSIX.
    */
   const tryClassifyV3 = (changes: Map<string, HMRUpdateType>): string[] | undefined => {
     const types = new Set(changes.values());
@@ -200,10 +206,10 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     if (types.has('css') || types.has('assets')) return undefined;
     if (!types.has('js')) return undefined;
 
-    // All changes must be inside src/ui/* — anything else falls back to reload.
-    const uiPrefix = `${projectRoot}/src/ui/`;
+    const projectRootPosix = toPosix(projectRoot);
+    const uiPrefix = `${projectRootPosix}/src/ui/`;
     for (const abs of changes.keys()) {
-      if (!abs.startsWith(uiPrefix)) return undefined;
+      if (!toPosix(abs).startsWith(uiPrefix)) return undefined;
     }
 
     // Map each absolute source file to a UI entry output. Only popup/options/
@@ -211,7 +217,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     // discoverEntryPoints).
     const matchedEntries = new Set<string>();
     for (const abs of changes.keys()) {
-      const rel = abs.replace(`${projectRoot}/src/`, '');
+      const rel = toPosix(abs).replace(`${projectRootPosix}/src/`, '');
       if      (rel.startsWith('ui/popup/'))     matchedEntries.add('ui/popup/index.js');
       else if (rel.startsWith('ui/options/'))   matchedEntries.add('ui/options/index.js');
       else if (rel.startsWith('ui/sidepanel/')) matchedEntries.add('ui/sidepanel/index.js');
@@ -229,7 +235,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     else if (types.has('assets')) updateType = 'assets';
     else                          updateType = 'css';
 
-    const files = Array.from(changes.keys()).map(f => relative(projectRoot, f));
+    const files = Array.from(changes.keys()).map(f => toPosix(relative(projectRoot, f)));
     const rebuildStart = performance.now();
 
     try {

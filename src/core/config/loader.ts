@@ -8,7 +8,7 @@
  */
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
-import { join, resolve, isAbsolute } from 'node:path/posix';
+import { join, resolve, isAbsolute } from 'node:path';
 import { sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';

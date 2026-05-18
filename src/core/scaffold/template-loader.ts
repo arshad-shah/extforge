@@ -6,7 +6,7 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path/posix';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Resolve the templates dir relative to this source file.

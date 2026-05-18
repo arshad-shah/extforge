@@ -7,7 +7,7 @@ import type { z } from 'zod';
 import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
-import { resolve } from 'node:path/posix';
+import { resolve } from 'node:path';
 import { PluginRunner } from './plugins/runner.js';
 import { presetReact } from './plugins/preset-react.js';
 import { createLogger } from './logger/index.js';
