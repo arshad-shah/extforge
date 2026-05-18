@@ -80,8 +80,17 @@ test.describe('HMR protocol', () => {
       ws.once('error', rej);
     });
 
+    // Skip overlay-control envelopes (build-error / build-ok) that the
+    // server emits around the actual file-change broadcast. They're noise
+    // for the protocol-shape assertions below.
     const messagePromise = new Promise<unknown>((res) => {
-      ws.once('message', (data) => res(JSON.parse(data.toString()) as unknown));
+      const onMessage = (data: WebSocket.Data): void => {
+        const parsed = JSON.parse(data.toString()) as { type?: string };
+        if (parsed.type === 'build-error' || parsed.type === 'build-ok') return;
+        ws.off('message', onMessage);
+        res(parsed);
+      };
+      ws.on('message', onMessage);
     });
 
     // Touch the popup script to trigger a rebuild + broadcast.

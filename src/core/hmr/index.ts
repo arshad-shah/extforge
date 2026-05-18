@@ -212,6 +212,13 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     log.debug(`Broadcast ${(finalUpdate as { type: string }).type} v=${(finalUpdate as { v: number }).v} to ${sent} client(s)`);
   };
 
+  // Tracks whether the most recent rebuild failed. We only emit a
+  // `build-ok` envelope when there's an overlay to dismiss — otherwise
+  // every successful rebuild would add a no-op message to the wire (and
+  // confuse e2e tests that expect the FIRST broadcast to be the actual
+  // file-change envelope).
+  let buildErrored = false;
+
   /**
    * Push a build-failure envelope to every connected client. The client
    * shows a full-page overlay with the error code, message, file:line:col,
@@ -219,6 +226,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
    */
   const broadcastBuildError = (err: unknown): void => {
     if (!wss) return;
+    buildErrored = true;
     const envelope = {
       v: HMR_PROTOCOL_VERSION,
       type: 'build-error' as const,
@@ -229,9 +237,15 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     wss.clients.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(payload); });
   };
 
-  /** Tell every connected client to dismiss any previous build-error overlay. */
+  /**
+   * Tell every connected client to dismiss any previous build-error overlay.
+   * No-op when the previous rebuild was already green — we don't spam the
+   * wire with empty acknowledgements.
+   */
   const broadcastBuildOk = (): void => {
     if (!wss) return;
+    if (!buildErrored) return;
+    buildErrored = false;
     const payload = JSON.stringify({ v: HMR_PROTOCOL_VERSION, type: 'build-ok', timestamp: Date.now() });
     wss.clients.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(payload); });
   };

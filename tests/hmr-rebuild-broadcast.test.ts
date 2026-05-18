@@ -41,7 +41,10 @@ describe('createHMRServer rebuild broadcasts', () => {
   beforeEach(() => { root = makeProject(); });
   afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
 
-  it('broadcasts a `build-ok` envelope after a successful rebuild', async () => {
+  it('broadcasts a `build-ok` envelope after recovering from a build failure', async () => {
+    // build-ok only fires when there's an overlay to dismiss — i.e. when
+    // the previous rebuild errored. A vanilla green-after-green rebuild
+    // should NOT spam the wire with empty acknowledgements.
     const port = await freePort();
     const cfg: ExtForgeConfig = {
       browsers: ['chrome'],
@@ -63,8 +66,13 @@ describe('createHMRServer rebuild broadcasts', () => {
       sock.on('message', (data) => {
         try { received.push(JSON.parse(data.toString())); } catch {}
       });
-      // Touch the file to trigger a rebuild that should succeed.
-      writeFileSync(join(root, 'src/background/index.ts'), 'export const x = 2;\n');
+      // Break the source first → triggers build-error.
+      writeFileSync(join(root, 'src/background/index.ts'), 'export const x = ;\n');
+      for (let i = 0; i < 80 && !received.some((m) => m.type === 'build-error'); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      // Now fix it → triggers build-ok (because the previous rebuild errored).
+      writeFileSync(join(root, 'src/background/index.ts'), 'export const x = 3;\n');
       for (let i = 0; i < 80 && !received.some((m) => m.type === 'build-ok'); i++) {
         await new Promise((r) => setTimeout(r, 100));
       }
