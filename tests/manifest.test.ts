@@ -202,6 +202,72 @@ describe('Manifest Engine', () => {
       const manifest = generateManifest(configWithOverrides, 'chrome');
       expect(manifest.name).toBe('Test Extension');
     });
+
+    it('applies permissions override (object form) per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: {
+            permissions: {
+              required: ['cookies'],
+              optional: [],
+              host: ['https://example.com/*'],
+            },
+          },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      expect(firefoxManifest.permissions).toEqual(['cookies']);
+      expect(firefoxManifest.host_permissions).toEqual(['https://example.com/*']);
+      // Chrome still gets the base config.
+      const chromeManifest = generateManifest(cfg, 'chrome');
+      expect(chromeManifest.permissions).toContain('storage');
+      expect(chromeManifest.permissions).toContain('activeTab');
+    });
+
+    it('applies action override per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: { action: { defaultTitle: 'Firefox-only title' } },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      const action = firefoxManifest.action as Record<string, unknown>;
+      expect(action.default_title).toBe('Firefox-only title');
+    });
+
+    it('applies background override per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: { background: { entrypoint: 'background/firefox.js' } },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      expect(firefoxManifest.background).toEqual({
+        scripts: ['background/firefox.js'],
+        type: 'module',
+      });
+    });
+
+    it('applies contentScripts override per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: {
+            contentScripts: [
+              { matches: ['https://firefox.test/*'], js: ['content/firefox.js'] },
+            ],
+          },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      const scripts = firefoxManifest.content_scripts as Array<Record<string, unknown>>;
+      expect(scripts).toHaveLength(1);
+      expect(scripts[0].matches).toEqual(['https://firefox.test/*']);
+      expect(scripts[0].js).toEqual(['content/firefox.js']);
+    });
   });
 
   describe('Given all target browsers', () => {

@@ -41,15 +41,44 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
 
 // ─── Generator ───────────────────────────────────────────────────────────────
 
-export function generateManifest(config: ManifestConfig, browser: Browser): Record<string, unknown> {
+/**
+ * Merge a per-browser override into the base config. Top-level fields are
+ * replaced; nested objects (action, background, permissions, sidePanel) are
+ * shallow-merged so a partial override doesn't drop fields the user didn't
+ * touch. Arrays (contentScripts, webAccessibleResources) and primitives are
+ * replaced wholesale — the user's override wins.
+ *
+ * `browserOverrides` itself is dropped from the result so the override
+ * recursion can't reapply.
+ */
+function applyBrowserOverride(base: ManifestConfig, browser: Browser): ManifestConfig {
+  const override = base.browserOverrides?.[browser];
+  if (!override) return base;
+
+  const merged: ManifestConfig = {
+    ...base,
+    ...override,
+    permissions: override.permissions
+      ? { ...base.permissions, ...override.permissions }
+      : base.permissions,
+    action: override.action ? { ...base.action, ...override.action } : base.action,
+    background: override.background ? { ...base.background, ...override.background } : base.background,
+    sidePanel: override.sidePanel ? { ...base.sidePanel, ...override.sidePanel } : base.sidePanel,
+    commands: override.commands ? { ...base.commands, ...override.commands } : base.commands,
+  };
+  delete merged.browserOverrides;
+  return merged;
+}
+
+export function generateManifest(baseConfig: ManifestConfig, browser: Browser): Record<string, unknown> {
   const features = BROWSER_FEATURES[browser];
-  const overrides = config.browserOverrides?.[browser] ?? {};
+  const config = applyBrowserOverride(baseConfig, browser);
 
   const manifest: Record<string, unknown> = {
     manifest_version: config.manifestVersion,
-    name: overrides.name ?? config.name,
-    version: overrides.version ?? config.version,
-    description: overrides.description ?? config.description,
+    name: config.name,
+    version: config.version,
+    description: config.description,
   };
 
   if (config.icons) manifest.icons = config.icons;
