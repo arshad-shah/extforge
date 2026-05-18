@@ -59,7 +59,7 @@
     "test:e2e": "pnpm -C tests-e2e build:fixtures && pnpm -C tests-e2e test",
     "test:e2e:install": "pnpm -C tests-e2e install-browsers",
     "examples:build": "pnpm -r --filter \"@extforge-example/*\" build",
-    "lint": "eslint src",
+    "lint": "eslint src scripts",
     "format": "prettier --write 'src/**/*.ts'",
     "typecheck": "tsc --noEmit",
     "compat:rebuild": "tsx src/core/compat/build-data.ts",

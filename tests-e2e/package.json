@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@10.0.0",
   "description": "Browser-based e2e tests. Builds the example extensions, loads them into a real Chromium instance via Playwright's persistent context, and validates popup, content script, background SW, and HMR end-to-end.",
   "scripts": {
     "test": "playwright test",

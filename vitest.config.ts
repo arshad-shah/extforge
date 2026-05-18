@@ -9,8 +9,21 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: ['src/**/*.ts'],
-      exclude: ['src/cli/**'],
+      exclude: [
+        'src/cli/**',
+        // Scaffold templates are static .tpl files inlined at runtime, not
+        // executable TypeScript.
+        'src/core/scaffold/templates/**',
+        // Inlined at build time via esbuild's json loader.
+        'src/core/compat/data.json',
+        // One-shot scripts.
+        'src/core/compat/build-data.ts',
+      ],
     },
+    // Run test files sequentially across processes. Several HMR tests
+    // (hmr-reserve-port, anything that binds a port) would otherwise
+    // collide if parallel workers reach for the same default port.
+    fileParallelism: false,
     testTimeout: 15000,
   },
   resolve: {
