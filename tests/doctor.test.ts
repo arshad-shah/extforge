@@ -117,17 +117,39 @@ describe('scriptsPresentCheck', () => {
 });
 
 describe('permissionsKnownCheck', () => {
-  it('passes when all permissions are known', async () => {
+  it('passes when all permissions are known (flat-array shape)', async () => {
     const cwd = tempDir();
     writeFileSync(join(cwd, 'extforge.config.ts'),
       'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", permissions: ["storage", "tabs"] } }');
     const r = await permissionsKnownCheck.run({ cwd });
     expect(r.status).toBe('pass');
   });
-  it('warns when an unknown permission is present', async () => {
+  it('warns when an unknown permission is present (flat-array shape)', async () => {
     const cwd = tempDir();
     writeFileSync(join(cwd, 'extforge.config.ts'),
       'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", permissions: ["bogus"] } }');
+    const r = await permissionsKnownCheck.run({ cwd });
+    expect(r.status).toBe('warn');
+  });
+  // The scaffold writes the object shape; check must accept it.
+  it('passes when all permissions are known (object shape)', async () => {
+    const cwd = tempDir();
+    writeFileSync(join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", permissions: { required: ["storage", "tabs"], optional: [], host: [] } } }');
+    const r = await permissionsKnownCheck.run({ cwd });
+    expect(r.status).toBe('pass');
+  });
+  it('warns when an unknown permission is present (object shape)', async () => {
+    const cwd = tempDir();
+    writeFileSync(join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", permissions: { required: ["bogus"], optional: [], host: [] } } }');
+    const r = await permissionsKnownCheck.run({ cwd });
+    expect(r.status).toBe('warn');
+  });
+  it('checks optional permissions too (object shape)', async () => {
+    const cwd = tempDir();
+    writeFileSync(join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1", permissions: { required: [], optional: ["notarealperm"], host: [] } } }');
     const r = await permissionsKnownCheck.run({ cwd });
     expect(r.status).toBe('warn');
   });
@@ -156,5 +178,41 @@ describe('portFreeCheck', () => {
   it('returns pass or warn', async () => {
     const r = await portFreeCheck.run({ cwd: process.cwd() });
     expect(['pass', 'warn']).toContain(r.status);
+  });
+  it('checks the port configured in extforge.config.dev.port, not a hardcoded one', async () => {
+    const cwd = tempDir();
+    // Spin up a server bound to a non-default port, then assert the check warns.
+    const { createServer } = await import('node:net');
+    const occupied = await new Promise<{ port: number; close: () => Promise<void> }>(resolve => {
+      const s = createServer();
+      s.listen(0, '127.0.0.1', () => {
+        const port = (s.address() as { port: number }).port;
+        resolve({ port, close: () => new Promise<void>(r => s.close(() => r())) });
+      });
+    });
+    try {
+      writeFileSync(join(cwd, 'extforge.config.ts'),
+        `export default { browsers: ["chrome"], dev: { port: ${occupied.port} }, manifest: { name: "x", version: "0.0.1" } }`);
+      const r = await portFreeCheck.run({ cwd });
+      expect(r.status).toBe('warn');
+      expect(r.message).toContain(String(occupied.port));
+    } finally {
+      await occupied.close();
+    }
+  });
+});
+
+describe('compatCheck', () => {
+  it('inspects the scaffolded src/<entry>/index.ts layout', async () => {
+    const cwd = tempDir();
+    writeFileSync(join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["safari"], manifest: { name: "x", version: "0.0.1" } }');
+    mkdirSync(join(cwd, 'src/background'), { recursive: true });
+    // chrome.tabGroups isn't supported on Safari — should be flagged.
+    writeFileSync(join(cwd, 'src/background/index.ts'),
+      'chrome.tabGroups.query({}, () => {});\n');
+    const { compatCheck } = await import('../src/core/doctor/checks/compat.js');
+    const r = await compatCheck.run({ cwd });
+    expect(r.status).toBe('warn');
   });
 });
