@@ -53,8 +53,28 @@ That's the full integration. The builder reads the `matches:` array statically (
 | `getRootContainer` | `() => HTMLElement \| Promise<HTMLElement>` | Build your own host element (e.g. closed shadow root, custom tag) |
 | `shouldMount` | `() => boolean \| Promise<boolean>` | Returning false aborts the mount. Useful for SPA route guards |
 | `hostStyle` | `string` | `host.style.cssText` for the OUTER host element |
+| `remountOn` | `'navigation' \| 'mutation' \| (remount) => () => void` | Opt-in: re-run the mount when the host page swaps the DOM (SPA route changes, framework hydration). See [SPA remount](#spa-remount) below. |
 
 `render(root)` receives the inner mount element (the user-facing root inside the shadow tree). MAY return a cleanup function called on unmount.
+
+## SPA remount
+
+By default `mountCSUI` runs once. That's fine for static sites and most extensions, but SPA hosts that replace `document.documentElement` (or whichever subtree you mount into) on route change will silently orphan your widget. `remountOn` opts into one of three triggers that re-run the mount when needed:
+
+- **`'navigation'`** — patches `history.pushState` / `history.replaceState` and listens to `popstate`. Coalesces rapid bursts (router + custom event) into one remount via a microtask.
+- **`'mutation'`** — observes the mount point and remounts whenever the host element is removed from the tree.
+- **Custom function** `(remount: () => void) => () => void` — full control. Receives a `remount` callback; must return an unsubscribe function. Useful for framework-specific events (`document.addEventListener('astro:page-load', ...)`).
+
+```ts
+defineCSUI({
+  matches: ['https://app.example.com/*'],
+  remountOn: 'navigation',
+}, (root) => {
+  // Renders again on every SPA route change.
+});
+```
+
+Off by default; the previous "mount once and hope" behaviour is preserved when the option is omitted.
 
 ## Auto-mount
 

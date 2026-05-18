@@ -246,12 +246,16 @@ For each browser in `config.browsers` (or the single `--browser` target):
 1. Checks that `dist/<browser>/` exists. Skips with a warning if not.
 2. Creates `packages/<name>-<browser>-v<version>.zip` from all files in the dist directory.
 
-The filename components come from `manifest.name` and `manifest.version`.
+The filename is sanitised: anything outside `[a-zA-Z0-9._-]` in `manifest.name`/`manifest.version` is replaced with `_` so no path component can be misinterpreted as a shell argument.
+
+### Cross-platform
+
+`extforge package` prefers the system `zip` binary (faster, more battle-tested) and falls back to a pure-Node ZIP writer when `zip` isn't installed — typical on Windows. The fallback produces deterministic, byte-for-byte reproducible archives (fixed DOS timestamp, sorted entries, DEFLATE via `node:zlib`) and skips `.DS_Store` / `.git` automatically. No additional dependencies.
 
 ### Example output
 
 ```
-✔ Packaged chrome → packages/My Extension-chrome-v1.0.0.zip
+✔ Packaged chrome → packages/My_Extension-chrome-v1.0.0.zip
 ✔ Packaged firefox → packages/My Extension-firefox-v1.0.0.zip
 ⚠ No build for safari — run `extforge build` first
 ```

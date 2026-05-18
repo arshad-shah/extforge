@@ -65,3 +65,27 @@ The hook reuses a singleton `Storage` instance per `(area, namespace)` so re-mou
 ## localStorage fallback
 
 If `chrome.storage` isn't available (e.g. content script on a page where the API isn't injected, or jsdom test runners), `Storage` writes to `localStorage` with the same namespacing rules. Cross-context sync via the `storage` window event isn't wired in by default — keep the [issue tracker](https://github.com/arshad-shah/extforge/issues) updated if you need it.
+
+Every value is `JSON.stringify`'d on write (including strings), so a JSON-shaped string like `'{"a":1}'` round-trips back as the same string rather than being parsed into `{a:1}`. Legacy entries that aren't valid JSON still read back as the raw string.
+
+## `StorageQuotaExceededError`
+
+When the localStorage fallback's `setItem` rejects for quota reasons, `Storage.set` throws a typed error you can catch and act on (evict, warn, fall through). The underlying DOMException is attached as `cause`.
+
+```ts
+import { Storage, StorageQuotaExceededError } from 'extforge/storage';
+
+const store = new Storage();
+try {
+  await store.set('big', huge);
+} catch (err) {
+  if (err instanceof StorageQuotaExceededError) {
+    console.warn(`Quota exceeded for ${err.key}`);
+    await store.clear(); // or evict selectively
+  } else {
+    throw err;
+  }
+}
+```
+
+The `chrome.storage` path doesn't throw `StorageQuotaExceededError` — Chrome surfaces its own quota error via `chrome.runtime.lastError`. Wrap calls accordingly if you target both.

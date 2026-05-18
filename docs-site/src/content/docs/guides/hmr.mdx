@@ -102,6 +102,47 @@ The badge is injected only in dev builds. Production builds strip all HMR client
 
 ---
 
+## Dev error overlay
+
+When a rebuild fails — a syntax error, an unresolved import, a manifest validation problem — ExtForge renders a full-page **error overlay** in every open extension page, the same way Vite and Astro do. The overlay shows:
+
+- The error code (e.g. `EXT_BUILD_FAILED`)
+- The human-readable message
+- File path + line:column
+- A **source frame** with the failing line marked `>` and a caret `^` pointing at the column
+- The hint (when the underlying `ExtForgeError` carries one)
+- A docs link for the error code
+- The full stack trace (collapsed)
+
+The overlay is mounted into a Shadow DOM so the host page's CSS can't bleed in, and dismisses itself automatically the moment the next rebuild succeeds. You can also click **Dismiss** to hide it without rebuilding.
+
+```jsonc
+// Wire-level envelope sent over the HMR WebSocket on failure:
+{
+  "v": 3,
+  "type": "build-error",
+  "timestamp": 1700000000000,
+  "error": {
+    "code": "EXT_BUILD_FAILED",
+    "message": "Unexpected \";\"",
+    "file": "src/background/index.ts",
+    "line": 4,
+    "column": 18,
+    "frame": "  2 | \n  3 | export const x = 1;\n> 4 | export const y = ;\n    |                  ^\n  5 | ",
+    "hint": "Fix the syntax error and re-run.",
+    "docsUrl": "https://extforge.arshadshah.com/errors/EXT_BUILD_FAILED",
+    "stack": "ExtForgeError: ..."
+  }
+}
+
+// Dismiss envelope on the next successful rebuild:
+{ "v": 3, "type": "build-ok", "timestamp": 1700000000123 }
+```
+
+The overlay code is the same in popup, options, sidepanel, and content-script contexts. Page-context (injected) scripts don't render it — they don't have a DOM the overlay can attach to.
+
+---
+
 ## CLI flags for dev
 
 ### `--once` — single build for CI smoke tests

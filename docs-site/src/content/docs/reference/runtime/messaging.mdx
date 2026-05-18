@@ -71,6 +71,7 @@ onPort<{ tick: number }, void>('clock', (port, sender) => {
   let n = 0;
   const interval = setInterval(() => port.post({ tick: n++ }), 1000);
   port.onMessage(() => {/* receive from the other side */});
+  port.onDisconnect((reason) => clearInterval(interval));
 });
 ```
 
@@ -80,8 +81,20 @@ import { openPort } from 'extforge/messaging';
 
 const port = openPort<void, { tick: number }>('clock');
 port.onMessage((msg) => console.log('tick', msg.tick));
+port.onDisconnect((reason) => console.warn('clock port closed:', reason));
 // later: port.close();
 ```
+
+### `PortChannel` surface
+
+| Method | Description |
+|---|---|
+| `post(msg)` | Send a typed message to the other side |
+| `onMessage(cb)` | Subscribe to inbound messages. Returns an `unsubscribe` fn |
+| `onDisconnect(cb)` | Fires at most once when the underlying chrome port disconnects. Receives `chrome.runtime.lastError.message` if Chrome set one. Returns an `unsubscribe` fn |
+| `close()` | Disconnect the underlying port |
+
+The wrapper reads `chrome.runtime.lastError` at the disconnect boundary so Chrome doesn't log "Unchecked runtime.lastError" warnings into the page console. It also auto-removes all `onMessage` listeners on disconnect, so the port reference can be garbage-collected without a manual unsubscribe.
 
 Ports survive the SW going to sleep IF the active page keeps the connection open. Chrome documents this lifecycle [here](https://developer.chrome.com/docs/extensions/mv3/service_workers/service-worker-lifecycle/#shutdown).
 

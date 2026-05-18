@@ -33,6 +33,10 @@ Without `--strict`, compat issues from the cross-browser scanner are logged as w
 
 Equivalent to setting `dev.strictCompat: true` in config for dev mode, or passing `--strict` per-command for build.
 
+### Notes on flag values
+
+`--flag <value>` rejects any value that begins with `-`, because the most common cause of a leading-dash value is a forgotten argument (e.g. `extforge dev --port --browser firefox` consuming `--browser` as the port). To pass a literal leading-dash value, use the explicit `=` form: `--port=-1`.
+
 ---
 
 ## Exit codes
