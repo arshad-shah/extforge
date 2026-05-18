@@ -227,11 +227,11 @@ const main = defineCommand({
       args: { browser: { type: 'string', description: 'Single browser' } },
       async run({ args }) {
         const { existsSync, mkdirSync } = await import('node:fs');
-        const { execSync } = await import('node:child_process');
-        const { join } = await import('node:path/posix');
+        const { join } = await import('node:path');
         const { loadExtForgeConfig } = await import('../core/config.js');
         const { createLogger } = await import('../core/logger/index.js');
         const { ALL_BROWSERS } = await import('../core/manifest/index.js');
+        const { archiveFilename, packageBrowser } = await import('./package-cmd.js');
 
         const log = createLogger({ scope: 'extforge' });
         const config = await loadExtForgeConfig(process.cwd());
@@ -242,9 +242,14 @@ const main = defineCommand({
         for (const b of browsers) {
           const dist = join(process.cwd(), 'dist', b);
           if (!existsSync(dist)) { log.warn(`No build for ${b} — run \`extforge build\` first`); continue; }
-          const name = `${config.manifest?.name ?? 'extension'}-${b}-v${config.manifest?.version ?? '0.0.0'}.zip`;
-          try { execSync(`cd "${dist}" && zip -r "${join(pkgDir, name)}" ./*`, { stdio: 'pipe' }); log.success(`Packaged ${b} → packages/${name}`); }
-          catch { log.error(`Failed to package ${b}`); }
+          const name = archiveFilename(config.manifest?.name, config.manifest?.version, b);
+          const archive = join(pkgDir, name);
+          try {
+            await packageBrowser({ dist, archive, log });
+            log.success(`Packaged ${b} → packages/${name}`);
+          } catch (err) {
+            log.error(`Failed to package ${b}: ${err instanceof Error ? err.message : String(err)}`);
+          }
         }
       },
     }),
@@ -253,8 +258,8 @@ const main = defineCommand({
       meta: { name: 'icons', description: 'Generate PNG icons from SVG' },
       async run() {
         const { existsSync } = await import('node:fs');
-        const { join } = await import('node:path/posix');
-        const { execSync } = await import('node:child_process');
+        const { join } = await import('node:path');
+        const { spawnSync } = await import('node:child_process');
         const { createLogger } = await import('../core/logger/index.js');
 
         const log = createLogger({ scope: 'extforge' });
@@ -262,19 +267,28 @@ const main = defineCommand({
         if (!existsSync(svg)) { log.error('No icons/icon.svg found'); process.exit(1); }
 
         const sizes = [16, 32, 48, 128];
-        try {
-          for (const s of sizes) {
-            execSync(`npx sharp-cli -i "${svg}" -o "${join(process.cwd(), `icons/icon-${s}.png`)}" resize ${s} ${s}`, { stdio: 'pipe' });
+        const sharpOk = sizes.every((s) => {
+          const out = join(process.cwd(), `icons/icon-${s}.png`);
+          const r = spawnSync('npx', ['sharp-cli', '-i', svg, '-o', out, 'resize', String(s), String(s)], {
+            stdio: 'pipe', shell: false,
+          });
+          if (r.status === 0) {
             log.success(`Generated icon-${s}.png`);
+            return true;
           }
-        } catch {
-          log.warn('sharp-cli not available — trying cairosvg...');
-          try {
-            const py = sizes.map(s => `cairosvg.svg2png(url="${svg}", write_to="icons/icon-${s}.png", output_width=${s}, output_height=${s})`).join('\n');
-            execSync(`python3 -c "import cairosvg\n${py}"`, { cwd: process.cwd(), stdio: 'pipe' });
-          } catch {
-            log.error('Install sharp-cli (npm i -g sharp-cli) or cairosvg (pip install cairosvg)');
-          }
+          return false;
+        });
+        if (sharpOk) return;
+
+        log.warn('sharp-cli not available — trying cairosvg...');
+        const pyLines = sizes
+          .map((s) => `cairosvg.svg2png(url=sys.argv[1], write_to=sys.argv[${sizes.indexOf(s) + 2}], output_width=${s}, output_height=${s})`)
+          .join('\n');
+        const pyScript = `import sys, cairosvg\n${pyLines}\n`;
+        const pyArgs = ['-c', pyScript, svg, ...sizes.map((s) => join(process.cwd(), `icons/icon-${s}.png`))];
+        const r = spawnSync('python3', pyArgs, { cwd: process.cwd(), stdio: 'pipe', shell: false });
+        if (r.status !== 0) {
+          log.error('Install sharp-cli (npm i -g sharp-cli) or cairosvg (pip install cairosvg)');
         }
       },
     }),
