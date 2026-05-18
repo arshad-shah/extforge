@@ -270,6 +270,38 @@ describe('Manifest Engine', () => {
     });
   });
 
+  describe('firefoxId derivation', () => {
+    it('strips non-ASCII characters from the auto-generated id', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        name: 'Résumé Helper',
+      };
+      const manifest = generateManifest(cfg, 'firefox');
+      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const id = settings.gecko.id as string;
+      // The Firefox addon id grammar is [a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+
+      expect(id).toMatch(/^[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+$/);
+    });
+
+    it('strips slashes, ampersands, emoji from the auto-generated id', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        name: 'My & Cool / Ext 🚀',
+      };
+      const manifest = generateManifest(cfg, 'firefox');
+      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const id = settings.gecko.id as string;
+      expect(id).toMatch(/^[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+$/);
+    });
+
+    it('respects an explicitly-provided firefoxId verbatim', () => {
+      const cfg: ManifestConfig = { ...validConfig, firefoxId: 'custom@example.com' };
+      const manifest = generateManifest(cfg, 'firefox');
+      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      expect(settings.gecko.id).toBe('custom@example.com');
+    });
+  });
+
   describe('Given all target browsers', () => {
     it('should generate valid manifests for every browser', () => {
       for (const browser of ALL_BROWSERS) {

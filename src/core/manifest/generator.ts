@@ -152,13 +152,31 @@ export function generateManifest(baseConfig: ManifestConfig, browser: Browser): 
   if (browser === 'firefox' && features.browserSpecificSettings) {
     manifest.browser_specific_settings = {
       gecko: {
-        id: config.firefoxId ?? `${config.name.toLowerCase().replace(/\s+/g, '-')}@extension`,
+        id: config.firefoxId ?? deriveFirefoxId(config.name),
         strict_min_version: FIREFOX_MIN_VERSION,
       },
     };
   }
 
   return manifest;
+}
+
+/**
+ * Build a Firefox addon id from the extension name when the user didn't
+ * supply `firefoxId`. The id grammar is `[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+`,
+ * so non-ASCII characters (unicode names like "Résumé Helper") and
+ * meta-characters (`&`, `/`, emoji) have to be stripped or rejected.
+ *
+ * We lowercase, collapse runs of unsupported characters to `-`, trim
+ * leading/trailing `-`, and fall back to `extension` if nothing survives.
+ */
+function deriveFirefoxId(name: string): string {
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const local = cleaned.length > 0 ? cleaned : 'extension';
+  return `${local}@extension`;
 }
 
 // ─── Injected defaults ───────────────────────────────────────────────────────

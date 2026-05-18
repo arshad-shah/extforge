@@ -265,6 +265,18 @@ export async function scaffold(
 
   if (!answers) return null;
 
+  // Normalise the project name so it's safe to use as: an npm package
+  // name (no whitespace, no uppercase, no shell metacharacters), an
+  // extforge.config.ts identifier, and a default directory name. Trim,
+  // lowercase, replace whitespace and unsafe characters with `-`, and
+  // collapse repeated `-`.
+  answers.name = answers.name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^-+|-+$/g, '') || 'extension';
+
   const projectDir = options.targetDir ?? join(process.cwd(), answers.name);
 
   if (existsSync(projectDir)) {

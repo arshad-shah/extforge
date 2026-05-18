@@ -20,6 +20,23 @@ describe('Scaffold Engine', () => {
     try { rmSync(testDir, { recursive: true, force: true }); } catch {}
   });
 
+  describe('Given a name with whitespace', () => {
+    it('normalizes the stored name to a valid npm/manifest identifier', async () => {
+      const projectDir = join(testDir, 'should-be-renamed');
+      const result = await scaffold({
+        defaults: true,
+        name: 'My Cool Ext',
+        targetDir: projectDir,
+      }, silentLogger);
+      expect(result).toBe(projectDir);
+      // package.json name must satisfy npm name rules: no whitespace, no
+      // unsafe characters. Sanitization replaces inner whitespace with `-`.
+      const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8')) as { name: string };
+      expect(pkg.name).not.toMatch(/\s/);
+      expect(pkg.name).toMatch(/^[a-z0-9._-]+$/);
+    });
+  });
+
   describe('Given default options (--defaults flag)', () => {
     let result: string | null;
 
