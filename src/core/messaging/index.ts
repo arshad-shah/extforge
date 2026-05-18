@@ -91,20 +91,41 @@ export function setupMessaging(): void {
 }
 
 /**
+ * Read `chrome.runtime.lastError` and return its message, if any. Reading
+ * the property is what suppresses Chrome's "Unchecked runtime.lastError"
+ * console spam. This wrapper is a no-op outside the extension runtime.
+ */
+function takeLastError(): string | undefined {
+  if (typeof chrome === 'undefined' || !chrome.runtime) return undefined;
+  const err = chrome.runtime.lastError;
+  return err?.message;
+}
+
+/**
  * Send a message to the background SW (from popup/options/content/etc.) or to
  * the *other* end of `chrome.runtime.sendMessage` and await the typed response.
+ *
+ * `chrome.runtime.lastError` is always read after the send completes (success
+ * or failure) so Chrome doesn't log "Unchecked runtime.lastError" when the
+ * receiver disconnects mid-flight (SW respawn, tab closed, no listener).
  */
 export async function sendMessage<R extends Route>(route: R, payload: Req<R>): Promise<Res<R>> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
     throw new Error('extforge/messaging: chrome.runtime.sendMessage is not available in this context');
   }
   const envelope: MessageEnvelope<R> = { __extforge: 'msg', route, payload };
-  const reply = (await chrome.runtime.sendMessage(envelope)) as
-    | { __extforge: 'ok'; result: Res<R> }
-    | { __extforge: 'err'; error: string }
-    | undefined;
+  let reply: { __extforge: 'ok'; result: Res<R> } | { __extforge: 'err'; error: string } | undefined;
+  try {
+    reply = (await chrome.runtime.sendMessage(envelope)) as typeof reply;
+  } finally {
+    // Always drain lastError to suppress Chrome's unchecked-error console spam.
+    takeLastError();
+  }
   if (!reply) {
-    throw new Error(`extforge/messaging: no reply for route '${String(route)}'`);
+    const last = takeLastError();
+    throw new Error(
+      `extforge/messaging: no reply for route '${String(route)}'${last ? ` (${last})` : ''}`,
+    );
   }
   if (reply.__extforge === 'err') {
     throw new Error(`extforge/messaging: '${String(route)}' failed: ${reply.error}`);
@@ -114,7 +135,9 @@ export async function sendMessage<R extends Route>(route: R, payload: Req<R>): P
 
 /**
  * Send a message to a specific tab's content script. Same shape as
- * `sendMessage`, but uses `chrome.tabs.sendMessage` underneath.
+ * `sendMessage`, but uses `chrome.tabs.sendMessage` underneath. Also reads
+ * `chrome.runtime.lastError` after the call to suppress Chrome's
+ * unchecked-lastError console spam.
  */
 export async function sendMessageToTab<R extends Route>(
   tabId: number,
@@ -125,12 +148,17 @@ export async function sendMessageToTab<R extends Route>(
     throw new Error('extforge/messaging: chrome.tabs.sendMessage is not available (background context only)');
   }
   const envelope: MessageEnvelope<R> = { __extforge: 'msg', route, payload };
-  const reply = (await chrome.tabs.sendMessage(tabId, envelope)) as
-    | { __extforge: 'ok'; result: Res<R> }
-    | { __extforge: 'err'; error: string }
-    | undefined;
+  let reply: { __extforge: 'ok'; result: Res<R> } | { __extforge: 'err'; error: string } | undefined;
+  try {
+    reply = (await chrome.tabs.sendMessage(tabId, envelope)) as typeof reply;
+  } finally {
+    takeLastError();
+  }
   if (!reply) {
-    throw new Error(`extforge/messaging: no reply for route '${String(route)}' (tab ${tabId})`);
+    const last = takeLastError();
+    throw new Error(
+      `extforge/messaging: no reply for route '${String(route)}' (tab ${tabId})${last ? ` (${last})` : ''}`,
+    );
   }
   if (reply.__extforge === 'err') {
     throw new Error(`extforge/messaging: '${String(route)}' failed: ${reply.error}`);

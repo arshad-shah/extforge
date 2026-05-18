@@ -99,6 +99,33 @@ describe('extforge/messaging', () => {
     expect(res.value).toBe('second');
   });
 
+  it('reads chrome.runtime.lastError when the response is undefined (receiver disconnect)', async () => {
+    // Simulate the well-known Chrome scenario: the receiver (SW respawn, tab
+    // closed) disconnects mid-flight, so sendMessage resolves with `undefined`
+    // and Chrome populates chrome.runtime.lastError. If the caller does not
+    // read it, Chrome logs an "Unchecked runtime.lastError" warning to the
+    // user's console.
+    let lastErrorRead = false;
+    const c = (globalThis as { chrome: ChromeMock }).chrome as unknown as {
+      runtime: {
+        sendMessage: (m: unknown) => Promise<unknown>;
+        onMessage: { addListener: (l: Listener) => void };
+        get lastError(): { message: string } | undefined;
+      };
+    };
+    Object.defineProperty(c.runtime, 'lastError', {
+      configurable: true,
+      get() {
+        lastErrorRead = true;
+        return { message: 'Could not establish connection. Receiving end does not exist.' };
+      },
+    });
+    c.runtime.sendMessage = async () => undefined;
+    setupMessaging();
+    await expect(sendMessage('echo', { value: 'x' })).rejects.toThrow();
+    expect(lastErrorRead).toBe(true);
+  });
+
   it('ignores non-extforge envelopes (foreign messages)', async () => {
     setupMessaging();
     // Foreign message is dropped. The mock will hang waiting for a response,
