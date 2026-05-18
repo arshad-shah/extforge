@@ -12,4 +12,8 @@ coverage/
 *.log
 *.tsbuildinfo
 
+# Playwright e2e local outputs (uploaded as artifacts in CI, not tracked)
+tests-e2e/test-results/
+tests-e2e/playwright-report/
+
 .DS_Store
