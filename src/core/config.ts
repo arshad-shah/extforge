@@ -2,12 +2,12 @@
  * ExtForge Configuration
  */
 
-import { loadConfigFile } from './config/loader.js';
+import { loadConfigFile, mergeConfig } from './config/loader.js';
 import type { z } from 'zod';
 import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
-import { resolve } from 'node:path/posix';
+import { resolve } from 'node:path';
 import { PluginRunner } from './plugins/runner.js';
 import { presetReact } from './plugins/preset-react.js';
 import { createLogger } from './logger/index.js';
@@ -47,18 +47,24 @@ export async function loadExtForgeConfig(
     cwd,
     defaults: DEFAULT_CONFIG,
   });
-  // Overrides win over file-loaded values.
-  const merged: ExtForgeConfig = { ...loaded, ...(overrides ?? {}) } as ExtForgeConfig;
+  // Overrides win over file-loaded values. Deep-merge nested objects so a
+  // partial override (e.g. `{ dev: { port: 9000 } }`) doesn't drop the
+  // siblings that came from defaults / the config file.
+  const merged: ExtForgeConfig = mergeConfig(loaded, overrides);
   const parsed = extForgeConfigSchema.safeParse(merged);
   if (!parsed.success) {
     const err = formatZodError(parsed.error, configFile);
     if (process.env['EXTFORGE_STRICT_CONFIG'] === '1' || (overrides as { _strictConfig?: boolean })?._strictConfig) {
       throw err;
     }
+    // Non-strict: warn loudly. Plugins downstream will receive `merged`
+    // (the unvalidated config) — they're free to defensively pick the
+    // fields they care about. The transition to errors in v0.4.0 is
+    // announced in the warning so users have time to migrate.
     const log = createLogger({ scope: 'config' });
     log.warn('Config validation warnings:');
     log.warn(err.message);
-    log.warn('These warnings will become errors in v0.4.0.');
+    log.warn('These warnings will become errors in v0.4.0. Set EXTFORGE_STRICT_CONFIG=1 to fail fast today.');
   }
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));

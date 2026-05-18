@@ -1,4 +1,5 @@
 import { parseSuppressions } from './suppressions.js';
+import { stripSource } from '../util/strip-source.js';
 // Inlined at build time by esbuild's `json` loader so the module survives
 // code-splitting (a top-level chunk has no sibling data.json).
 import compatJson from './data.json';
@@ -26,55 +27,11 @@ export interface CompatInput {
   browsers: ReadonlyArray<'chrome' | 'firefox' | 'edge' | 'safari'>;
 }
 
-const API_RE = /\b(chrome|browser)\.([A-Za-z_$][\w$]*)(?:\.([A-Za-z_$][\w$]*))?(?:\.([A-Za-z_$][\w$]*))?/g;
-
-/**
- * Replace the contents of string literals and comment bodies with spaces of
- * equal length so the regex doesn't match chrome.* tokens inside them.
- * Newlines are preserved so that line/column math using the original source
- * stays accurate (lengths are identical).
- */
-function stripStringsAndComments(source: string): string {
-  let out = '';
-  let i = 0;
-  const len = source.length;
-  while (i < len) {
-    const ch = source[i]!;
-    const next = source[i + 1];
-    if (ch === '/' && next === '/') {
-      // Line comment: keep '//' delimiter, blank out the rest of the line.
-      out += '//';
-      i += 2;
-      while (i < len && source[i] !== '\n') { out += ' '; i++; }
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      out += '/*';
-      i += 2;
-      while (i < len && !(source[i] === '*' && source[i + 1] === '/')) {
-        out += source[i] === '\n' ? '\n' : ' ';
-        i++;
-      }
-      if (i < len) { out += '*/'; i += 2; }
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') {
-      const quote = ch;
-      out += quote;
-      i++;
-      while (i < len && source[i] !== quote) {
-        if (source[i] === '\\') { out += '  '; i += 2; continue; }
-        out += source[i] === '\n' ? '\n' : ' ';
-        i++;
-      }
-      if (i < len) { out += quote; i++; }
-      continue;
-    }
-    out += ch;
-    i++;
-  }
-  return out;
-}
+// Match `chrome.foo.bar.baz`, `chrome?.foo.bar`, and `chrome.foo?.bar` —
+// optional-chaining `?.` is now common in user code. Bracket access
+// (`chrome['foo']`) is intentionally not matched because the key is often
+// dynamic and a static lookup wouldn't be sound.
+const API_RE = /\b(chrome|browser)\??\.([A-Za-z_$][\w$]*)(?:\??\.([A-Za-z_$][\w$]*))?(?:\??\.([A-Za-z_$][\w$]*))?/g;
 
 function lookupSupport(parts: string[]): ApiSupport | undefined {
   for (let n = parts.length; n >= 1; n--) {
@@ -89,11 +46,11 @@ export function checkSourceCompat(input: CompatInput): CompatIssue[] {
   // Parse suppressions from the original source (comments must be intact).
   const suppressed = parseSuppressions(source);
   const lines = source.split('\n');
-  // Scan against the stripped source so string literals and comment bodies
-  // are invisible to the regex. Lengths match the original, so offsets stay valid.
-  const stripped = stripStringsAndComments(source);
+  // Scan against the stripped source so string literals, comment bodies, and
+  // regex literals are invisible to the regex. Lengths match the original,
+  // so offsets stay valid.
+  const stripped = stripSource(source);
   const issues: CompatIssue[] = [];
-  // Reset regex state in case of reuse.
   API_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = API_RE.exec(stripped)) !== null) {

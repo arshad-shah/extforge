@@ -290,6 +290,53 @@ export class Logger {
 
 // ─── JSON transport ──────────────────────────────────────────────────────────
 
+/**
+ * `JSON.stringify` replacer that:
+ *   - returns `{name, message, stack, cause?}` for Error instances (the
+ *     default JSON.stringify of an Error yields `{}`, which makes
+ *     production logs useless),
+ *   - coerces BigInt to a string (JSON.stringify of BigInt throws),
+ *   - replaces values that have already appeared in this serialisation
+ *     with the string `"[Circular]"` so circular graphs don't blow up
+ *     the whole JSON transport (which would tear down `--json` mode).
+ */
+function makeSafeReplacer(): (key: string, value: unknown) => unknown {
+  const seen = new WeakSet<object>();
+  return function replacer(_key: string, value: unknown): unknown {
+    if (typeof value === 'bigint') return value.toString();
+    if (value instanceof Error) {
+      return {
+        name: value.name,
+        message: value.message,
+        stack: value.stack,
+        ...(value.cause !== undefined ? { cause: value.cause } : {}),
+      };
+    }
+    if (value !== null && typeof value === 'object') {
+      if (seen.has(value as object)) return '[Circular]';
+      seen.add(value as object);
+    }
+    return value;
+  };
+}
+
+function safeStringify(obj: unknown): string {
+  try {
+    return JSON.stringify(obj, makeSafeReplacer());
+  } catch (err) {
+    // Last-resort fallback: serialise the failure reason instead of crashing
+    // the transport. `--json` mode must never tear down because of a single
+    // misbehaving log argument.
+    return JSON.stringify({
+      v: 1,
+      level: 1,
+      scope: 'logger',
+      message: 'jsonTransport: failed to serialise entry',
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export function jsonTransport(write: (line: string) => void = (s) => process.stdout.write(s + '\n')): LogTransport {
   return (entry) => {
     const obj = {
@@ -302,7 +349,7 @@ export function jsonTransport(write: (line: string) => void = (s) => process.std
       duration: entry.duration,
       args: entry.args,
     };
-    write(JSON.stringify(obj));
+    write(safeStringify(obj));
   };
 }
 

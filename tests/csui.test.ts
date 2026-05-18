@@ -35,6 +35,19 @@ describe('discovery: extractMatches', () => {
     const src = `defineCSUI({ matches: [ 'a', 'b', ], }, () => {});`;
     expect(extractMatches(src)).toEqual(['a', 'b']);
   });
+
+  it('reads the OUTER matches when a nested object literal also has a `matches:` key', () => {
+    // Without proper brace tracking, a regex grab of the first `matches:` after
+    // `defineCSUI` picks up the inner one and the manifest content_scripts is
+    // misconfigured.
+    const src = `
+      defineCSUI({
+        routerMap: { matches: ['/inner/route'] },
+        matches: ['https://example.com/*'],
+      }, () => {});
+    `;
+    expect(extractMatches(src)).toEqual(['https://example.com/*']);
+  });
 });
 
 describe('discovery: extractRunAt', () => {
@@ -43,6 +56,25 @@ describe('discovery: extractRunAt', () => {
   });
   it('returns undefined for invalid values', () => {
     expect(extractRunAt(`defineCSUI({ runAt: 'whenever' }, () => {})`)).toBeUndefined();
+  });
+  it('ignores a `runAt:` declared OUTSIDE the defineCSUI options literal', () => {
+    // A helper constant declared elsewhere in the file used to win
+    // because the regex matched the first `runAt:` anywhere in the source.
+    const src = `
+      const runAt = 'document_end';
+      const helper = { runAt: 'document_end' };
+      export default defineCSUI({ matches: ['<all_urls>'] }, () => {});
+    `;
+    expect(extractRunAt(src)).toBeUndefined();
+  });
+  it('reads the outer runAt even when a nested object also has one', () => {
+    const src = `
+      defineCSUI({
+        router: { runAt: 'document_end' },
+        runAt: 'document_start',
+      }, () => {});
+    `;
+    expect(extractRunAt(src)).toBe('document_start');
   });
 });
 
@@ -64,6 +96,18 @@ describe('discovery: discoverCSUI', () => {
     expect(items[0]?.entryKey).toBe('contents/widget');
     expect(items[0]?.outputJsPath).toBe('contents/widget.js');
     expect(items[0]?.matches).toEqual(['*://*/*']);
+  });
+
+  it('deduplicates and warns when two .csui files share the same entryKey', () => {
+    mkdirSync(join(dir, 'contents'));
+    writeFileSync(join(dir, 'contents/widget.csui.ts'),  `defineCSUI({ matches: ['*://*/*'] }, () => {});`);
+    writeFileSync(join(dir, 'contents/widget.csui.tsx'), `defineCSUI({ matches: ['*://*/*'] }, () => {});`);
+    const items = discoverCSUI(dir);
+    // Only one descriptor should be returned for 'contents/widget'; the second
+    // file is ignored. Otherwise the build emits two manifest entries pointing
+    // at the same output JS, and Chrome runs the script twice.
+    const widgets = items.filter(i => i.entryKey === 'contents/widget');
+    expect(widgets).toHaveLength(1);
   });
 });
 
@@ -122,5 +166,37 @@ describe('mountCSUI', () => {
     const unmount = await mountCSUI(defineCSUI({ id: 'cleanup' }, () => () => { cleaned = true; }));
     unmount();
     expect(cleaned).toBe(true);
+  });
+
+  it.runIf(typeof document !== 'undefined')('remounts on history.pushState when remountOn: "navigation"', async () => {
+    let mounts = 0;
+    await mountCSUI(defineCSUI({
+      id: 'spa', remountOn: 'navigation',
+    }, () => { mounts++; }));
+    expect(mounts).toBe(1);
+    history.pushState({}, '', '/route-b');
+    // Remount is scheduled via queueMicrotask + mountCSUI is async.
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mounts).toBeGreaterThanOrEqual(2);
+  });
+
+  it.runIf(typeof document !== 'undefined')('mounts when the host page already attached a closed shadow root', async () => {
+    // Simulate a host page that gave us a custom container whose page-side
+    // shadow is closed (host.shadowRoot is null, attachShadow throws
+    // NotSupportedError). We should fall back to using the user-provided
+    // container as the render root rather than crashing.
+    const customHost = document.createElement('div');
+    customHost.attachShadow({ mode: 'closed' });
+    document.body.appendChild(customHost);
+
+    let rendered = false;
+    await mountCSUI(defineCSUI({
+      id: 'closed-shadow',
+      getRootContainer: () => customHost,
+    }, (root) => { rendered = true; root.textContent = 'hi'; }));
+
+    expect(rendered).toBe(true);
   });
 });

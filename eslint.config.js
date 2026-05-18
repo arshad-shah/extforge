@@ -44,4 +44,19 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  {
+    // Build / docs / one-shot scripts. Same correctness rules as src/, but
+    // console.log is fine since these scripts log to stdout deliberately.
+    files: ['scripts/**/*.ts'],
+    languageOptions: {
+      parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
+    },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'prefer-const': 'error',
+      'no-var': 'error',
+      'no-console': 'off',
+    },
+  },
 );

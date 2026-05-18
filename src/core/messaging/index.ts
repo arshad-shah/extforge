@@ -91,20 +91,41 @@ export function setupMessaging(): void {
 }
 
 /**
+ * Read `chrome.runtime.lastError` and return its message, if any. Reading
+ * the property is what suppresses Chrome's "Unchecked runtime.lastError"
+ * console spam. This wrapper is a no-op outside the extension runtime.
+ */
+function takeLastError(): string | undefined {
+  if (typeof chrome === 'undefined' || !chrome.runtime) return undefined;
+  const err = chrome.runtime.lastError;
+  return err?.message;
+}
+
+/**
  * Send a message to the background SW (from popup/options/content/etc.) or to
  * the *other* end of `chrome.runtime.sendMessage` and await the typed response.
+ *
+ * `chrome.runtime.lastError` is always read after the send completes (success
+ * or failure) so Chrome doesn't log "Unchecked runtime.lastError" when the
+ * receiver disconnects mid-flight (SW respawn, tab closed, no listener).
  */
 export async function sendMessage<R extends Route>(route: R, payload: Req<R>): Promise<Res<R>> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
     throw new Error('extforge/messaging: chrome.runtime.sendMessage is not available in this context');
   }
   const envelope: MessageEnvelope<R> = { __extforge: 'msg', route, payload };
-  const reply = (await chrome.runtime.sendMessage(envelope)) as
-    | { __extforge: 'ok'; result: Res<R> }
-    | { __extforge: 'err'; error: string }
-    | undefined;
+  let reply: { __extforge: 'ok'; result: Res<R> } | { __extforge: 'err'; error: string } | undefined;
+  try {
+    reply = (await chrome.runtime.sendMessage(envelope)) as typeof reply;
+  } finally {
+    // Always drain lastError to suppress Chrome's unchecked-error console spam.
+    takeLastError();
+  }
   if (!reply) {
-    throw new Error(`extforge/messaging: no reply for route '${String(route)}'`);
+    const last = takeLastError();
+    throw new Error(
+      `extforge/messaging: no reply for route '${String(route)}'${last ? ` (${last})` : ''}`,
+    );
   }
   if (reply.__extforge === 'err') {
     throw new Error(`extforge/messaging: '${String(route)}' failed: ${reply.error}`);
@@ -114,7 +135,9 @@ export async function sendMessage<R extends Route>(route: R, payload: Req<R>): P
 
 /**
  * Send a message to a specific tab's content script. Same shape as
- * `sendMessage`, but uses `chrome.tabs.sendMessage` underneath.
+ * `sendMessage`, but uses `chrome.tabs.sendMessage` underneath. Also reads
+ * `chrome.runtime.lastError` after the call to suppress Chrome's
+ * unchecked-lastError console spam.
  */
 export async function sendMessageToTab<R extends Route>(
   tabId: number,
@@ -125,12 +148,17 @@ export async function sendMessageToTab<R extends Route>(
     throw new Error('extforge/messaging: chrome.tabs.sendMessage is not available (background context only)');
   }
   const envelope: MessageEnvelope<R> = { __extforge: 'msg', route, payload };
-  const reply = (await chrome.tabs.sendMessage(tabId, envelope)) as
-    | { __extforge: 'ok'; result: Res<R> }
-    | { __extforge: 'err'; error: string }
-    | undefined;
+  let reply: { __extforge: 'ok'; result: Res<R> } | { __extforge: 'err'; error: string } | undefined;
+  try {
+    reply = (await chrome.tabs.sendMessage(tabId, envelope)) as typeof reply;
+  } finally {
+    takeLastError();
+  }
   if (!reply) {
-    throw new Error(`extforge/messaging: no reply for route '${String(route)}' (tab ${tabId})`);
+    const last = takeLastError();
+    throw new Error(
+      `extforge/messaging: no reply for route '${String(route)}' (tab ${tabId})${last ? ` (${last})` : ''}`,
+    );
   }
   if (reply.__extforge === 'err') {
     throw new Error(`extforge/messaging: '${String(route)}' failed: ${reply.error}`);
@@ -145,6 +173,12 @@ export interface PortChannel<TIn = unknown, TOut = unknown> {
   post(msg: TOut): void;
   /** Subscribe to incoming messages. Returns an unsubscribe fn. */
   onMessage(cb: (msg: TIn) => void): () => void;
+  /**
+   * Subscribe to disconnect notifications. Receives the port's
+   * `chrome.runtime.lastError.message` if present. Returns an
+   * unsubscribe fn. The handler is invoked at most once.
+   */
+  onDisconnect(cb: (reason?: string) => void): () => void;
   /** Close the underlying chrome.runtime.Port. */
   close(): void;
 }
@@ -177,12 +211,45 @@ export function onPort<TIn = unknown, TOut = unknown>(
 }
 
 function wrapPort<TIn, TOut>(port: chrome.runtime.Port): PortChannel<TIn, TOut> {
+  // Track every listener we register so a single chrome.runtime.Port
+  // disconnect can clean them up — callers shouldn't have to remember to
+  // unsubscribe each one to avoid the closure leak.
+  const messageListeners = new Set<(m: unknown) => void>();
+  const disconnectListeners = new Set<(reason?: string) => void>();
+  let disconnected = false;
+
+  const handleDisconnect = (): void => {
+    if (disconnected) return;
+    disconnected = true;
+    // Reading lastError suppresses Chrome's "Unchecked runtime.lastError"
+    // console spam at the disconnect boundary.
+    const reason = typeof chrome !== 'undefined' && chrome.runtime?.lastError?.message;
+    for (const cb of disconnectListeners) {
+      try { cb(reason || undefined); } catch { /* swallow */ }
+    }
+    // Drop every message listener so the port reference can be GC'd.
+    for (const l of messageListeners) {
+      try { port.onMessage.removeListener(l); } catch { /* ignore */ }
+    }
+    messageListeners.clear();
+    disconnectListeners.clear();
+  };
+  port.onDisconnect.addListener(handleDisconnect);
+
   return {
     post: (msg: TOut) => port.postMessage(msg),
     onMessage: (cb: (msg: TIn) => void) => {
       const listener = (msg: TIn): void => cb(msg);
+      messageListeners.add(listener as (m: unknown) => void);
       port.onMessage.addListener(listener as (m: unknown) => void);
-      return () => port.onMessage.removeListener(listener as (m: unknown) => void);
+      return () => {
+        messageListeners.delete(listener as (m: unknown) => void);
+        port.onMessage.removeListener(listener as (m: unknown) => void);
+      };
+    },
+    onDisconnect: (cb: (reason?: string) => void) => {
+      disconnectListeners.add(cb);
+      return () => disconnectListeners.delete(cb);
     },
     close: () => port.disconnect(),
   };

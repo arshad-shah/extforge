@@ -58,6 +58,23 @@ describe('Config System', () => {
     });
   });
 
+  describe('Given a partial nested override', () => {
+    it('preserves dev defaults the user did not touch', async () => {
+      const cfg = await loadExtForgeConfig(process.cwd(), { dev: { port: 9999 } });
+      expect(cfg.dev?.port).toBe(9999);
+      expect(cfg.dev?.host).toBe('localhost');
+      expect(cfg.dev?.debounce).toBe(150);
+      expect(cfg.dev?.open).toBe(false);
+    });
+
+    it('preserves build defaults the user did not touch', async () => {
+      const cfg = await loadExtForgeConfig(process.cwd(), { build: { sourcemap: true } });
+      expect(cfg.build?.sourcemap).toBe(true);
+      expect(cfg.build?.outDir).toBe('dist');
+      expect(cfg.build?.srcDir).toBe('src');
+    });
+  });
+
   describe('Given defineConfig helper', () => {
     it('should return the config object unchanged', () => {
       const config: ExtForgeConfig = {

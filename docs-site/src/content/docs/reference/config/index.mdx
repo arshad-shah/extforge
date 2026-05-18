@@ -5,6 +5,12 @@ description: Every key in extforge.config.ts.
 
 ExtForge reads its configuration from `extforge.config.ts` (or `.js`/`.mjs`) at the project root. The schema is permissive: unknown top-level keys produce a warning, not an error.
 
+## Merging behavior
+
+Defaults and user values are **deep-merged** for plain-object keys (e.g. `dev`, `build`). A partial override like `dev: { port: 9000 }` keeps `host: 'localhost'`, `debounce: 150`, and `open: false` from the defaults rather than dropping them. Arrays (`browsers`, `plugins`) and primitives are replaced wholesale.
+
+Validation failures emit a warning by default; set `EXTFORGE_STRICT_CONFIG=1` to fail fast. The warning path becomes the default error in v0.4.0.
+
 ## Top-level keys
 
 | Key | Type | Description |

@@ -183,28 +183,39 @@ export interface HMRUpdateV3 {
   v: 3;
   type: 'hmr-update';
   /** Module-level updates. Empty array → no-op. */
-  updates: Array<{ id: string; hash: string; chunkUrl: string }>;
+  updates: Array<{
+    /** Stable module id — typically the source path relative to project root. */
+    id: string;
+    /** Cache-busting hash; used to dedupe no-op updates. */
+    hash: string;
+    /** Path of the rebuilt chunk relative to dist/<browser>/. */
+    file: string;
+  }>;
   timestamp: number;
 }
 
 /**
  * Apply a v3 envelope by import()ing each chunk URL and calling the runtime.
+ * `fetcher` receives the `file` field directly — callers in the browser
+ * resolve it against `location.origin` (the extension page's origin) and
+ * append `?t=<hash>` for cache-busting.
+ *
  * Returns true if every update was hot-accepted (no reload required).
  */
 export async function applyV3Update(
   runtime: HMRRuntime,
   envelope: HMRUpdateV3,
-  fetcher: (url: string) => Promise<{ default: () => Record<string, unknown> }>,
+  fetcher: (file: string) => Promise<{ default: () => Record<string, unknown> }>,
 ): Promise<boolean> {
   if (envelope.updates.length === 0) return true;
   let allAccepted = true;
   for (const u of envelope.updates) {
     try {
-      const mod = await fetcher(u.chunkUrl);
+      const mod = await fetcher(u.file);
       const ok = runtime.apply(u.id, mod.default, u.hash);
       if (!ok) allAccepted = false;
     } catch (err) {
-      runtimeLog('error', 'failed to fetch update', u.chunkUrl, err);
+      runtimeLog('error', 'failed to fetch update', u.file, err);
       allAccepted = false;
     }
   }

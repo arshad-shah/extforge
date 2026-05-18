@@ -11,8 +11,8 @@
  *   listener shape the rest of the HMR module expects.
  */
 
-import { watch, statSync, type FSWatcher as NodeFSWatcher } from 'node:fs';
-import { join } from 'node:path/posix';
+import { watch, statSync, readdirSync, type FSWatcher as NodeFSWatcher } from 'node:fs';
+import { join } from 'node:path';
 
 export type WatchEventType = 'change' | 'add' | 'unlink';
 export type WatchHandler = (file: string) => void;
@@ -20,6 +20,13 @@ export type WatchHandler = (file: string) => void;
 export interface WatcherOptions {
   ignored?: readonly string[];
   awaitWriteFinish?: { stabilityThreshold: number; pollInterval: number };
+  /**
+   * Called when the underlying `node:fs.watch` cannot be started (path
+   * missing, Linux Node <20, or the platform/kernel does not support
+   * recursive watch). Receives a short human-readable reason. Lets the
+   * dev server surface a warning instead of silently no-oping.
+   */
+  onUnsupported?: (reason: string) => void;
 }
 
 export interface Watcher {
@@ -49,9 +56,40 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
   let nodeWatcher: NodeFSWatcher | null = null;
   try {
     nodeWatcher = watch(path, { recursive: true, persistent: true });
-  } catch {
-    // path missing or watch unsupported — return a no-op watcher.
+  } catch (err) {
+    // Path missing or recursive watch unsupported (e.g. Linux Node <20).
+    // Return a no-op watcher so callers don't crash, but report the reason
+    // so the dev server can surface a warning instead of silently no-oping
+    // and leaving the user wondering why HMR never fires.
+    const e = err as NodeJS.ErrnoException;
+    options.onUnsupported?.(e?.code ?? e?.message ?? 'unknown');
     return makeNoop();
+  }
+
+  // Seed the existence map by walking the watch root. Without this, the very
+  // first delete after start() classifies as 'change' (had=false, now=false)
+  // instead of 'unlink', and the HMR server misses the full-reload.
+  seedExistence(path, ignored);
+
+  function seedExistence(rootDir: string, ignorePatterns: readonly string[]): void {
+    const stack = [rootDir];
+    let seen = 0;
+    while (stack.length && seen < 10_000) {
+      const d = stack.pop()!;
+      let entries: import('node:fs').Dirent[];
+      try { entries = readdirSync(d, { withFileTypes: true }); }
+      catch { continue; }
+      for (const ent of entries) {
+        const full = join(d, ent.name);
+        const rel = full.slice(rootDir.length + 1).replace(/\\/g, '/');
+        if (matchesIgnored(rel, ignorePatterns)) continue;
+        if (ent.isDirectory()) { stack.push(full); continue; }
+        if (ent.isFile()) {
+          existence.set(full, true);
+          seen++;
+        }
+      }
+    }
   }
 
   nodeWatcher.on('error', () => {

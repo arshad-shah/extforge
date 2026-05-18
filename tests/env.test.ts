@@ -27,6 +27,21 @@ describe('parseDotenv', () => {
   it('skips malformed lines', () => {
     expect(parseDotenv('=oops\nFOO=bar')).toEqual({ FOO: 'bar' });
   });
+  it('strips wrapping backticks', () => {
+    expect(parseDotenv('FOO=`bar`')).toEqual({ FOO: 'bar' });
+  });
+  it('unescapes \\n inside double-quoted values (Vite parity)', () => {
+    expect(parseDotenv('FOO="a\\nb"')).toEqual({ FOO: 'a\nb' });
+  });
+  it('unescapes \\" inside double-quoted values', () => {
+    expect(parseDotenv('FOO="he said \\"hi\\""')).toEqual({ FOO: 'he said "hi"' });
+  });
+  it('unescapes \\t and \\r inside double-quoted values', () => {
+    expect(parseDotenv('FOO="a\\tb\\rc"')).toEqual({ FOO: 'a\tb\rc' });
+  });
+  it('leaves single-quoted values literal (no escape processing)', () => {
+    expect(parseDotenv("FOO='a\\nb'")).toEqual({ FOO: 'a\\nb' });
+  });
 });
 
 describe('loadEnv', () => {

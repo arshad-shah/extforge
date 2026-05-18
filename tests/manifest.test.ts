@@ -202,6 +202,104 @@ describe('Manifest Engine', () => {
       const manifest = generateManifest(configWithOverrides, 'chrome');
       expect(manifest.name).toBe('Test Extension');
     });
+
+    it('applies permissions override (object form) per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: {
+            permissions: {
+              required: ['cookies'],
+              optional: [],
+              host: ['https://example.com/*'],
+            },
+          },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      expect(firefoxManifest.permissions).toEqual(['cookies']);
+      expect(firefoxManifest.host_permissions).toEqual(['https://example.com/*']);
+      // Chrome still gets the base config.
+      const chromeManifest = generateManifest(cfg, 'chrome');
+      expect(chromeManifest.permissions).toContain('storage');
+      expect(chromeManifest.permissions).toContain('activeTab');
+    });
+
+    it('applies action override per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: { action: { defaultTitle: 'Firefox-only title' } },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      const action = firefoxManifest.action as Record<string, unknown>;
+      expect(action.default_title).toBe('Firefox-only title');
+    });
+
+    it('applies background override per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: { background: { entrypoint: 'background/firefox.js' } },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      expect(firefoxManifest.background).toEqual({
+        scripts: ['background/firefox.js'],
+        type: 'module',
+      });
+    });
+
+    it('applies contentScripts override per browser', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        browserOverrides: {
+          firefox: {
+            contentScripts: [
+              { matches: ['https://firefox.test/*'], js: ['content/firefox.js'] },
+            ],
+          },
+        },
+      };
+      const firefoxManifest = generateManifest(cfg, 'firefox');
+      const scripts = firefoxManifest.content_scripts as Array<Record<string, unknown>>;
+      expect(scripts).toHaveLength(1);
+      expect(scripts[0].matches).toEqual(['https://firefox.test/*']);
+      expect(scripts[0].js).toEqual(['content/firefox.js']);
+    });
+  });
+
+  describe('firefoxId derivation', () => {
+    it('strips non-ASCII characters from the auto-generated id', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        name: 'Résumé Helper',
+      };
+      const manifest = generateManifest(cfg, 'firefox');
+      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const id = settings.gecko.id as string;
+      // The Firefox addon id grammar is [a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+
+      expect(id).toMatch(/^[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+$/);
+    });
+
+    it('strips slashes, ampersands, emoji from the auto-generated id', () => {
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        name: 'My & Cool / Ext 🚀',
+      };
+      const manifest = generateManifest(cfg, 'firefox');
+      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const id = settings.gecko.id as string;
+      expect(id).toMatch(/^[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+$/);
+    });
+
+    it('respects an explicitly-provided firefoxId verbatim', () => {
+      const cfg: ManifestConfig = { ...validConfig, firefoxId: 'custom@example.com' };
+      const manifest = generateManifest(cfg, 'firefox');
+      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      expect(settings.gecko.id).toBe('custom@example.com');
+    });
   });
 
   describe('Given all target browsers', () => {
@@ -237,9 +335,35 @@ describe('Manifest Engine', () => {
       ]);
     });
 
-    it('auto-populates with injected.js for single-entry mode', () => {
+    it('auto-populates with injected.js for single-entry mode (narrowed to contentScript matches)', () => {
       const manifest: Record<string, unknown> = {};
+      // validConfig declares contentScripts with `<all_urls>`, so the WAR
+      // matches union resolves back to `<all_urls>` (intentional).
       applyInjectedDefaults(manifest, validConfig, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected.js'], matches: ['<all_urls>'] },
+      ]);
+    });
+
+    it('narrows WAR `matches` to the union of contentScript matches rather than <all_urls>', () => {
+      const manifest: Record<string, unknown> = {};
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        contentScripts: [
+          { matches: ['https://example.com/*'], js: ['content/index.js'] },
+          { matches: ['https://*.acme.test/*'], js: ['content/acme.js'] },
+        ],
+      };
+      applyInjectedDefaults(manifest, cfg, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected.js'], matches: ['https://example.com/*', 'https://*.acme.test/*'] },
+      ]);
+    });
+
+    it('falls back to <all_urls> only when no content_scripts are declared', () => {
+      const manifest: Record<string, unknown> = {};
+      const cfg: ManifestConfig = { ...validConfig, contentScripts: undefined };
+      applyInjectedDefaults(manifest, cfg, { injected: '/path/injected.ts' });
       expect(manifest.web_accessible_resources).toEqual([
         { resources: ['injected.js'], matches: ['<all_urls>'] },
       ]);
@@ -264,6 +388,24 @@ describe('Manifest Engine', () => {
         { resources: ['injected.js'], matches: ['<all_urls>'] },
       ]);
     });
+  });
+});
+
+describe('Manifest commands', () => {
+  it('emits chrome-style commands with suggested_key and description', () => {
+    const cfg: ManifestConfig = {
+      ...validConfig,
+      commands: {
+        'toggle-popup': {
+          suggestedKey: { default: 'Ctrl+Shift+P', mac: 'Command+Shift+P' },
+          description: 'Toggle the popup',
+        },
+      },
+    };
+    const manifest = generateManifest(cfg, 'chrome');
+    const cmds = manifest.commands as Record<string, Record<string, unknown>>;
+    expect(cmds['toggle-popup']?.suggested_key).toEqual({ default: 'Ctrl+Shift+P', mac: 'Command+Shift+P' });
+    expect(cmds['toggle-popup']?.description).toBe('Toggle the popup');
   });
 });
 

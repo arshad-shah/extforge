@@ -6,11 +6,30 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createWatcher, type Watcher } from './watcher.js';
 import { createServer as createNetServer } from 'node:net';
-import { join, relative, extname } from 'node:path/posix';
+import { join, relative, extname } from 'node:path';
+
+/** Normalise an OS-native path to forward-slash form. Cheap no-op on POSIX. */
+const toPosix = (p: string): string => p.replace(/\\/g, '/');
+
+/**
+ * Hash a built chunk's content so the runtime can short-circuit a no-op
+ * update. Returns `undefined` (caller will fall back to a timestamp) when
+ * the file doesn't exist yet — happens on the very first build of a chunk.
+ */
+function chunkHash(absPath: string): string | undefined {
+  try {
+    const buf = readFileSync(absPath);
+    return createHash('sha256').update(buf).digest('hex').slice(0, 12);
+  } catch {
+    return undefined;
+  }
+}
 import { createLogger, type Logger } from '../logger/index.js';
+import { serializeBuildError } from './build-error.js';
 import { build, createBuildContext, buildContentScriptMap } from '../builder/index.js';
 import type { Browser } from '../manifest/index.js';
 import type { ExtForgeConfig } from '../config.js';
@@ -23,6 +42,7 @@ import {
 } from './constants.js';
 import { formatReloadLog } from './client-logic.js';
 import type { PluginRunner } from '../plugins/runner.js';
+import { ExtForgeError } from '../errors/index.js';
 
 async function reservePort(start: number, host: string, log: Logger): Promise<number> {
   for (let i = 0; i < MAX_PORT_RETRIES; i++) {
@@ -37,8 +57,14 @@ async function reservePort(start: number, host: string, log: Logger): Promise<nu
       return port;
     } catch { /* try next */ }
   }
-  log.warn(`Could not find free port near ${start}; using ${start}`);
-  return start;
+  // Don't silently return the start port — every subsequent listen would
+  // fail with EADDRINUSE mid-start, leaving the watcher and esbuild context
+  // alive. Surface a clear error so the user picks a different --port.
+  throw new ExtForgeError({
+    code: 'EXT_HMR_PORT_IN_USE',
+    message: `Could not find a free port in [${start}, ${start + MAX_PORT_RETRIES - 1}] on ${host}`,
+    hint: `Pass --port to extforge dev, or stop the process holding ${start}.`,
+  });
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -186,6 +212,44 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     log.debug(`Broadcast ${(finalUpdate as { type: string }).type} v=${(finalUpdate as { v: number }).v} to ${sent} client(s)`);
   };
 
+  // Tracks whether the most recent rebuild failed. We only emit a
+  // `build-ok` envelope when there's an overlay to dismiss — otherwise
+  // every successful rebuild would add a no-op message to the wire (and
+  // confuse e2e tests that expect the FIRST broadcast to be the actual
+  // file-change envelope).
+  let buildErrored = false;
+
+  /**
+   * Push a build-failure envelope to every connected client. The client
+   * shows a full-page overlay with the error code, message, file:line:col,
+   * source frame, and stack — same UX as Vite / Astro's dev error overlay.
+   */
+  const broadcastBuildError = (err: unknown): void => {
+    if (!wss) return;
+    buildErrored = true;
+    const envelope = {
+      v: HMR_PROTOCOL_VERSION,
+      type: 'build-error' as const,
+      timestamp: Date.now(),
+      error: serializeBuildError(err, projectRoot),
+    };
+    const payload = JSON.stringify(envelope);
+    wss.clients.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(payload); });
+  };
+
+  /**
+   * Tell every connected client to dismiss any previous build-error overlay.
+   * No-op when the previous rebuild was already green — we don't spam the
+   * wire with empty acknowledgements.
+   */
+  const broadcastBuildOk = (): void => {
+    if (!wss) return;
+    if (!buildErrored) return;
+    buildErrored = false;
+    const payload = JSON.stringify({ v: HMR_PROTOCOL_VERSION, type: 'build-ok', timestamp: Date.now() });
+    wss.clients.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(payload); });
+  };
+
   /**
    * Decide whether a batch of changes is hot-applicable via v3:
    * every changed file must be a .ts/.tsx that lands in popup/options/sidepanel
@@ -193,6 +257,9 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
    *
    * Returns the list of UI entry files (relative to dist) that need swapping,
    * or undefined to fall back to v2.
+   *
+   * Path comparisons are normalised to forward-slash so the same code works
+   * on Windows (where node:path emits `\`) and POSIX.
    */
   const tryClassifyV3 = (changes: Map<string, HMRUpdateType>): string[] | undefined => {
     const types = new Set(changes.values());
@@ -200,10 +267,10 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     if (types.has('css') || types.has('assets')) return undefined;
     if (!types.has('js')) return undefined;
 
-    // All changes must be inside src/ui/* — anything else falls back to reload.
-    const uiPrefix = `${projectRoot}/src/ui/`;
+    const projectRootPosix = toPosix(projectRoot);
+    const uiPrefix = `${projectRootPosix}/src/ui/`;
     for (const abs of changes.keys()) {
-      if (!abs.startsWith(uiPrefix)) return undefined;
+      if (!toPosix(abs).startsWith(uiPrefix)) return undefined;
     }
 
     // Map each absolute source file to a UI entry output. Only popup/options/
@@ -211,7 +278,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     // discoverEntryPoints).
     const matchedEntries = new Set<string>();
     for (const abs of changes.keys()) {
-      const rel = abs.replace(`${projectRoot}/src/`, '');
+      const rel = toPosix(abs).replace(`${projectRootPosix}/src/`, '');
       if      (rel.startsWith('ui/popup/'))     matchedEntries.add('ui/popup/index.js');
       else if (rel.startsWith('ui/options/'))   matchedEntries.add('ui/options/index.js');
       else if (rel.startsWith('ui/sidepanel/')) matchedEntries.add('ui/sidepanel/index.js');
@@ -229,14 +296,17 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     else if (types.has('assets')) updateType = 'assets';
     else                          updateType = 'css';
 
-    const files = Array.from(changes.keys()).map(f => relative(projectRoot, f));
+    const files = Array.from(changes.keys()).map(f => toPosix(relative(projectRoot, f)));
     const rebuildStart = performance.now();
 
     try {
       if (buildCtx) await buildCtx.rebuild();
       else await build(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log);
+      // Clear any previous error overlay now that the build is green.
+      broadcastBuildOk();
     } catch (err) {
       log.error(`Rebuild failed: ${err instanceof Error ? err.message : String(err)}`);
+      broadcastBuildError(err);
       return;
     }
 
@@ -260,12 +330,19 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     // the React Fast Refresh runtime in the new module performs the swap.
     const v3Files = tryClassifyV3(changes);
     if (v3Files && updateType === 'js') {
-      const hash = String(timestamp);
+      // Hash the BUILT chunk's bytes (not the timestamp) so the runtime
+      // can short-circuit when nothing actually changed — e.g. a save that
+      // doesn't alter the bundled output. A timestamp-based hash made every
+      // update look unique and effectively disabled `apply()`'s no-op path.
       const v3Update: HMRUpdateV3 = {
         v: 3,
         type: 'hmr-update',
         timestamp,
-        updates: v3Files.map(f => ({ id: f, hash, file: f })),
+        updates: v3Files.map(f => ({
+          id: f,
+          hash: chunkHash(join(projectRoot, 'dist', browser, f)) ?? String(timestamp),
+          file: f,
+        })),
       };
       broadcast(v3Update);
       await runner?.fireDevReload({ v: HMR_PROTOCOL_VERSION, type: 'js', files, timestamp, scriptIds });
@@ -307,7 +384,24 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       catch { log.warn('No incremental context — using full rebuilds'); buildCtx = null; }
 
       wss = new WebSocketServer({ port: resolvedPort, host });
-      wss.on('listening', () => log.success(`HMR server listening on ws://${host}:${resolvedPort}`));
+
+      // Race 'listening' vs 'error' so a TOCTOU port grab in the window
+      // between reservePort closing its probe and WebSocketServer binding
+      // properly rejects start() instead of leaving the caller with a
+      // non-functional server.
+      await new Promise<void>((resolve, reject) => {
+        const onListening = (): void => {
+          log.success(`HMR server listening on ws://${host}:${resolvedPort}`);
+          wss!.off('error', onError);
+          resolve();
+        };
+        const onError = (err: Error): void => {
+          wss!.off('listening', onListening);
+          reject(err);
+        };
+        wss!.once('listening', onListening);
+        wss!.once('error', onError);
+      });
       wss.on('connection', () => log.debug(`Client connected (${wss!.clients.size} total)`));
       wss.on('error', (err) => log.error(`WebSocket error: ${err.message}`));
 
@@ -322,6 +416,10 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
         createWatcher(p, {
           ignored: [...WATCH_IGNORED],
           awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+          onUnsupported: (reason) => log.warn(
+            `File watcher unavailable for ${p} (${reason}). HMR won't fire. ` +
+            `Recursive watch requires Node 20+ on Linux.`,
+          ),
         }),
       );
       // Aggregate watcher facade — closing it closes them all.
@@ -348,7 +446,17 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       debouncer.flush();
       if (watcher) { await watcher.close(); watcher = null; }
       if (buildCtx) { await buildCtx.dispose(); buildCtx = null; }
-      if (wss) { wss.close(); wss = null; }
+      if (wss) {
+        const server = wss;
+        wss = null;
+        // Terminate open sockets so they don't keep the event loop alive
+        // after process.exit isn't called (e.g. tests). Then wait for the
+        // server's close callback so the listener is actually released.
+        for (const c of server.clients) {
+          try { c.terminate(); } catch { /* ignore */ }
+        }
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
       log.info('HMR server stopped');
     },
   };

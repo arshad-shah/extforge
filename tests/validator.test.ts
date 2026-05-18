@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { validateProject, type ProjectValidationResult } from '../src/core/validator/index.js';
@@ -12,8 +12,9 @@ describe('Project Validator', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `extforge-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    mkdirSync(testDir, { recursive: true });
+    // mkdtempSync atomically creates a fresh, owner-only directory so we
+    // don't race other processes writing into the os tmp dir.
+    testDir = mkdtempSync(join(tmpdir(), 'extforge-test-'));
   });
 
   afterEach(() => {
@@ -82,6 +83,32 @@ describe('Project Validator', () => {
     it('should warn about missing icons directory', () => {
       const result = validateProject(testDir, silentLogger);
       expect(result.issues.some(i => i.code === 'MISSING_ICONS_DIR')).toBe(true);
+    });
+  });
+
+  describe('Given a project with an invalid manifest config', () => {
+    beforeEach(() => {
+      writeFileSync(join(testDir, 'package.json'), '{}');
+      writeFileSync(join(testDir, 'tsconfig.json'), '{}');
+      writeFileSync(join(testDir, 'extforge.config.ts'), 'export default {}');
+      mkdirSync(join(testDir, 'src/background'), { recursive: true });
+      writeFileSync(join(testDir, 'src/background/index.ts'), '');
+    });
+
+    it('surfaces manifest errors as validation issues when a manifest is supplied', () => {
+      const badManifest = {
+        name: '',
+        version: 'not-semver',
+        description: '',
+        manifestVersion: 3,
+        permissions: { required: [], optional: [], host: [] },
+      } as const;
+      const result = validateProject(testDir, silentLogger, {
+        manifest: badManifest as Parameters<typeof validateProject>[2]['manifest'],
+      });
+      expect(result.valid).toBe(false);
+      const errorCodes = result.issues.filter(i => i.severity === 'error').map(i => i.code);
+      expect(errorCodes).toContain('MANIFEST_INVALID');
     });
   });
 

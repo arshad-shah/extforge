@@ -21,7 +21,7 @@ import { Card, CardGrid, Aside } from '@astrojs/starlight/components';
 <CardGrid>
   <Card title="Quick start" icon="rocket">Scaffold, install, and load your first extension in under 60 seconds.</Card>
   <Card title="Cross-browser" icon="puzzle">Chrome, Firefox, Edge, and Safari from a single config file.</Card>
-  <Card title="HMR that works" icon="random">Targeted reloads via script-id matching. Infinite WebSocket reconnect.</Card>
+  <Card title="HMR that works" icon="random">Targeted reloads via script-id matching, React Fast Refresh for UI, full-page error overlay on build failures.</Card>
   <Card title="Typed APIs" icon="seti:typescript">Plugins, testing helpers, and error codes — all fully typed.</Card>
 </CardGrid>
 
@@ -36,9 +36,10 @@ It is for extension authors who need to ship the same extension to multiple brow
 ## What's in the box
 
 - **MV3 bundler** — esbuild pipeline with automatic manifest generation and icon resizing.
-- **Dev server with HMR** — WebSocket server on port 9100, targeted reloads, infinite reconnect on browser restart.
-- **Cross-browser builds** — Per-browser output with polyfill and compat shims applied automatically.
+- **Dev server with HMR** — WebSocket-driven targeted reloads, React Fast Refresh for popup/options/sidepanel, full-page error overlay on build failures.
+- **Cross-browser builds** — Per-browser output with polyfill and compat shims applied automatically. Pure-Node ZIP fallback for Windows packaging.
 - **Scaffold (`extforge init`)** — Interactive project generator: framework, CSS, browsers, features, permissions.
+- **Runtime packages** — Typed `chrome.storage` wrapper (`extforge/storage`), typed RPC + Ports (`extforge/messaging`), Shadow-DOM Content Script UI (`extforge/csui`), structured logger (`extforge/logger`), `.env` loader (`extforge/env`).
 - **Testing helpers** — Vitest preset with Chrome API fakes; Playwright fixtures for end-to-end.
 
 ## Ready to start?

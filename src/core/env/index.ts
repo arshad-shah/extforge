@@ -16,7 +16,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 
 export const ENV_PREFIX = 'EXTFORGE_PUBLIC_';
 
@@ -42,7 +42,16 @@ export interface LoadedEnv {
 
 const DOTENV_LINE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/;
 
-/** Tiny dotenv parser. Doesn't support multi-line values or variable interpolation. */
+/**
+ * Tiny dotenv parser. Doesn't support multi-line values or variable
+ * interpolation. Escape semantics match Vite / standard dotenv:
+ *
+ *   - Double-quoted values: process `\n`, `\r`, `\t`, `\"`, `\\`.
+ *   - Single-quoted values: literal, no escape processing.
+ *   - Backtick-quoted values: literal (handy for values containing both
+ *     kinds of quotes).
+ *   - Unquoted values: literal except inline ` #` comments are stripped.
+ */
 export function parseDotenv(source: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const rawLine of source.split(/\r?\n/)) {
@@ -51,13 +60,23 @@ export function parseDotenv(source: string): Record<string, string> {
     const m = DOTENV_LINE.exec(line);
     if (!m) continue;
     const key = m[1]!;
-    let val = m[2] ?? '';
-    // Strip a wrapping pair of quotes (single or double).
-    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
-      val = val.slice(1, -1);
-    }
-    // Drop trailing inline comments only on unquoted values.
-    if (!/^["']/.test(m[2] ?? '')) {
+    const rawVal = m[2] ?? '';
+    let val = rawVal;
+
+    const firstChar = rawVal[0];
+    if (firstChar === '"' && rawVal.endsWith('"') && rawVal.length >= 2) {
+      val = rawVal.slice(1, -1).replace(/\\([nrt"\\])/g, (_m, esc: string) => {
+        if (esc === 'n') return '\n';
+        if (esc === 'r') return '\r';
+        if (esc === 't') return '\t';
+        return esc;
+      });
+    } else if (firstChar === "'" && rawVal.endsWith("'") && rawVal.length >= 2) {
+      val = rawVal.slice(1, -1);
+    } else if (firstChar === '`' && rawVal.endsWith('`') && rawVal.length >= 2) {
+      val = rawVal.slice(1, -1);
+    } else {
+      // Unquoted: drop trailing inline ` #` comment if present.
       const hashIdx = val.indexOf(' #');
       if (hashIdx !== -1) val = val.slice(0, hashIdx).trim();
     }

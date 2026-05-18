@@ -29,7 +29,9 @@ Valid values: `chrome`, `firefox`, `edge`, `safari`. Duplicates are deduplicated
 
 ## Per-browser manifest overrides
 
-Use `manifest.browserOverrides` to merge browser-specific values into the generated manifest. Overrides are shallow-merged over the base manifest fields.
+Use `manifest.browserOverrides` to merge browser-specific values into the generated manifest. Every top-level manifest key can be overridden — `name`, `version`, `description`, `permissions`, `action`, `background`, `contentScripts`, `sidePanel`, `commands`, `firefoxId`, etc.
+
+Nested objects (`permissions`, `action`, `background`, `sidePanel`, `commands`) are shallow-merged so a partial override doesn't drop unrelated fields. Arrays (`contentScripts`, `webAccessibleResources`) and primitives are replaced wholesale.
 
 ```ts
 manifest: {
@@ -66,7 +68,9 @@ If you need Firefox to use `service_worker` explicitly (not recommended), you ca
 
 ## The compat checker
 
-ExtForge scans your entry-point source files for `chrome.*` and `browser.*` API calls and cross-references them against a committed slice of MDN browser-compat-data (at `src/core/compat/data.json`). It reports which APIs are unsupported by which of your declared browsers.
+ExtForge walks the configured `src/` directory recursively (with the usual ignores: `node_modules`, `dist`, `.git`, `coverage`, `.cache`) and scans every TS/JS source for `chrome.*` and `browser.*` API calls — including helper modules imported from entries, not just the entries themselves. Optional chaining (`chrome?.foo.bar`) is matched too. Calls are cross-referenced against a committed slice of MDN browser-compat-data (at `src/core/compat/data.json`). CI fails when the snapshot is more than 90 days stale; regenerate with `pnpm compat:rebuild` and commit the diff.
+
+The scanner is regex-driven but smart enough to ignore `chrome.*` tokens that appear inside comments, string literals, template-literal bodies, and regex literals (`/chrome\.tabGroups/`) so you won't see false positives from documentation strings or test fixtures.
 
 By default, compat issues are warnings. Pass `--strict` to the `build` command to treat them as errors:
 

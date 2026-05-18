@@ -27,6 +27,7 @@
 import { readFileSync } from 'node:fs';
 import type { Plugin, PluginBuild } from 'esbuild';
 import { createLogger, type Logger } from '../../logger/index.js';
+import { loadTemplateRaw } from '../template-loader.js';
 
 export interface RefreshPluginOptions {
   /**
@@ -65,17 +66,34 @@ interface SwcTransformOptions {
   sourceMaps?: boolean;
 }
 
-// Lazily-loaded SWC module + a one-time warning gate.
+// Lazily-loaded SWC module. Resolved at most once per build context, but the
+// cache key is the value of `__swcResolution` — bumped by `__resetSwcCache`
+// (test helper) so a single Node process can re-probe between builds. The
+// negative cache (resolution failed) is intentionally short-lived: a long
+// dev session shouldn't permanently lock out RFR if the user installs
+// @swc/core mid-flight, so the negative result is cleared after
+// SWC_RETRY_INTERVAL_MS and the next request reprobes.
+const SWC_RETRY_INTERVAL_MS = 60_000;
 let swcModule: SwcModule | undefined | null;
+let swcResolvedAt = 0;
 let swcWarned = false;
 
 async function loadSwc(log: Logger): Promise<SwcModule | null> {
-  if (swcModule !== undefined) return swcModule;
+  if (swcModule) return swcModule;
+  if (swcModule === null && Date.now() - swcResolvedAt < SWC_RETRY_INTERVAL_MS) return null;
   try {
     swcModule = (await import('@swc/core')) as unknown as SwcModule;
+    swcResolvedAt = Date.now();
+    // If we'd previously warned, surface a "now enabled" signal so the user
+    // knows their install was picked up.
+    if (swcWarned) {
+      swcWarned = false;
+      log.info('[hmr] React Fast Refresh enabled — @swc/core resolved.');
+    }
     return swcModule;
   } catch {
     swcModule = null;
+    swcResolvedAt = Date.now();
     if (!swcWarned) {
       swcWarned = true;
       log.warn(
@@ -88,27 +106,16 @@ async function loadSwc(log: Logger): Promise<SwcModule | null> {
 }
 
 const COMPONENT_FILE_RE = /\.(tsx|jsx)$/;
-const RUNTIME_HEADER = `
-import * as __ExtForgeRefreshRuntime__ from 'react-refresh/runtime';
-const __extforge_prevRefreshReg = globalThis.$RefreshReg$;
-const __extforge_prevRefreshSig = globalThis.$RefreshSig$;
-if (!globalThis.__extforge_refresh_inited__) {
-  globalThis.__extforge_refresh_inited__ = true;
-  __ExtForgeRefreshRuntime__.injectIntoGlobalHook(globalThis);
-  globalThis.$RefreshReg$ = () => {};
-  globalThis.$RefreshSig$ = () => (type) => type;
+// Loaded once and trimmed so the bundled output doesn't carry trailing
+// newlines from the .tpl file.
+let _runtimeHeader: string | undefined;
+let _runtimeFooter: string | undefined;
+function getRuntimeHeader(): string {
+  return _runtimeHeader ??= loadTemplateRaw('refresh-runtime-header.js.tpl').trim();
 }
-`.trim();
-
-const RUNTIME_FOOTER = `
-;if (import.meta && import.meta.hot) {
-  import.meta.hot.accept((mod) => {
-    __ExtForgeRefreshRuntime__.performReactRefresh();
-  });
+function getRuntimeFooter(): string {
+  return _runtimeFooter ??= loadTemplateRaw('refresh-runtime-footer.js.tpl').trim();
 }
-globalThis.$RefreshReg$ = __extforge_prevRefreshReg;
-globalThis.$RefreshSig$ = __extforge_prevRefreshSig;
-`.trim();
 
 export function refreshPlugin(options: RefreshPluginOptions): Plugin {
   const log = options.logger ?? createLogger({ scope: 'hmr:rfr' });
@@ -153,7 +160,7 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
           });
 
           const wrapped = injectRuntime
-            ? `${RUNTIME_HEADER}\n${transformed.code}\n${RUNTIME_FOOTER}`
+            ? `${getRuntimeHeader()}\n${transformed.code}\n${getRuntimeFooter()}`
             : transformed.code;
 
           return {
@@ -172,5 +179,6 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
 /** @internal — reset SWC module cache for tests. */
 export function __resetSwcCache(): void {
   swcModule = undefined;
+  swcResolvedAt = 0;
   swcWarned = false;
 }

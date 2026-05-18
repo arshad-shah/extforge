@@ -6,10 +6,11 @@
  */
 
 import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { BROWSER_FEATURES, FIREFOX_MIN_VERSION } from './constants.js';
 import type { Browser, ManifestConfig, ValidationResult } from './types.js';
+import { slugify } from '../util/slug.js';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
@@ -30,10 +31,16 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
   if (config.manifestVersion !== 3)
     warnings.push('Manifest V2 is deprecated — consider migrating to V3');
 
-  const perms = config.permissions.required;
+  // `config.permissions` is typed required but JS callers may omit it; guard
+  // so we surface a clear validation error instead of a TypeError.
+  const perms = config.permissions?.required ?? [];
+  const hostPerms = config.permissions?.host ?? [];
+  if (!config.permissions) {
+    errors.push('Missing required `permissions` object — expected { required, optional, host }');
+  }
   if (perms.includes('webRequest') && perms.includes('webRequestBlocking'))
     warnings.push('webRequestBlocking is only available in MV2 — use declarativeNetRequest for MV3');
-  if (perms.includes('<all_urls>') || config.permissions.host.includes('<all_urls>'))
+  if (perms.includes('<all_urls>') || hostPerms.includes('<all_urls>'))
     warnings.push('Requesting access to all URLs increases review time on stores');
 
   return { valid: errors.length === 0, errors, warnings };
@@ -41,15 +48,44 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
 
 // ─── Generator ───────────────────────────────────────────────────────────────
 
-export function generateManifest(config: ManifestConfig, browser: Browser): Record<string, unknown> {
+/**
+ * Merge a per-browser override into the base config. Top-level fields are
+ * replaced; nested objects (action, background, permissions, sidePanel) are
+ * shallow-merged so a partial override doesn't drop fields the user didn't
+ * touch. Arrays (contentScripts, webAccessibleResources) and primitives are
+ * replaced wholesale — the user's override wins.
+ *
+ * `browserOverrides` itself is dropped from the result so the override
+ * recursion can't reapply.
+ */
+function applyBrowserOverride(base: ManifestConfig, browser: Browser): ManifestConfig {
+  const override = base.browserOverrides?.[browser];
+  if (!override) return base;
+
+  const merged: ManifestConfig = {
+    ...base,
+    ...override,
+    permissions: override.permissions
+      ? { ...base.permissions, ...override.permissions }
+      : base.permissions,
+    action: override.action ? { ...base.action, ...override.action } : base.action,
+    background: override.background ? { ...base.background, ...override.background } : base.background,
+    sidePanel: override.sidePanel ? { ...base.sidePanel, ...override.sidePanel } : base.sidePanel,
+    commands: override.commands ? { ...base.commands, ...override.commands } : base.commands,
+  };
+  delete merged.browserOverrides;
+  return merged;
+}
+
+export function generateManifest(baseConfig: ManifestConfig, browser: Browser): Record<string, unknown> {
   const features = BROWSER_FEATURES[browser];
-  const overrides = config.browserOverrides?.[browser] ?? {};
+  const config = applyBrowserOverride(baseConfig, browser);
 
   const manifest: Record<string, unknown> = {
     manifest_version: config.manifestVersion,
-    name: overrides.name ?? config.name,
-    version: overrides.version ?? config.version,
-    description: overrides.description ?? config.description,
+    name: config.name,
+    version: config.version,
+    description: config.description,
   };
 
   if (config.icons) manifest.icons = config.icons;
@@ -80,12 +116,14 @@ export function generateManifest(config: ManifestConfig, browser: Browser): Reco
     }));
   }
 
-  // Permissions
-  manifest.permissions = [...config.permissions.required];
-  if (config.permissions.optional.length > 0)
-    manifest.optional_permissions = config.permissions.optional;
-  if (config.permissions.host.length > 0)
-    manifest.host_permissions = config.permissions.host;
+  // Permissions — defensively coerce because JS-side callers may pass a
+  // partial config without the full { required, optional, host } shape.
+  const required = config.permissions?.required ?? [];
+  const optional = config.permissions?.optional ?? [];
+  const hosts = config.permissions?.host ?? [];
+  manifest.permissions = [...required];
+  if (optional.length > 0) manifest.optional_permissions = optional;
+  if (hosts.length > 0) manifest.host_permissions = hosts;
 
   // Options
   if (config.optionsPage) {
@@ -123,13 +161,23 @@ export function generateManifest(config: ManifestConfig, browser: Browser): Reco
   if (browser === 'firefox' && features.browserSpecificSettings) {
     manifest.browser_specific_settings = {
       gecko: {
-        id: config.firefoxId ?? `${config.name.toLowerCase().replace(/\s+/g, '-')}@extension`,
+        id: config.firefoxId ?? deriveFirefoxId(config.name),
         strict_min_version: FIREFOX_MIN_VERSION,
       },
     };
   }
 
   return manifest;
+}
+
+/**
+ * Build a Firefox addon id from the extension name when the user didn't
+ * supply `firefoxId`. The id grammar is `[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+`,
+ * so non-ASCII characters (unicode names like "Résumé Helper") and
+ * meta-characters (`&`, `/`, emoji) have to be stripped or rejected.
+ */
+function deriveFirefoxId(name: string): string {
+  return `${slugify(name)}@extension`;
 }
 
 // ─── Injected defaults ───────────────────────────────────────────────────────
@@ -150,7 +198,20 @@ export function applyInjectedDefaults(
   const resources = Object.keys(injectedEntries).map(key =>
     key === 'injected' ? 'injected.js' : `${key}.js`,
   );
-  manifest.web_accessible_resources = [{ resources, matches: ['<all_urls>'] }];
+
+  // Narrow the default `matches` to the union of declared content-script
+  // matches, rather than emitting `<all_urls>` blanket access. `<all_urls>`
+  // works but triggers extra review on every store (Chrome Web Store,
+  // Firefox AMO, Safari App Review) for "broad host permissions". A user
+  // who hasn't declared any content_scripts gets the conservative
+  // fallback so their injected scripts still load on first-party pages.
+  const csMatches = (userConfig.contentScripts ?? [])
+    .flatMap((cs) => cs.matches)
+    .filter((m): m is string => typeof m === 'string');
+  const uniqueMatches = Array.from(new Set(csMatches));
+  const matches = uniqueMatches.length > 0 ? uniqueMatches : ['<all_urls>'];
+
+  manifest.web_accessible_resources = [{ resources, matches }];
 }
 
 // ─── Writer ──────────────────────────────────────────────────────────────────

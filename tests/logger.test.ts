@@ -231,6 +231,75 @@ describe('Logger.group/step/summary', () => {
     expect(lines.some(l => /do the thing/.test(l))).toBe(true);
   });
 
+  it('step rethrows and logs a failure entry when the body throws', async () => {
+    const lines: Array<{ message: string; level: number }> = [];
+    const log = new Logger({ transports: [(e) => lines.push({ message: e.message, level: e.level })] });
+    await expect(log.step('failing', async () => { throw new Error('nope'); })).rejects.toThrow('nope');
+    expect(lines.some((l) => l.level === LogLevel.Error && /failing/.test(l.message))).toBe(true);
+  });
+
+  it('summary writes one entry per label/value row', () => {
+    const lines: string[] = [];
+    const log = new Logger({ transports: [(e) => lines.push(e.message)] });
+    log.summary('Build results', [
+      { label: 'pass', value: '12' },
+      { label: 'warn', value: '0' },
+    ]);
+    expect(lines.some((l) => /Build results/.test(l))).toBe(true);
+    expect(lines.some((l) => /pass/.test(l) && /12/.test(l))).toBe(true);
+  });
+
+  it('summary is silent when silentHumanOutput=true', () => {
+    const lines: string[] = [];
+    const log = new Logger({ silentHumanOutput: true, transports: [(e) => lines.push(e.message)] });
+    log.summary('Build results', [{ label: 'pass', value: '0' }]);
+    expect(lines).toHaveLength(0);
+  });
+
+  it('banner writes a framed block to stdout', () => {
+    // Spy on process.stdout.write so we can inspect what was emitted.
+    const chunks: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => { chunks.push(s); return true; }) as never;
+    try {
+      const log = new Logger();
+      log.banner('Build', ['line one', 'line two']);
+    } finally {
+      (process.stdout as { write: typeof orig }).write = orig;
+    }
+    const all = chunks.join('');
+    expect(all).toContain('Build');
+    expect(all).toContain('line one');
+    expect(all).toContain('line two');
+  });
+
+  it('banner is silent when silentHumanOutput=true', () => {
+    const chunks: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => { chunks.push(s); return true; }) as never;
+    try {
+      const log = new Logger({ silentHumanOutput: true });
+      log.banner('hi');
+    } finally {
+      (process.stdout as { write: typeof orig }).write = orig;
+    }
+    expect(chunks.join('')).toBe('');
+  });
+
+  it('raw writes directly to stdout unless silentHumanOutput', () => {
+    const chunks: string[] = [];
+    const orig = process.stdout.write.bind(process.stdout);
+    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => { chunks.push(s); return true; }) as never;
+    try {
+      new Logger().raw('hello-raw');
+      new Logger({ silentHumanOutput: true }).raw('hidden');
+    } finally {
+      (process.stdout as { write: typeof orig }).write = orig;
+    }
+    expect(chunks.join('')).toContain('hello-raw');
+    expect(chunks.join('')).not.toContain('hidden');
+  });
+
   it('quiet level suppresses info but keeps warn/error', () => {
     const lines: string[] = [];
     const log = new Logger({ level: LogLevel.Warn, transports: [(e) => lines.push(e.message)] });
@@ -248,5 +317,35 @@ describe('Logger.group/step/summary', () => {
     expect(parsed.level).toBeTypeOf('number');
     expect(parsed.message).toContain('hello');
     expect(parsed.v).toBe(1);
+  });
+
+  it('jsonTransport survives circular references in args', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    const circular: Record<string, unknown> = { name: 'cycle' };
+    circular.self = circular;
+    expect(() => log.info('boom', circular)).not.toThrow();
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0]);
+    expect(parsed.message).toContain('boom');
+  });
+
+  it('jsonTransport serialises Error instances with message + stack', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    const err = new Error('kaboom');
+    log.error('caught', err);
+    const parsed = JSON.parse(lines[0]);
+    expect(JSON.stringify(parsed.args)).toContain('kaboom');
+  });
+
+  it('jsonTransport coerces BigInt without throwing', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    expect(() => log.info('huge', 42n)).not.toThrow();
+    expect(lines).toHaveLength(1);
   });
 });

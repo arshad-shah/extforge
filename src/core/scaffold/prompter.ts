@@ -218,16 +218,28 @@ function rawCursorPrompt<T>(setup: (
     const stdout = process.stdout;
 
     let prevLines = 0;
+    let rawWasSet = false;
+    // If the process exits abnormally (uncaught exception, SIGTERM, parent
+    // sends SIGHUP, etc.) we still need to restore the terminal to cooked
+    // mode — otherwise the user's shell is left in raw mode and unusable.
+    // Register a one-shot exit hook that runs whether cleanup() did or not.
+    const restoreOnExit = (): void => {
+      if (rawWasSet && stdin.isTTY) {
+        try { stdin.setRawMode(false); } catch { /* ignore */ }
+      }
+    };
+    process.once('exit', restoreOnExit);
 
     const draw = (lines: string[]): void => {
       // Clear previous render.
       if (prevLines > 0) {
-        stdout.write(`[${prevLines}A`);
+        stdout.write(`\x1b[${prevLines}A`);
         for (let i = 0; i < prevLines; i++) {
-          stdout.write(`[2K`);
+          stdout.write(`\x1b[2K`);
           if (i < prevLines - 1) stdout.write('\n');
         }
-        stdout.write(`[${prevLines - 1}A\r`);
+        if (prevLines > 1) stdout.write(`\x1b[${prevLines - 1}A`);
+        stdout.write('\r');
       }
       stdout.write(lines.join('\n'));
       prevLines = lines.length;
@@ -238,7 +250,7 @@ function rawCursorPrompt<T>(setup: (
     const ctx = setup(write, draw);
 
     readline.emitKeypressEvents(stdin);
-    if (stdin.isTTY) stdin.setRawMode(true);
+    if (stdin.isTTY) { stdin.setRawMode(true); rawWasSet = true; }
     stdin.resume();
 
     const onKey = (_str: string | undefined, key: KeyEvent): void => {
@@ -253,8 +265,12 @@ function rawCursorPrompt<T>(setup: (
 
     const cleanup = (): void => {
       stdin.off('keypress', onKey);
-      if (stdin.isTTY) stdin.setRawMode(false);
+      if (rawWasSet && stdin.isTTY) {
+        try { stdin.setRawMode(false); } catch { /* ignore */ }
+        rawWasSet = false;
+      }
       stdin.pause();
+      process.removeListener('exit', restoreOnExit);
     };
 
     stdin.on('keypress', onKey);

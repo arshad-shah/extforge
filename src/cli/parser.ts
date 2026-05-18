@@ -141,7 +141,11 @@ function parseArgs(cmd: CommandDef, argv: string[]): Record<string, unknown> {
           out[flagName] = inlineValue;
         } else {
           const next = argv[i + 1];
-          if (next === undefined || next.startsWith('--')) {
+          // Reject *any* leading-dash token as the value — otherwise
+          // `extforge dev --port -h` swallows `-h` as the port and produces
+          // a confusing `NaN` later. Callers can use `--port=-h` if they
+          // genuinely want to pass a leading-dash literal.
+          if (next === undefined || next.startsWith('-')) {
             throw new Error(`Flag --${flagName} expects a value`);
           }
           out[flagName] = next;

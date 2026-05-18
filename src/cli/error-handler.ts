@@ -90,9 +90,12 @@ export function installProcessGuards(): void {
     process.exit(1);
   });
 
-  // Ctrl+C: clean exit without a rejected-promise stack.
-  process.on('SIGINT', () => process.exit(130));
-  process.on('SIGTERM', () => process.exit(143));
+  // Intentionally no SIGINT/SIGTERM handler here: long-running commands
+  // (e.g. `extforge dev`) register their own async shutdown to flush the
+  // HMR server / watchers / esbuild context. A synchronous `process.exit`
+  // installed here would run first (handler-registration order) and beat
+  // those graceful-shutdown listeners. For short-lived commands, Node's
+  // default SIGINT behaviour (exit 128+signal) is already correct.
 }
 
 /**

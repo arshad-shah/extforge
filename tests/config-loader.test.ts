@@ -125,4 +125,24 @@ describe('loadConfigFile', () => {
     const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
     expect(r.config.flag).toBe(true);
   });
+
+  it('deep-merges nested objects so partial overrides keep default siblings', async () => {
+    const defaults = { nested: { a: 1, b: 2 } } as const;
+    writeFileSync(
+      join(dir, 'foo.config.ts'),
+      `export default { nested: { a: 99 } };`,
+    );
+    const r = await loadConfigFile<typeof defaults>({ name: 'foo', cwd: dir, defaults });
+    // User-overridden field changes, sibling from defaults survives.
+    expect(r.config.nested).toEqual({ a: 99, b: 2 });
+  });
+
+  it('replaces arrays wholesale instead of concatenating', async () => {
+    writeFileSync(
+      join(dir, 'foo.config.ts'),
+      `export default { list: [9] };`,
+    );
+    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
+    expect(r.config.list).toEqual([9]);
+  });
 });

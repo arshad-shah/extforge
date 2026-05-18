@@ -4,11 +4,11 @@
 
 import * as esbuild from 'esbuild';
 import {
-  copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync,
-  writeFileSync,
+  copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
+  statSync, writeFileSync,
 } from 'node:fs';
-import { join, resolve, dirname } from 'node:path/posix';
-import { execSync } from 'node:child_process';
+import { join, resolve, dirname } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
 import { validateProject } from '../validator/index.js';
@@ -16,12 +16,14 @@ import type { ExtForgeConfig } from '../config.js';
 import { ExtForgeError } from '../errors/index.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
+import { loadTemplateRaw as loadHmrTemplateRaw } from '../hmr/template-loader.js';
 import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 import { loadEnv, publicEnvToDefine } from '../env/index.js';
 import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
 import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
+import { walkSources } from '../util/walk-sources.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -44,7 +46,12 @@ function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
     HMR_HOST: opts.hmrHost ?? 'localhost',
     HMR_PORT: String(opts.hmrPort),
   });
-  return { js: client };
+  // The error overlay is a small IIFE that registers
+  // `window.__EXTFORGE_OVERLAY__`. The HMR client looks for it on
+  // `build-error` envelopes; if the overlay isn't loaded the error
+  // still lands in the console.
+  const overlay = loadHmrTemplateRaw('error-overlay.js.tpl');
+  return { js: `${overlay}\n${client}` };
 }
 
 /**
@@ -139,17 +146,34 @@ export function partitionEntriesForFormat(
 
 // ─── CSS ─────────────────────────────────────────────────────────────────────
 
-async function processCSS(input: string, output: string, log: Logger): Promise<void> {
+async function processCSS(
+  input: string,
+  output: string,
+  log: Logger,
+  opts: { dev?: boolean } = {},
+): Promise<void> {
   if (!existsSync(input)) return;
   mkdirSync(dirname(output), { recursive: true });
-  try {
-    execSync('npx tailwindcss --help', { stdio: 'ignore' });
-    execSync(`npx tailwindcss -i ${input} -o ${output} --minify`, { stdio: 'pipe' });
-    log.debug(`Processed CSS: ${input}`);
-  } catch {
+  // Probe tailwindcss with an arg array (no shell) — paths with spaces or
+  // shell metacharacters in the project root could otherwise execute
+  // arbitrary commands via the previous execSync template literal.
+  const probe = spawnSync('npx', ['tailwindcss', '--help'], { stdio: 'ignore', shell: false });
+  if (probe.status !== 0) {
     copyFileSync(input, output);
     log.debug(`Copied CSS (no Tailwind): ${input}`);
+    return;
   }
+  const tailwindArgs = ['tailwindcss', '-i', input, '-o', output];
+  // Don't force --minify in dev — keeps source readable and avoids
+  // unnecessary work on every rebuild.
+  if (!opts.dev) tailwindArgs.push('--minify');
+  const result = spawnSync('npx', tailwindArgs, { stdio: 'pipe', shell: false });
+  if (result.status !== 0) {
+    copyFileSync(input, output);
+    log.debug(`Copied CSS (tailwindcss failed): ${input}`);
+    return;
+  }
+  log.debug(`Processed CSS: ${input}`);
 }
 
 // ─── Asset copying ───────────────────────────────────────────────────────────
@@ -207,16 +231,28 @@ function augmentManifestWithCSUI(
   if (discoveries.length === 0) return;
   const existing = (manifest['content_scripts'] as Array<Record<string, unknown>> | undefined) ?? [];
   const merged = [...existing];
+
+  // Index already-declared JS files so we don't re-emit a manifest entry for
+  // a CSUI that the user wired up explicitly in extforge.config.ts —
+  // otherwise Chrome runs the same content script twice.
+  const declaredJs = new Set<string>();
+  for (const entry of existing) {
+    const js = (entry as { js?: unknown }).js;
+    if (Array.isArray(js)) for (const p of js) if (typeof p === 'string') declaredJs.add(p);
+  }
+
   for (const c of discoveries) {
     if (!c.matches || c.matches.length === 0) {
       log.warn(`[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`);
       continue;
     }
+    if (declaredJs.has(c.outputJsPath)) continue; // already declared by user
     merged.push({
       matches: c.matches,
       js: [c.outputJsPath],
       run_at: c.runAt ?? 'document_idle',
     });
+    declaredJs.add(c.outputJsPath);
   }
   if (merged.length > 0) manifest['content_scripts'] = merged;
 }
@@ -332,9 +368,25 @@ function throwAsBuildError(err: unknown, prefix?: string): never {
   const e = err as EsbuildErrorLike;
   if (e && Array.isArray(e.errors) && e.errors.length > 0) {
     const e0 = e.errors[0]!;
+    // Surface every esbuild error in the message so users with >1 failure
+    // can fix them in a single pass. The first error stays in the
+    // ExtForgeError fields so editors that linkify file:line still jump
+    // to the most informative one.
+    const extras = e.errors.slice(1)
+      .map((er) => {
+        const loc = er.location
+          ? ` (${er.location.file ?? '?'}:${er.location.line ?? '?'}:${er.location.column ?? '?'})`
+          : '';
+        return `  - ${er.text ?? 'Build failed'}${loc}`;
+      })
+      .join('\n');
+    const base = prefix ? `${prefix}: ${e0.text ?? 'Build failed'}` : (e0.text ?? 'Build failed');
+    const message = extras
+      ? `${base}\n${e.errors.length} error(s) total:\n${extras}`
+      : base;
     throw new ExtForgeError({
       code: 'EXT_BUILD_FAILED',
-      message: prefix ? `${prefix}: ${e0.text ?? 'Build failed'}` : (e0.text ?? 'Build failed'),
+      message,
       file: e0.location?.file ?? undefined,
       line: e0.location?.line ?? undefined,
       column: e0.location?.column ?? undefined,
@@ -355,6 +407,15 @@ export async function build(
   const errors: string[] = [];
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const srcDir = join(root, 'src');
+
+  // Wipe the per-browser output directory before every PRODUCTION build so a
+  // renamed entry (e.g. content/foo.ts → content/bar.ts) doesn't leave the
+  // previous chunk on disk and a mid-build failure can't leave a half-written
+  // manifest from the previous attempt. Dev builds keep their outputs so HMR
+  // can do incremental work.
+  if (!opts.dev && existsSync(outDir)) {
+    rmSync(outDir, { recursive: true, force: true });
+  }
 
   const runner = (config as { __pluginRunner?: PluginRunner }).__pluginRunner;
   await runner?.fireBuildStart({ browser: opts.browser, dev: opts.dev });
@@ -383,15 +444,16 @@ export async function build(
   // Skipped when called from buildAll, which runs the scan once for all browsers.
   if (!opts._skipCompatScan) {
     const compatBrowsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
-    const allEntryFiles = [
-      ...Object.values(esmEntries),
-      ...Object.values(iifeEntries),
-    ];
+    // Walk the configured src directory so chrome.* calls in helper modules
+    // imported by entries are inspected too, not just the entry files
+    // themselves. The walker keeps a sane cap to avoid pathological repos.
+    const srcDir = resolve(root, config.build?.srcDir ?? 'src');
+    const allFiles = existsSync(srcDir) ? walkSources(srcDir) : [];
     const allIssues: CompatIssue[] = [];
-    for (const entryFile of allEntryFiles) {
+    for (const file of allFiles) {
       try {
-        const src = readFileSync(entryFile, 'utf8');
-        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers: compatBrowsers }));
+        const src = readFileSync(file, 'utf8');
+        allIssues.push(...checkSourceCompat({ source: src, file, browsers: compatBrowsers }));
       } catch { /* ignore unreadable files */ }
     }
     if (allIssues.length > 0) {
@@ -492,8 +554,8 @@ export async function build(
     }
   }
 
-  await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log);
-  await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log);
+  await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log, { dev: opts.dev });
+  await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log, { dev: opts.dev });
 
   if (config.manifest) {
     let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;

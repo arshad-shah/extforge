@@ -9,11 +9,12 @@
 import { ask, type Prompt } from './prompter.js';
 import pc from '../logger/ansi.js';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path/posix';
+import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { PERMISSION_GROUPS, type Browser } from '../manifest/index.js';
 import { VERSIONS, DEFAULTS, PKG_SCRIPTS, BASE_DIRS, FEATURE_DIRS } from './constants.js';
 import { loadTemplate, loadTemplateRaw } from './template-loader.js';
+import { slugify } from '../util/slug.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -264,6 +265,11 @@ export async function scaffold(
     : (await gatherAnswers(options, log)) as ScaffoldAnswers;
 
   if (!answers) return null;
+
+  // Normalise the project name so it's safe to use as: an npm package
+  // name (no whitespace, no uppercase, no shell metacharacters), an
+  // extforge.config.ts identifier, and a default directory name.
+  answers.name = slugify(answers.name);
 
   const projectDir = options.targetDir ?? join(process.cwd(), answers.name);
 
