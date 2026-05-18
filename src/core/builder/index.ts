@@ -4,11 +4,11 @@
 
 import * as esbuild from 'esbuild';
 import {
-  copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync,
-  writeFileSync,
+  copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
+  statSync, writeFileSync,
 } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
 import { validateProject } from '../validator/index.js';
@@ -171,17 +171,34 @@ export function partitionEntriesForFormat(
 
 // ─── CSS ─────────────────────────────────────────────────────────────────────
 
-async function processCSS(input: string, output: string, log: Logger): Promise<void> {
+async function processCSS(
+  input: string,
+  output: string,
+  log: Logger,
+  opts: { dev?: boolean } = {},
+): Promise<void> {
   if (!existsSync(input)) return;
   mkdirSync(dirname(output), { recursive: true });
-  try {
-    execSync('npx tailwindcss --help', { stdio: 'ignore' });
-    execSync(`npx tailwindcss -i ${input} -o ${output} --minify`, { stdio: 'pipe' });
-    log.debug(`Processed CSS: ${input}`);
-  } catch {
+  // Probe tailwindcss with an arg array (no shell) — paths with spaces or
+  // shell metacharacters in the project root could otherwise execute
+  // arbitrary commands via the previous execSync template literal.
+  const probe = spawnSync('npx', ['tailwindcss', '--help'], { stdio: 'ignore', shell: false });
+  if (probe.status !== 0) {
     copyFileSync(input, output);
     log.debug(`Copied CSS (no Tailwind): ${input}`);
+    return;
   }
+  const tailwindArgs = ['tailwindcss', '-i', input, '-o', output];
+  // Don't force --minify in dev — keeps source readable and avoids
+  // unnecessary work on every rebuild.
+  if (!opts.dev) tailwindArgs.push('--minify');
+  const result = spawnSync('npx', tailwindArgs, { stdio: 'pipe', shell: false });
+  if (result.status !== 0) {
+    copyFileSync(input, output);
+    log.debug(`Copied CSS (tailwindcss failed): ${input}`);
+    return;
+  }
+  log.debug(`Processed CSS: ${input}`);
 }
 
 // ─── Asset copying ───────────────────────────────────────────────────────────
@@ -400,6 +417,15 @@ export async function build(
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const srcDir = join(root, 'src');
 
+  // Wipe the per-browser output directory before every PRODUCTION build so a
+  // renamed entry (e.g. content/foo.ts → content/bar.ts) doesn't leave the
+  // previous chunk on disk and a mid-build failure can't leave a half-written
+  // manifest from the previous attempt. Dev builds keep their outputs so HMR
+  // can do incremental work.
+  if (!opts.dev && existsSync(outDir)) {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+
   const runner = (config as { __pluginRunner?: PluginRunner }).__pluginRunner;
   await runner?.fireBuildStart({ browser: opts.browser, dev: opts.dev });
 
@@ -537,8 +563,8 @@ export async function build(
     }
   }
 
-  await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log);
-  await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log);
+  await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log, { dev: opts.dev });
+  await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log, { dev: opts.dev });
 
   if (config.manifest) {
     let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;
