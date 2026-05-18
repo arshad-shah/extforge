@@ -26,6 +26,7 @@ import {
 } from './constants.js';
 import { formatReloadLog } from './client-logic.js';
 import type { PluginRunner } from '../plugins/runner.js';
+import { ExtForgeError } from '../errors/index.js';
 
 async function reservePort(start: number, host: string, log: Logger): Promise<number> {
   for (let i = 0; i < MAX_PORT_RETRIES; i++) {
@@ -40,8 +41,14 @@ async function reservePort(start: number, host: string, log: Logger): Promise<nu
       return port;
     } catch { /* try next */ }
   }
-  log.warn(`Could not find free port near ${start}; using ${start}`);
-  return start;
+  // Don't silently return the start port — every subsequent listen would
+  // fail with EADDRINUSE mid-start, leaving the watcher and esbuild context
+  // alive. Surface a clear error so the user picks a different --port.
+  throw new ExtForgeError({
+    code: 'EXT_HMR_PORT_IN_USE',
+    message: `Could not find a free port in [${start}, ${start + MAX_PORT_RETRIES - 1}] on ${host}`,
+    hint: `Pass --port to extforge dev, or stop the process holding ${start}.`,
+  });
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -328,6 +335,10 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
         createWatcher(p, {
           ignored: [...WATCH_IGNORED],
           awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
+          onUnsupported: (reason) => log.warn(
+            `File watcher unavailable for ${p} (${reason}). HMR won't fire. ` +
+            `Recursive watch requires Node 20+ on Linux.`,
+          ),
         }),
       );
       // Aggregate watcher facade — closing it closes them all.

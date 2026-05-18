@@ -12,12 +12,14 @@
   var HMR_PROTOCOL_VERSION = 3;
   // keep in sync with src/core/hmr/client-logic.ts — BACKOFF array and nextBackoff
   var BACKOFF = [250, 500, 1000, 2000, 4000, 8000];
+  var MAX_RECONNECT_ATTEMPTS = 30;
   var OWN_SCRIPT_ID = (typeof globalThis !== 'undefined' && typeof globalThis.__EXTFORGE_SCRIPT_ID__ === 'number')
     ? globalThis.__EXTFORGE_SCRIPT_ID__
     : undefined;
 
   var ws = null;
   var reconnectAttempts = 0;
+  var giveUp = false;
 
   // ─── Pure logic (mirror of client-logic.ts) ─────────────────────────
   function shouldReload(update, ownScriptId) {
@@ -103,7 +105,13 @@
   }
 
   function scheduleReconnect() {
+    if (giveUp) return;
     reconnectAttempts++;
+    if (reconnectAttempts > MAX_RECONNECT_ATTEMPTS) {
+      giveUp = true;
+      showBadge('ExtForge HMR — dev server unreachable. Refresh page when it\'s back.');
+      return;
+    }
     showBadge('ExtForge HMR — reconnecting (#' + reconnectAttempts + ')');
     setTimeout(connect, nextBackoff(reconnectAttempts));
   }
