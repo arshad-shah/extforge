@@ -12,7 +12,7 @@
  *   0 — snapshot is fresh enough
  *   2 — snapshot is stale, run `pnpm compat:rebuild` and commit the diff
  */
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -24,16 +24,18 @@ const dataPath = join(__dirname, '..', 'src', 'core', 'compat', 'data.json');
 // Use the git log timestamp rather than filesystem mtime — fresh clones
 // (CI, contributor laptops) all have a recent mtime regardless of when
 // the file was last touched in the repo.
+//
+// spawnSync with an argv array (no shell) so the path argument can't be
+// interpreted as additional shell syntax.
 function lastGitCommitMs(file: string): number | null {
-  try {
-    const ts = execSync(`git log -1 --format=%ct -- ${JSON.stringify(file)}`, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }).toString().trim();
-    if (!ts) return null;
-    return Number(ts) * 1000;
-  } catch {
-    return null;
-  }
+  const r = spawnSync('git', ['log', '-1', '--format=%ct', '--', file], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+  });
+  if (r.status !== 0) return null;
+  const ts = r.stdout?.toString().trim();
+  if (!ts) return null;
+  return Number(ts) * 1000;
 }
 
 const last = lastGitCommitMs(dataPath);

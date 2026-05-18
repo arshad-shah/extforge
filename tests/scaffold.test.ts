@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { scaffold } from '../src/core/scaffold/index.js';
@@ -12,7 +12,9 @@ describe('Scaffold Engine', () => {
   let projectDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `extforge-scaffold-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    // mkdtempSync atomically creates a fresh, owner-only directory so we
+    // don't race other processes writing into the os tmp dir.
+    testDir = mkdtempSync(join(tmpdir(), 'extforge-scaffold-'));
     projectDir = join(testDir, 'test-ext');
   });
 

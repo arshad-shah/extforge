@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { validateProject, type ProjectValidationResult } from '../src/core/validator/index.js';
@@ -12,8 +12,9 @@ describe('Project Validator', () => {
   let testDir: string;
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `extforge-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    mkdirSync(testDir, { recursive: true });
+    // mkdtempSync atomically creates a fresh, owner-only directory so we
+    // don't race other processes writing into the os tmp dir.
+    testDir = mkdtempSync(join(tmpdir(), 'extforge-test-'));
   });
 
   afterEach(() => {

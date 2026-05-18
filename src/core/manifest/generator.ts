@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { BROWSER_FEATURES, FIREFOX_MIN_VERSION } from './constants.js';
 import type { Browser, ManifestConfig, ValidationResult } from './types.js';
+import { slugify } from '../util/slug.js';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
@@ -174,17 +175,9 @@ export function generateManifest(baseConfig: ManifestConfig, browser: Browser): 
  * supply `firefoxId`. The id grammar is `[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+`,
  * so non-ASCII characters (unicode names like "Résumé Helper") and
  * meta-characters (`&`, `/`, emoji) have to be stripped or rejected.
- *
- * We lowercase, collapse runs of unsupported characters to `-`, trim
- * leading/trailing `-`, and fall back to `extension` if nothing survives.
  */
 function deriveFirefoxId(name: string): string {
-  const cleaned = name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  const local = cleaned.length > 0 ? cleaned : 'extension';
-  return `${local}@extension`;
+  return `${slugify(name)}@extension`;
 }
 
 // ─── Injected defaults ───────────────────────────────────────────────────────
