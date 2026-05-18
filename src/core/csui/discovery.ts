@@ -95,7 +95,7 @@ export function extractMatches(source: string): string[] | undefined {
   // by `(`. Skips earlier hits like `import { defineCSUI }` where the next
   // token is `}` instead of `(`.
   const callRe = /\bdefineCSUI\s*\(/g;
-  let callMatch: RegExpExecArray | null = callRe.exec(stripped);
+  const callMatch = callRe.exec(stripped);
   if (!callMatch) return undefined;
   let i = callMatch.index + callMatch[0].length;
   while (i < stripped.length && /\s/.test(stripped[i]!)) i++;
