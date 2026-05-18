@@ -173,6 +173,12 @@ export interface PortChannel<TIn = unknown, TOut = unknown> {
   post(msg: TOut): void;
   /** Subscribe to incoming messages. Returns an unsubscribe fn. */
   onMessage(cb: (msg: TIn) => void): () => void;
+  /**
+   * Subscribe to disconnect notifications. Receives the port's
+   * `chrome.runtime.lastError.message` if present. Returns an
+   * unsubscribe fn. The handler is invoked at most once.
+   */
+  onDisconnect(cb: (reason?: string) => void): () => void;
   /** Close the underlying chrome.runtime.Port. */
   close(): void;
 }
@@ -205,12 +211,45 @@ export function onPort<TIn = unknown, TOut = unknown>(
 }
 
 function wrapPort<TIn, TOut>(port: chrome.runtime.Port): PortChannel<TIn, TOut> {
+  // Track every listener we register so a single chrome.runtime.Port
+  // disconnect can clean them up — callers shouldn't have to remember to
+  // unsubscribe each one to avoid the closure leak.
+  const messageListeners = new Set<(m: unknown) => void>();
+  const disconnectListeners = new Set<(reason?: string) => void>();
+  let disconnected = false;
+
+  const handleDisconnect = (): void => {
+    if (disconnected) return;
+    disconnected = true;
+    // Reading lastError suppresses Chrome's "Unchecked runtime.lastError"
+    // console spam at the disconnect boundary.
+    const reason = typeof chrome !== 'undefined' && chrome.runtime?.lastError?.message;
+    for (const cb of disconnectListeners) {
+      try { cb(reason || undefined); } catch { /* swallow */ }
+    }
+    // Drop every message listener so the port reference can be GC'd.
+    for (const l of messageListeners) {
+      try { port.onMessage.removeListener(l); } catch { /* ignore */ }
+    }
+    messageListeners.clear();
+    disconnectListeners.clear();
+  };
+  port.onDisconnect.addListener(handleDisconnect);
+
   return {
     post: (msg: TOut) => port.postMessage(msg),
     onMessage: (cb: (msg: TIn) => void) => {
       const listener = (msg: TIn): void => cb(msg);
+      messageListeners.add(listener as (m: unknown) => void);
       port.onMessage.addListener(listener as (m: unknown) => void);
-      return () => port.onMessage.removeListener(listener as (m: unknown) => void);
+      return () => {
+        messageListeners.delete(listener as (m: unknown) => void);
+        port.onMessage.removeListener(listener as (m: unknown) => void);
+      };
+    },
+    onDisconnect: (cb: (reason?: string) => void) => {
+      disconnectListeners.add(cb);
+      return () => disconnectListeners.delete(cb);
     },
     close: () => port.disconnect(),
   };

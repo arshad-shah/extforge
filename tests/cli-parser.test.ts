@@ -82,6 +82,30 @@ describe('CLI parser', () => {
     await expect(withArgv(['--port'], () => runMain(cmd))).rejects.toThrow(/expects a value/);
   });
 
+  it('rejects a leading-dash token as a string-flag value', async () => {
+    // `--port -X` used to consume `-X` as the port string, producing NaN
+    // downstream. Force callers to disambiguate with `--port=-X`. (Using
+    // -X rather than -h because -h triggers the global help printer at the
+    // CLI front-door and never reaches the value-resolution branch.)
+    const cmd = defineCommand({
+      meta: { name: 'x' },
+      args: { port: { type: 'string' } },
+      run() {},
+    });
+    await expect(withArgv(['--port', '-X'], () => runMain(cmd))).rejects.toThrow(/expects a value/);
+  });
+
+  it('still accepts a leading-dash value via the --flag=value form', async () => {
+    let seen: unknown;
+    const cmd = defineCommand({
+      meta: { name: 'x' },
+      args: { port: { type: 'string' } },
+      run({ args }) { seen = args.port; },
+    });
+    await withArgv(['--port=-h'], () => runMain(cmd));
+    expect(seen).toBe('-h');
+  });
+
   it('throws when required positional is missing', async () => {
     const cmd = defineCommand({
       meta: { name: 'x' },

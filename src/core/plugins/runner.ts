@@ -101,7 +101,11 @@ export class PluginRunner {
     let m = manifest;
     for (const fn of this.hooks.manifestTransform) {
       const next = await fn(m, browser);
-      if (next !== undefined) m = next;
+      // A plugin returning `null`, `undefined`, or a non-object means
+      // "no change requested" — keep the prior manifest. Replacing with
+      // null/undefined here used to crash every downstream plugin (and the
+      // manifest writer) on its first property access.
+      if (next && typeof next === 'object') m = next;
     }
     return m;
   }
