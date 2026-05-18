@@ -335,9 +335,35 @@ describe('Manifest Engine', () => {
       ]);
     });
 
-    it('auto-populates with injected.js for single-entry mode', () => {
+    it('auto-populates with injected.js for single-entry mode (narrowed to contentScript matches)', () => {
       const manifest: Record<string, unknown> = {};
+      // validConfig declares contentScripts with `<all_urls>`, so the WAR
+      // matches union resolves back to `<all_urls>` (intentional).
       applyInjectedDefaults(manifest, validConfig, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected.js'], matches: ['<all_urls>'] },
+      ]);
+    });
+
+    it('narrows WAR `matches` to the union of contentScript matches rather than <all_urls>', () => {
+      const manifest: Record<string, unknown> = {};
+      const cfg: ManifestConfig = {
+        ...validConfig,
+        contentScripts: [
+          { matches: ['https://example.com/*'], js: ['content/index.js'] },
+          { matches: ['https://*.acme.test/*'], js: ['content/acme.js'] },
+        ],
+      };
+      applyInjectedDefaults(manifest, cfg, { injected: '/path/injected.ts' });
+      expect(manifest.web_accessible_resources).toEqual([
+        { resources: ['injected.js'], matches: ['https://example.com/*', 'https://*.acme.test/*'] },
+      ]);
+    });
+
+    it('falls back to <all_urls> only when no content_scripts are declared', () => {
+      const manifest: Record<string, unknown> = {};
+      const cfg: ManifestConfig = { ...validConfig, contentScripts: undefined };
+      applyInjectedDefaults(manifest, cfg, { injected: '/path/injected.ts' });
       expect(manifest.web_accessible_resources).toEqual([
         { resources: ['injected.js'], matches: ['<all_urls>'] },
       ]);

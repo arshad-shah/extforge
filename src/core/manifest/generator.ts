@@ -205,7 +205,20 @@ export function applyInjectedDefaults(
   const resources = Object.keys(injectedEntries).map(key =>
     key === 'injected' ? 'injected.js' : `${key}.js`,
   );
-  manifest.web_accessible_resources = [{ resources, matches: ['<all_urls>'] }];
+
+  // Narrow the default `matches` to the union of declared content-script
+  // matches, rather than emitting `<all_urls>` blanket access. `<all_urls>`
+  // works but triggers extra review on every store (Chrome Web Store,
+  // Firefox AMO, Safari App Review) for "broad host permissions". A user
+  // who hasn't declared any content_scripts gets the conservative
+  // fallback so their injected scripts still load on first-party pages.
+  const csMatches = (userConfig.contentScripts ?? [])
+    .flatMap((cs) => cs.matches)
+    .filter((m): m is string => typeof m === 'string');
+  const uniqueMatches = Array.from(new Set(csMatches));
+  const matches = uniqueMatches.length > 0 ? uniqueMatches : ['<all_urls>'];
+
+  manifest.web_accessible_resources = [{ resources, matches }];
 }
 
 // ─── Writer ──────────────────────────────────────────────────────────────────

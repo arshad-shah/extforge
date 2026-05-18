@@ -42,6 +42,12 @@ function stripStringsAndComments(source: string): string {
   let out = '';
   let i = 0;
   const len = source.length;
+  // Track whether a `/` here can start a regex literal. JS distinguishes
+  // `/foo/` (regex) from `x / foo` (division) by lookbehind for "what kind
+  // of token came last". Tracking a single bit — "expression position OK" —
+  // covers the common cases without a full parser; standalone files
+  // start in regex-expected mode.
+  let regexAllowed = true;
   while (i < len) {
     const ch = source[i]!;
     const next = source[i + 1];
@@ -62,6 +68,30 @@ function stripStringsAndComments(source: string): string {
       if (i < len) { out += '*/'; i += 2; }
       continue;
     }
+    if (ch === '/' && regexAllowed) {
+      // Regex literal: walk to the closing '/' on the same line, respecting
+      // character classes ([...]) and escapes. Blank out the body so any
+      // `chrome.*` token inside (e.g. /chrome\.tabs/) is invisible to the
+      // API regex.
+      out += '/';
+      i++;
+      let inClass = false;
+      while (i < len && source[i] !== '\n') {
+        const c = source[i]!;
+        if (c === '\\' && i + 1 < len) { out += '  '; i += 2; continue; }
+        if (c === '[') inClass = true;
+        else if (c === ']') inClass = false;
+        else if (c === '/' && !inClass) break;
+        out += ' ';
+        i++;
+      }
+      if (i < len && source[i] === '/') { out += '/'; i++; }
+      // Skip regex flags (g, i, m, s, u, y, d) so they don't look like
+      // an identifier that flips regexAllowed.
+      while (i < len && /[gimsuyd]/.test(source[i]!)) { out += source[i]!; i++; }
+      regexAllowed = false;
+      continue;
+    }
     if (ch === '"' || ch === "'" || ch === '`') {
       const quote = ch;
       out += quote;
@@ -72,8 +102,14 @@ function stripStringsAndComments(source: string): string {
         i++;
       }
       if (i < len) { out += quote; i++; }
+      regexAllowed = false;
       continue;
     }
+    // Single-char heuristic: after an identifier, number, or closing
+    // delimiter, a `/` means division. After an operator / whitespace /
+    // opening delimiter, a `/` starts a regex.
+    if (/[A-Za-z0-9_$\])]/.test(ch)) regexAllowed = false;
+    else if (/[\s({[,;=!&|+\-*%<>?:^~]/.test(ch)) regexAllowed = true;
     out += ch;
     i++;
   }

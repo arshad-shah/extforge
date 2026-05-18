@@ -2,7 +2,11 @@
  * Builder Constants
  */
 
-export const ESBUILD_TARGETS = ['chrome110', 'firefox115', 'safari16'];
+// Refresh these alongside MV3 floors. Chrome MV3 service workers required
+// Chrome 88+ (Nov 2020); Firefox MV3 shipped in 109. Safari 17 shipped MV3
+// in 2023 with full WebExtension parity. Picking the floors gives us the
+// widest install base without forcing legacy transforms that bloat output.
+export const ESBUILD_TARGETS = ['chrome120', 'firefox128', 'safari17', 'edge120'];
 
 export const ESBUILD_LOADERS: Record<string, string> = {
   '.tsx':   'tsx',

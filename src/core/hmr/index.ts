@@ -6,13 +6,28 @@
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createWatcher, type Watcher } from './watcher.js';
 import { createServer as createNetServer } from 'node:net';
 import { join, relative, extname } from 'node:path';
 
 /** Normalise an OS-native path to forward-slash form. Cheap no-op on POSIX. */
 const toPosix = (p: string): string => p.replace(/\\/g, '/');
+
+/**
+ * Hash a built chunk's content so the runtime can short-circuit a no-op
+ * update. Returns `undefined` (caller will fall back to a timestamp) when
+ * the file doesn't exist yet — happens on the very first build of a chunk.
+ */
+function chunkHash(absPath: string): string | undefined {
+  try {
+    const buf = readFileSync(absPath);
+    return createHash('sha256').update(buf).digest('hex').slice(0, 12);
+  } catch {
+    return undefined;
+  }
+}
 import { createLogger, type Logger } from '../logger/index.js';
 import { build, createBuildContext, buildContentScriptMap } from '../builder/index.js';
 import type { Browser } from '../manifest/index.js';
@@ -273,12 +288,19 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     // the React Fast Refresh runtime in the new module performs the swap.
     const v3Files = tryClassifyV3(changes);
     if (v3Files && updateType === 'js') {
-      const hash = String(timestamp);
+      // Hash the BUILT chunk's bytes (not the timestamp) so the runtime
+      // can short-circuit when nothing actually changed — e.g. a save that
+      // doesn't alter the bundled output. A timestamp-based hash made every
+      // update look unique and effectively disabled `apply()`'s no-op path.
       const v3Update: HMRUpdateV3 = {
         v: 3,
         type: 'hmr-update',
         timestamp,
-        updates: v3Files.map(f => ({ id: f, hash, file: f })),
+        updates: v3Files.map(f => ({
+          id: f,
+          hash: chunkHash(join(projectRoot, 'dist', browser, f)) ?? String(timestamp),
+          file: f,
+        })),
       };
       broadcast(v3Update);
       await runner?.fireDevReload({ v: HMR_PROTOCOL_VERSION, type: 'js', files, timestamp, scriptIds });
