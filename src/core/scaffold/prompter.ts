@@ -222,12 +222,13 @@ function rawCursorPrompt<T>(setup: (
     const draw = (lines: string[]): void => {
       // Clear previous render.
       if (prevLines > 0) {
-        stdout.write(`[${prevLines}A`);
+        stdout.write(`\x1b[${prevLines}A`);
         for (let i = 0; i < prevLines; i++) {
-          stdout.write(`[2K`);
+          stdout.write(`\x1b[2K`);
           if (i < prevLines - 1) stdout.write('\n');
         }
-        stdout.write(`[${prevLines - 1}A\r`);
+        if (prevLines > 1) stdout.write(`\x1b[${prevLines - 1}A`);
+        stdout.write('\r');
       }
       stdout.write(lines.join('\n'));
       prevLines = lines.length;
