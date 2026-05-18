@@ -27,6 +27,7 @@
 import { readFileSync } from 'node:fs';
 import type { Plugin, PluginBuild } from 'esbuild';
 import { createLogger, type Logger } from '../../logger/index.js';
+import { loadTemplateRaw } from '../template-loader.js';
 
 export interface RefreshPluginOptions {
   /**
@@ -105,27 +106,16 @@ async function loadSwc(log: Logger): Promise<SwcModule | null> {
 }
 
 const COMPONENT_FILE_RE = /\.(tsx|jsx)$/;
-const RUNTIME_HEADER = `
-import * as __ExtForgeRefreshRuntime__ from 'react-refresh/runtime';
-const __extforge_prevRefreshReg = globalThis.$RefreshReg$;
-const __extforge_prevRefreshSig = globalThis.$RefreshSig$;
-if (!globalThis.__extforge_refresh_inited__) {
-  globalThis.__extforge_refresh_inited__ = true;
-  __ExtForgeRefreshRuntime__.injectIntoGlobalHook(globalThis);
-  globalThis.$RefreshReg$ = () => {};
-  globalThis.$RefreshSig$ = () => (type) => type;
+// Loaded once and trimmed so the bundled output doesn't carry trailing
+// newlines from the .tpl file.
+let _runtimeHeader: string | undefined;
+let _runtimeFooter: string | undefined;
+function getRuntimeHeader(): string {
+  return _runtimeHeader ??= loadTemplateRaw('refresh-runtime-header.js.tpl').trim();
 }
-`.trim();
-
-const RUNTIME_FOOTER = `
-;if (import.meta && import.meta.hot) {
-  import.meta.hot.accept((mod) => {
-    __ExtForgeRefreshRuntime__.performReactRefresh();
-  });
+function getRuntimeFooter(): string {
+  return _runtimeFooter ??= loadTemplateRaw('refresh-runtime-footer.js.tpl').trim();
 }
-globalThis.$RefreshReg$ = __extforge_prevRefreshReg;
-globalThis.$RefreshSig$ = __extforge_prevRefreshSig;
-`.trim();
 
 export function refreshPlugin(options: RefreshPluginOptions): Plugin {
   const log = options.logger ?? createLogger({ scope: 'hmr:rfr' });
@@ -170,7 +160,7 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
           });
 
           const wrapped = injectRuntime
-            ? `${RUNTIME_HEADER}\n${transformed.code}\n${RUNTIME_FOOTER}`
+            ? `${getRuntimeHeader()}\n${transformed.code}\n${getRuntimeFooter()}`
             : transformed.code;
 
           return {

@@ -16,12 +16,14 @@ import type { ExtForgeConfig } from '../config.js';
 import { ExtForgeError } from '../errors/index.js';
 import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
+import { loadTemplateRaw as loadHmrTemplateRaw } from '../hmr/template-loader.js';
 import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 import { loadEnv, publicEnvToDefine } from '../env/index.js';
 import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
 import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
+import { walkSources } from '../util/walk-sources.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,45 +40,18 @@ export interface BuildOptions {
   _skipCompatScan?: boolean;
 }
 
-// Recursively collect TypeScript/JavaScript sources under a directory so the
-// compat scan covers imported helpers, not just top-level entry files.
-// Skip dependencies, build outputs, and other directories that shouldn't
-// contribute to the user's compat surface.
-const COMPAT_SOURCE_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
-const COMPAT_SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', '.cache']);
-const COMPAT_MAX_FILES = 2000;
-
-function walkCompatSources(root: string, limit: number = COMPAT_MAX_FILES): string[] {
-  const out: string[] = [];
-  const stack = [root];
-  while (stack.length && out.length < limit) {
-    const dir = stack.pop()!;
-    let entries: import('node:fs').Dirent[];
-    try { entries = readdirSync(dir, { withFileTypes: true }); }
-    catch { continue; }
-    for (const ent of entries) {
-      if (out.length >= limit) break;
-      const full = join(dir, ent.name);
-      if (ent.isDirectory()) {
-        if (!COMPAT_SKIP_DIRS.has(ent.name)) stack.push(full);
-        continue;
-      }
-      if (!ent.isFile()) continue;
-      const dot = ent.name.lastIndexOf('.');
-      const ext = dot >= 0 ? ent.name.slice(dot) : '';
-      if (COMPAT_SOURCE_EXTS.has(ext)) out.push(full);
-    }
-  }
-  return out;
-}
-
 function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
   if (!opts.dev || !opts.hmrPort) return undefined;
   const client = loadTemplate('hmr-client.js.tpl', {
     HMR_HOST: opts.hmrHost ?? 'localhost',
     HMR_PORT: String(opts.hmrPort),
   });
-  return { js: client };
+  // The error overlay is a small IIFE that registers
+  // `window.__EXTFORGE_OVERLAY__`. The HMR client looks for it on
+  // `build-error` envelopes; if the overlay isn't loaded the error
+  // still lands in the console.
+  const overlay = loadHmrTemplateRaw('error-overlay.js.tpl');
+  return { js: `${overlay}\n${client}` };
 }
 
 /**
@@ -473,7 +448,7 @@ export async function build(
     // imported by entries are inspected too, not just the entry files
     // themselves. The walker keeps a sane cap to avoid pathological repos.
     const srcDir = resolve(root, config.build?.srcDir ?? 'src');
-    const allFiles = existsSync(srcDir) ? walkCompatSources(srcDir) : [];
+    const allFiles = existsSync(srcDir) ? walkSources(srcDir) : [];
     const allIssues: CompatIssue[] = [];
     for (const file of allFiles) {
       try {

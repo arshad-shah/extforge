@@ -202,6 +202,30 @@ describe('Storage (localStorage fallback)', () => {
     await expect(s.set('big', 'x'.repeat(100))).rejects.toThrow(StorageQuotaExceededError);
   });
 
+  it('watch() in the localStorage fallback fires for set + remove', async () => {
+    const s = new Storage();
+    const seen: Array<[unknown, unknown]> = [];
+    const unwatch = s.watch({ k: (n, o) => seen.push([n, o]) });
+    await s.set('k', 'first');
+    await s.set('k', 'second');
+    await s.remove('k');
+    unwatch();
+    expect(seen).toEqual([
+      ['first', undefined],
+      ['second', 'first'],
+      [undefined, 'second'],
+    ]);
+  });
+
+  it('watch("*") in localStorage fallback fires for every key', async () => {
+    const s = new Storage();
+    const keys: string[] = [];
+    s.watch({ '*': (_n, _o) => keys.push('hit') });
+    await s.set('a', 1);
+    await s.set('b', 2);
+    expect(keys).toEqual(['hit', 'hit']);
+  });
+
   it('clear() with namespace only removes namespaced keys', async () => {
     const ns = new Storage({ namespace: 'app' });
     const all = new Storage();

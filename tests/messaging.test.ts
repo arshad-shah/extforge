@@ -144,3 +144,152 @@ describe('extforge/messaging', () => {
     expect(called).toBe(false);
   });
 });
+
+// ─── Ports tests ──────────────────────────────────────────────────────────────
+
+describe('extforge/messaging Ports', () => {
+  let originalChrome: unknown;
+
+  beforeEach(() => {
+    originalChrome = (globalThis as { chrome?: unknown }).chrome;
+    __resetMessaging();
+  });
+  afterEach(() => {
+    (globalThis as { chrome?: unknown }).chrome = originalChrome;
+  });
+
+  function makePortMock(): {
+    chrome: unknown;
+    triggerDisconnect: (lastErrorMsg?: string) => void;
+    triggerMessage: (msg: unknown) => void;
+    listeners: { messages: Array<(m: unknown) => void>; disconnects: Array<() => void> };
+    disconnected: { value: boolean };
+  } {
+    const messages: Array<(m: unknown) => void> = [];
+    const disconnects: Array<() => void> = [];
+    const disconnected = { value: false };
+    let lastError: { message: string } | undefined;
+    const port = {
+      postMessage: () => {},
+      disconnect: () => { disconnected.value = true; },
+      onMessage: {
+        addListener: (cb: (m: unknown) => void) => messages.push(cb),
+        removeListener: (cb: (m: unknown) => void) => {
+          const i = messages.indexOf(cb);
+          if (i >= 0) messages.splice(i, 1);
+        },
+      },
+      onDisconnect: {
+        addListener: (cb: () => void) => disconnects.push(cb),
+      },
+    };
+    return {
+      chrome: {
+        runtime: {
+          connect: () => port,
+          get lastError(): { message: string } | undefined { return lastError; },
+          onConnect: { addListener: () => {} },
+        },
+      },
+      triggerDisconnect: (lastErrorMsg?: string) => {
+        lastError = lastErrorMsg ? { message: lastErrorMsg } : undefined;
+        for (const cb of [...disconnects]) cb();
+      },
+      triggerMessage: (msg: unknown) => {
+        for (const cb of [...messages]) cb(msg);
+      },
+      listeners: { messages, disconnects },
+      disconnected,
+    };
+  }
+
+  it('openPort wraps the underlying port and forwards messages', async () => {
+    const mock = makePortMock();
+    (globalThis as { chrome: unknown }).chrome = mock.chrome;
+    const { openPort } = await import('../src/core/messaging/index.js');
+    const port = openPort<string, string>('chan');
+    const seen: string[] = [];
+    port.onMessage((m) => seen.push(m));
+    mock.triggerMessage('hello');
+    expect(seen).toEqual(['hello']);
+  });
+
+  it('onDisconnect fires once with the lastError message, then auto-cleans listeners', async () => {
+    const mock = makePortMock();
+    (globalThis as { chrome: unknown }).chrome = mock.chrome;
+    const { openPort } = await import('../src/core/messaging/index.js');
+    const port = openPort<string, string>('chan');
+    const reasons: Array<string | undefined> = [];
+    port.onDisconnect((reason) => reasons.push(reason));
+    port.onMessage(() => {});
+    expect(mock.listeners.messages.length).toBe(1);
+    mock.triggerDisconnect('Receiving end does not exist.');
+    expect(reasons).toEqual(['Receiving end does not exist.']);
+    // Auto-removed message listeners on disconnect — port reference can be GC'd.
+    expect(mock.listeners.messages.length).toBe(0);
+    // A second disconnect is a no-op.
+    mock.triggerDisconnect();
+    expect(reasons).toEqual(['Receiving end does not exist.']);
+  });
+
+  it('close() calls port.disconnect', async () => {
+    const mock = makePortMock();
+    (globalThis as { chrome: unknown }).chrome = mock.chrome;
+    const { openPort } = await import('../src/core/messaging/index.js');
+    const port = openPort<string, string>('chan');
+    port.close();
+    expect(mock.disconnected.value).toBe(true);
+  });
+
+  it('openPort throws when chrome.runtime.connect is unavailable', async () => {
+    (globalThis as { chrome: unknown }).chrome = { runtime: {} };
+    const { openPort } = await import('../src/core/messaging/index.js');
+    expect(() => openPort('chan')).toThrow(/chrome.runtime.connect/);
+  });
+
+  it('onPort filters by channel and ignores foreign port names', async () => {
+    const listeners: Array<(p: unknown) => void> = [];
+    (globalThis as { chrome: unknown }).chrome = {
+      runtime: {
+        onConnect: {
+          addListener: (cb: (p: unknown) => void) => { listeners.push(cb); },
+        },
+      },
+    };
+    const { onPort } = await import('../src/core/messaging/index.js');
+    let connected = 0;
+    onPort('mine', () => { connected++; });
+    // Wrong-named port: ignored.
+    for (const l of listeners) l({
+      name: 'extforge:other',
+      sender: {},
+      onMessage: { addListener: () => {}, removeListener: () => {} },
+      onDisconnect: { addListener: () => {} },
+      postMessage: () => {},
+      disconnect: () => {},
+    });
+    expect(connected).toBe(0);
+    // Right name: fires.
+    for (const l of listeners) l({
+      name: 'extforge:mine',
+      sender: {},
+      onMessage: { addListener: () => {}, removeListener: () => {} },
+      onDisconnect: { addListener: () => {} },
+      postMessage: () => {},
+      disconnect: () => {},
+    });
+    expect(connected).toBe(1);
+  });
+
+  it('sendMessage rejects with a clear error when the chrome API is missing', async () => {
+    delete (globalThis as { chrome?: unknown }).chrome;
+    const { sendMessage } = await import('../src/core/messaging/index.js');
+    await expect(sendMessage('echo' as never, { value: 'x' } as never)).rejects.toThrow(/sendMessage is not available/);
+  });
+
+  it('sendMessageToTab rejects with a clear error when chrome.tabs is missing', async () => {
+    (globalThis as { chrome?: unknown }).chrome = { runtime: { sendMessage: async () => undefined } };
+    const { sendMessageToTab } = await import('../src/core/messaging/index.js');
+    await expect(sendMessageToTab(0, 'echo' as never, { value: 'x' } as never)).rejects.toThrow(/chrome.tabs.sendMessage/);
+  });
+});

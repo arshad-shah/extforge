@@ -391,6 +391,24 @@ describe('Manifest Engine', () => {
   });
 });
 
+describe('Manifest commands', () => {
+  it('emits chrome-style commands with suggested_key and description', () => {
+    const cfg: ManifestConfig = {
+      ...validConfig,
+      commands: {
+        'toggle-popup': {
+          suggestedKey: { default: 'Ctrl+Shift+P', mac: 'Command+Shift+P' },
+          description: 'Toggle the popup',
+        },
+      },
+    };
+    const manifest = generateManifest(cfg, 'chrome');
+    const cmds = manifest.commands as Record<string, Record<string, unknown>>;
+    expect(cmds['toggle-popup']?.suggested_key).toEqual({ default: 'Ctrl+Shift+P', mac: 'Command+Shift+P' });
+    expect(cmds['toggle-popup']?.description).toBe('Toggle the popup');
+  });
+});
+
 describe('Manifest Validation', () => {
   describe('Given a valid config', () => {
     it('should pass validation', () => {

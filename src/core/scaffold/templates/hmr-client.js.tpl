@@ -88,6 +88,12 @@
         case 'full-reload':
         case 'manifest':  handleFullReload(update.type); logUpdate(update, t0); break;
         case 'assets':    handleFullReload('assets'); logUpdate(update, t0); break;
+        case 'build-error':
+          if (window.__EXTFORGE_OVERLAY__) window.__EXTFORGE_OVERLAY__.render(update.error);
+          break;
+        case 'build-ok':
+          if (window.__EXTFORGE_OVERLAY__) window.__EXTFORGE_OVERLAY__.clear();
+          break;
         default: /* ignore unknown types */ break;
       }
     };

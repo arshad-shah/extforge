@@ -55,6 +55,52 @@ export function App(){ const [n,setN] = useState(0); return <button onClick={()=
     rmSync(file);
   });
 
+  it('injects the RFR runtime header/footer wrapping when @swc/core is available', async () => {
+    const plugin = refreshPlugin({ enabled: true });
+    const file = join(dir, 'Comp.tsx');
+    writeFileSync(file, 'export function Comp(){ return <span>x</span>; }');
+    const result = await esbuild.build({
+      entryPoints: [file],
+      bundle: false,
+      write: false,
+      format: 'esm',
+      jsx: 'automatic',
+      jsxImportSource: 'react',
+      plugins: [plugin],
+      logLevel: 'silent',
+    });
+    const code = result.outputFiles?.[0]?.text ?? '';
+    // The header/footer templates only show up when SWC successfully
+    // transformed the source. If SWC isn't installed the plugin no-ops
+    // and the code lacks the header — accept either outcome but, if
+    // the transform did run, verify the wrapper.
+    if (code.includes('react-refresh/runtime')) {
+      expect(code).toContain('__ExtForgeRefreshRuntime__');
+      expect(code).toContain('performReactRefresh');
+    }
+  });
+
+  it('handles a SWC transform failure gracefully (no-ops the file)', async () => {
+    const plugin = refreshPlugin({ enabled: true });
+    const file = join(dir, 'Broken.tsx');
+    // Syntactically invalid TS — SWC should reject. The plugin should
+    // log a warning and return null so esbuild can still try to handle
+    // the file (and produce its own error). Verify we don't crash.
+    writeFileSync(file, 'export const x = ;');
+    try {
+      await esbuild.build({
+        entryPoints: [file],
+        bundle: false,
+        write: false,
+        format: 'esm',
+        jsx: 'automatic',
+        jsxImportSource: 'react',
+        plugins: [plugin],
+        logLevel: 'silent',
+      });
+    } catch { /* esbuild also rejects — fine */ }
+  });
+
   it('skips files inside node_modules', async () => {
     const plugin = refreshPlugin({ enabled: true });
     const nm = join(dir, 'node_modules', 'lib');

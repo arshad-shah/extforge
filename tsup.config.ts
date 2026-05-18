@@ -29,16 +29,20 @@ export default defineConfig({
   treeshake: true,
   external: ['esbuild', 'react', 'react-dom', 'react/jsx-runtime'],
   async onSuccess() {
-    // Copy scaffold templates so the runtime template-loader can read them
-    // from dist/core/scaffold/templates/ (the loader resolves them relative
-    // to its own .js file). Without this, `extforge init` and dev-mode HMR
-    // injection both fail with ENOENT.
-    const src = 'src/core/scaffold/templates';
-    const dest = 'dist/core/scaffold/templates';
-    if (existsSync(src)) {
-      cpSync(src, dest, { recursive: true });
-      // eslint-disable-next-line no-console
-      console.log(`[tsup] Copied templates → ${dest}`);
+    // Copy template directories so the runtime template-loaders can read
+    // them at runtime (loaders resolve relative to their own .js files).
+    // Without this, dev-mode HMR injection and `extforge init` fail with
+    // ENOENT.
+    const dirs = [
+      ['src/core/scaffold/templates', 'dist/core/scaffold/templates'],
+      ['src/core/hmr/templates',      'dist/core/hmr/templates'],
+    ];
+    for (const [src, dest] of dirs) {
+      if (existsSync(src)) {
+        cpSync(src, dest, { recursive: true });
+        // eslint-disable-next-line no-console
+        console.log(`[tsup] Copied templates → ${dest}`);
+      }
     }
     // Compat data.json is inlined via esbuild's json loader at bundle time
     // (see src/core/compat/index.ts).

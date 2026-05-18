@@ -29,6 +29,7 @@ function chunkHash(absPath: string): string | undefined {
   }
 }
 import { createLogger, type Logger } from '../logger/index.js';
+import { serializeBuildError } from './build-error.js';
 import { build, createBuildContext, buildContentScriptMap } from '../builder/index.js';
 import type { Browser } from '../manifest/index.js';
 import type { ExtForgeConfig } from '../config.js';
@@ -212,6 +213,30 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
   };
 
   /**
+   * Push a build-failure envelope to every connected client. The client
+   * shows a full-page overlay with the error code, message, file:line:col,
+   * source frame, and stack — same UX as Vite / Astro's dev error overlay.
+   */
+  const broadcastBuildError = (err: unknown): void => {
+    if (!wss) return;
+    const envelope = {
+      v: HMR_PROTOCOL_VERSION,
+      type: 'build-error' as const,
+      timestamp: Date.now(),
+      error: serializeBuildError(err, projectRoot),
+    };
+    const payload = JSON.stringify(envelope);
+    wss.clients.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(payload); });
+  };
+
+  /** Tell every connected client to dismiss any previous build-error overlay. */
+  const broadcastBuildOk = (): void => {
+    if (!wss) return;
+    const payload = JSON.stringify({ v: HMR_PROTOCOL_VERSION, type: 'build-ok', timestamp: Date.now() });
+    wss.clients.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(payload); });
+  };
+
+  /**
    * Decide whether a batch of changes is hot-applicable via v3:
    * every changed file must be a .ts/.tsx that lands in popup/options/sidepanel
    * (no background, no content, no manifest, no asset).
@@ -263,8 +288,11 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     try {
       if (buildCtx) await buildCtx.rebuild();
       else await build(projectRoot, config, { browser, dev: true, hmrPort: resolvedPort, hmrHost: host }, log);
+      // Clear any previous error overlay now that the build is green.
+      broadcastBuildOk();
     } catch (err) {
       log.error(`Rebuild failed: ${err instanceof Error ? err.message : String(err)}`);
+      broadcastBuildError(err);
       return;
     }
 

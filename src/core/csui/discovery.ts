@@ -16,6 +16,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { stripSource } from '../util/strip-source.js';
 
 export interface CSUIDiscovery {
   /** Absolute path to the source file. */
@@ -89,7 +90,7 @@ export function discoverCSUI(srcDir: string): CSUIDiscovery[] {
  * extraction fails.
  */
 export function extractMatches(source: string): string[] | undefined {
-  const stripped = stripStringsAndComments(source);
+  const stripped = stripSource(source);
 
   // Locate the *call site*: `defineCSUI` followed (after optional whitespace)
   // by `(`. Skips earlier hits like `import { defineCSUI }` where the next
@@ -157,7 +158,7 @@ export function extractMatches(source: string): string[] | undefined {
  * declared elsewhere in the file is ignored.
  */
 export function extractRunAt(source: string): CSUIDiscovery['runAt'] | undefined {
-  const stripped = stripStringsAndComments(source);
+  const stripped = stripSource(source);
   const callRe = /\bdefineCSUI\s*\(/g;
   const callMatch = callRe.exec(stripped);
   if (!callMatch) return undefined;
@@ -196,53 +197,3 @@ export function extractRunAt(source: string): CSUIDiscovery['runAt'] | undefined
   return undefined;
 }
 
-/**
- * Replace string literal contents and comment bodies with spaces so our
- * regexes don't pick up syntax-shaped tokens that aren't actually code.
- * Cheap copy of the same routine used by core/compat. Length-preserving.
- */
-function stripStringsAndComments(source: string): string {
-  let out = '';
-  let i = 0;
-  const len = source.length;
-  while (i < len) {
-    const ch = source[i]!;
-    const next = source[i + 1];
-    if (ch === '/' && next === '/') {
-      out += '//';
-      i += 2;
-      while (i < len && source[i] !== '\n') { out += ' '; i++; }
-      continue;
-    }
-    if (ch === '/' && next === '*') {
-      out += '/*';
-      i += 2;
-      while (i < len && !(source[i] === '*' && source[i + 1] === '/')) {
-        out += source[i] === '\n' ? '\n' : ' ';
-        i++;
-      }
-      if (i < len) { out += '*/'; i += 2; }
-      continue;
-    }
-    // Preserve quoted strings as-is so matches: ['url'] still parses correctly.
-    if (ch === '"' || ch === "'" || ch === '`') {
-      const quote = ch;
-      out += ch;
-      i++;
-      while (i < len && source[i] !== quote) {
-        if (source[i] === '\\' && i + 1 < len) {
-          out += source[i]! + source[i + 1]!;
-          i += 2;
-          continue;
-        }
-        out += source[i]!;
-        i++;
-      }
-      if (i < len) { out += quote; i++; }
-      continue;
-    }
-    out += ch;
-    i++;
-  }
-  return out;
-}
