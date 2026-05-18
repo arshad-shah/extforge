@@ -249,4 +249,34 @@ describe('Logger.group/step/summary', () => {
     expect(parsed.message).toContain('hello');
     expect(parsed.v).toBe(1);
   });
+
+  it('jsonTransport survives circular references in args', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    const circular: Record<string, unknown> = { name: 'cycle' };
+    circular.self = circular;
+    expect(() => log.info('boom', circular)).not.toThrow();
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0]);
+    expect(parsed.message).toContain('boom');
+  });
+
+  it('jsonTransport serialises Error instances with message + stack', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    const err = new Error('kaboom');
+    log.error('caught', err);
+    const parsed = JSON.parse(lines[0]);
+    expect(JSON.stringify(parsed.args)).toContain('kaboom');
+  });
+
+  it('jsonTransport coerces BigInt without throwing', () => {
+    const lines: string[] = [];
+    const t = jsonTransport((s) => lines.push(s));
+    const log = new Logger({ transports: [t] });
+    expect(() => log.info('huge', 42n)).not.toThrow();
+    expect(lines).toHaveLength(1);
+  });
 });

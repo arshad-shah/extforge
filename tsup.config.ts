@@ -19,7 +19,11 @@ export default defineConfig({
   format: ['esm'],
   dts: true,
   clean: true,
-  sourcemap: true,
+  // Don't ship source maps in the npm tarball — they inflate the install
+  // size and leak the maintainer's local source paths. Consumers build
+  // their own extension; debugging extforge internals isn't a goal of
+  // a published library.
+  sourcemap: false,
   target: 'node20',
   splitting: true,
   treeshake: true,
