@@ -65,17 +65,34 @@ interface SwcTransformOptions {
   sourceMaps?: boolean;
 }
 
-// Lazily-loaded SWC module + a one-time warning gate.
+// Lazily-loaded SWC module. Resolved at most once per build context, but the
+// cache key is the value of `__swcResolution` — bumped by `__resetSwcCache`
+// (test helper) so a single Node process can re-probe between builds. The
+// negative cache (resolution failed) is intentionally short-lived: a long
+// dev session shouldn't permanently lock out RFR if the user installs
+// @swc/core mid-flight, so the negative result is cleared after
+// SWC_RETRY_INTERVAL_MS and the next request reprobes.
+const SWC_RETRY_INTERVAL_MS = 60_000;
 let swcModule: SwcModule | undefined | null;
+let swcResolvedAt = 0;
 let swcWarned = false;
 
 async function loadSwc(log: Logger): Promise<SwcModule | null> {
-  if (swcModule !== undefined) return swcModule;
+  if (swcModule) return swcModule;
+  if (swcModule === null && Date.now() - swcResolvedAt < SWC_RETRY_INTERVAL_MS) return null;
   try {
     swcModule = (await import('@swc/core')) as unknown as SwcModule;
+    swcResolvedAt = Date.now();
+    // If we'd previously warned, surface a "now enabled" signal so the user
+    // knows their install was picked up.
+    if (swcWarned) {
+      swcWarned = false;
+      log.info('[hmr] React Fast Refresh enabled — @swc/core resolved.');
+    }
     return swcModule;
   } catch {
     swcModule = null;
+    swcResolvedAt = Date.now();
     if (!swcWarned) {
       swcWarned = true;
       log.warn(
@@ -172,5 +189,6 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
 /** @internal — reset SWC module cache for tests. */
 export function __resetSwcCache(): void {
   swcModule = undefined;
+  swcResolvedAt = 0;
   swcWarned = false;
 }

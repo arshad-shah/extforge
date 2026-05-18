@@ -320,7 +320,24 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       catch { log.warn('No incremental context — using full rebuilds'); buildCtx = null; }
 
       wss = new WebSocketServer({ port: resolvedPort, host });
-      wss.on('listening', () => log.success(`HMR server listening on ws://${host}:${resolvedPort}`));
+
+      // Race 'listening' vs 'error' so a TOCTOU port grab in the window
+      // between reservePort closing its probe and WebSocketServer binding
+      // properly rejects start() instead of leaving the caller with a
+      // non-functional server.
+      await new Promise<void>((resolve, reject) => {
+        const onListening = (): void => {
+          log.success(`HMR server listening on ws://${host}:${resolvedPort}`);
+          wss!.off('error', onError);
+          resolve();
+        };
+        const onError = (err: Error): void => {
+          wss!.off('listening', onListening);
+          reject(err);
+        };
+        wss!.once('listening', onListening);
+        wss!.once('error', onError);
+      });
       wss.on('connection', () => log.debug(`Client connected (${wss!.clients.size} total)`));
       wss.on('error', (err) => log.error(`WebSocket error: ${err.message}`));
 
@@ -365,7 +382,17 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       debouncer.flush();
       if (watcher) { await watcher.close(); watcher = null; }
       if (buildCtx) { await buildCtx.dispose(); buildCtx = null; }
-      if (wss) { wss.close(); wss = null; }
+      if (wss) {
+        const server = wss;
+        wss = null;
+        // Terminate open sockets so they don't keep the event loop alive
+        // after process.exit isn't called (e.g. tests). Then wait for the
+        // server's close callback so the listener is actually released.
+        for (const c of server.clients) {
+          try { c.terminate(); } catch { /* ignore */ }
+        }
+        await new Promise<void>((resolve) => server.close(() => resolve()));
+      }
       log.info('HMR server stopped');
     },
   };
