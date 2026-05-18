@@ -146,22 +146,37 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
   // Marker so the HMR client traverses Shadow trees for CSS hot-swap.
   host.setAttribute('data-extforge-shadow', '');
   if (opts.hostStyle) host.style.cssText = opts.hostStyle;
-  mountPoint.appendChild(host);
+  // If the host page returned a custom container that's already in the DOM,
+  // don't re-attach it. Otherwise we'd duplicate it under mountPoint.
+  if (!host.isConnected) mountPoint.appendChild(host);
 
-  const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
+  // Try to attach (or reuse) an open shadow root. If the host already has a
+  // CLOSED shadow root the page attached, host.shadowRoot is null and
+  // attachShadow throws NotSupportedError — fall back to rendering directly
+  // into the host element instead of crashing the mount.
+  let renderRoot: ShadowRoot | HTMLElement;
+  if (host.shadowRoot) {
+    renderRoot = host.shadowRoot;
+  } else {
+    try {
+      renderRoot = host.attachShadow({ mode: 'open' });
+    } catch {
+      renderRoot = host;
+    }
+  }
 
   if (opts.getStyle) {
     const css = await opts.getStyle();
     if (css) {
       const style = document.createElement('style');
       style.textContent = css;
-      shadow.appendChild(style);
+      renderRoot.appendChild(style);
     }
   }
 
   const inner = document.createElement('div');
   inner.dataset['extforgeCsuiRoot'] = '';
-  shadow.appendChild(inner);
+  renderRoot.appendChild(inner);
 
   const result = await descriptor.render(inner);
   const cleanup = typeof result === 'function' ? result : undefined;

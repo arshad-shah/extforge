@@ -239,16 +239,28 @@ function augmentManifestWithCSUI(
   if (discoveries.length === 0) return;
   const existing = (manifest['content_scripts'] as Array<Record<string, unknown>> | undefined) ?? [];
   const merged = [...existing];
+
+  // Index already-declared JS files so we don't re-emit a manifest entry for
+  // a CSUI that the user wired up explicitly in extforge.config.ts —
+  // otherwise Chrome runs the same content script twice.
+  const declaredJs = new Set<string>();
+  for (const entry of existing) {
+    const js = (entry as { js?: unknown }).js;
+    if (Array.isArray(js)) for (const p of js) if (typeof p === 'string') declaredJs.add(p);
+  }
+
   for (const c of discoveries) {
     if (!c.matches || c.matches.length === 0) {
       log.warn(`[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`);
       continue;
     }
+    if (declaredJs.has(c.outputJsPath)) continue; // already declared by user
     merged.push({
       matches: c.matches,
       js: [c.outputJsPath],
       run_at: c.runAt ?? 'document_idle',
     });
+    declaredJs.add(c.outputJsPath);
   }
   if (merged.length > 0) manifest['content_scripts'] = merged;
 }
