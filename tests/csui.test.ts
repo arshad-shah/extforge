@@ -57,6 +57,25 @@ describe('discovery: extractRunAt', () => {
   it('returns undefined for invalid values', () => {
     expect(extractRunAt(`defineCSUI({ runAt: 'whenever' }, () => {})`)).toBeUndefined();
   });
+  it('ignores a `runAt:` declared OUTSIDE the defineCSUI options literal', () => {
+    // A helper constant declared elsewhere in the file used to win
+    // because the regex matched the first `runAt:` anywhere in the source.
+    const src = `
+      const runAt = 'document_end';
+      const helper = { runAt: 'document_end' };
+      export default defineCSUI({ matches: ['<all_urls>'] }, () => {});
+    `;
+    expect(extractRunAt(src)).toBeUndefined();
+  });
+  it('reads the outer runAt even when a nested object also has one', () => {
+    const src = `
+      defineCSUI({
+        router: { runAt: 'document_end' },
+        runAt: 'document_start',
+      }, () => {});
+    `;
+    expect(extractRunAt(src)).toBe('document_start');
+  });
 });
 
 describe('discovery: discoverCSUI', () => {

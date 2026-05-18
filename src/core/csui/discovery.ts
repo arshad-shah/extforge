@@ -151,15 +151,48 @@ export function extractMatches(source: string): string[] | undefined {
 }
 
 /**
- * Extract `runAt: '...'` string literal.
+ * Extract `runAt: '...'` from the OUTER options object passed to
+ * `defineCSUI({ ... })`. Like `extractMatches`, only the top-level key
+ * at brace depth 1 wins — a helper module's `const runAt = 'document_end'`
+ * declared elsewhere in the file is ignored.
  */
 export function extractRunAt(source: string): CSUIDiscovery['runAt'] | undefined {
   const stripped = stripStringsAndComments(source);
-  const re = /\brunAt\s*:\s*['"]([^'"]+)['"]/;
-  const m = re.exec(stripped);
-  if (!m) return undefined;
-  const v = m[1];
-  if (v === 'document_start' || v === 'document_end' || v === 'document_idle') return v;
+  const callRe = /\bdefineCSUI\s*\(/g;
+  const callMatch = callRe.exec(stripped);
+  if (!callMatch) return undefined;
+  let i = callMatch.index + callMatch[0].length;
+  while (i < stripped.length && /\s/.test(stripped[i]!)) i++;
+  if (stripped[i] !== '{') return undefined;
+  const optsStart = i;
+
+  let depth = 0;
+  for (; i < stripped.length; i++) {
+    const c = stripped[i]!;
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) break; }
+    else if (depth === 1 && c === 'r' && stripped.startsWith('runAt', i)) {
+      let p = i - 1;
+      while (p >= optsStart && /\s/.test(stripped[p]!)) p--;
+      const isKeyStart = p < optsStart || stripped[p] === '{' || stripped[p] === ',';
+      if (!isKeyStart) continue;
+      let q = i + 'runAt'.length;
+      while (q < stripped.length && /\s/.test(stripped[q]!)) q++;
+      if (stripped[q] !== ':') continue;
+      // Scan to the quoted string literal value — read from the ORIGINAL
+      // source so we get the real characters, not the spaces stripped left
+      // behind by stripStringsAndComments.
+      let r = q + 1;
+      while (r < source.length && /\s/.test(source[r]!)) r++;
+      const quote = source[r];
+      if (quote !== '"' && quote !== "'" && quote !== '`') return undefined;
+      const end = source.indexOf(quote, r + 1);
+      if (end === -1) return undefined;
+      const v = source.slice(r + 1, end);
+      if (v === 'document_start' || v === 'document_end' || v === 'document_idle') return v;
+      return undefined;
+    }
+  }
   return undefined;
 }
 
