@@ -31,6 +31,21 @@ export type WatchHandler<T = unknown> = (newValue: T | undefined, oldValue: T | 
 export type WatchHandlers = Record<string, WatchHandler>;
 export type Unwatch = () => void;
 
+/**
+ * Thrown by `Storage.set` (localStorage fallback) when the underlying
+ * `setItem` rejects for quota reasons. `cause` is the original
+ * DOMException so callers can inspect it if needed.
+ */
+export class StorageQuotaExceededError extends Error {
+  override readonly name = 'StorageQuotaExceededError';
+  readonly key: string;
+  constructor(key: string, cause?: unknown) {
+    super(`extforge/storage: quota exceeded writing ${JSON.stringify(key)} to localStorage`);
+    this.key = key;
+    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
+}
+
 interface ChromeChange {
   oldValue?: unknown;
   newValue?: unknown;
@@ -111,7 +126,20 @@ export class Storage {
       // round-trips as `{ a: 1 }` because `get` JSON.parses unconditionally.
       const raw = JSON.stringify(value);
       const oldRaw = globalThis.localStorage.getItem(k);
-      globalThis.localStorage.setItem(k, raw);
+      try {
+        globalThis.localStorage.setItem(k, raw);
+      } catch (err) {
+        // localStorage.setItem throws QuotaExceededError (DOMException name
+        // varies by browser) when over the per-origin quota. Surface a
+        // typed error so callers can decide whether to evict / warn /
+        // fall through, rather than a raw DOMException with a confusing
+        // call site.
+        const name = (err as { name?: string })?.name ?? '';
+        if (/Quota/i.test(name) || /QuotaExceeded/i.test(String(err))) {
+          throw new StorageQuotaExceededError(k, err);
+        }
+        throw err;
+      }
       this.fallbackEvents.dispatchEvent(new CustomEvent('change', {
         detail: { key: k, newValue: value, oldValue: oldRaw !== null ? safeJSON(oldRaw) : undefined },
       }));

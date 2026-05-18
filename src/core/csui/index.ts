@@ -58,6 +58,25 @@ export interface CSUIOptions {
    * Run-at timing forwarded to the manifest entry. Default: `'document_idle'`.
    */
   runAt?: 'document_start' | 'document_end' | 'document_idle';
+  /**
+   * Opt-in: watch for SPA navigations / DOM replacements that would orphan
+   * the mounted host. When the configured trigger fires, the previous
+   * mount is torn down (cleanup is invoked, host is removed) and the
+   * descriptor is mounted again — useful for client-side routers that
+   * replace `document.documentElement` or the chosen `getMountPoint()`
+   * subtree.
+   *
+   * - `'navigation'` (default off): listens for `pushState`/`replaceState`
+   *   and `popstate` and remounts after each.
+   * - `'mutation'`: observes the mount point and remounts whenever the
+   *   host element is removed from the tree.
+   * - A function: a custom subscriber. Called with a remount callback;
+   *   must return an unsubscribe function.
+   */
+  remountOn?:
+    | 'navigation'
+    | 'mutation'
+    | ((remount: () => void) => () => void);
 }
 
 export interface CSUIDescriptor<TRender = (root: Element) => void | (() => void)> {
@@ -110,9 +129,68 @@ export function defineCSUI(options: CSUIOptions, render: Renderer): CSUIDescript
 interface ActiveMount {
   host: HTMLElement;
   cleanup?: () => void;
+  /** Unsubscribe the SPA / mutation-observer trigger, if any. */
+  unwatchRemount?: () => void;
 }
 
 const ACTIVE: Map<string, ActiveMount> = new Map();
+
+/**
+ * Wire up the `remountOn` trigger and return an unsubscribe function.
+ * Returns a no-op when `remountOn` is undefined or the browser doesn't
+ * support the requested mechanism.
+ */
+function subscribeRemount(
+  trigger: CSUIOptions['remountOn'],
+  mountPoint: Element,
+  host: HTMLElement,
+  remount: () => void,
+): () => void {
+  if (!trigger) return () => {};
+  if (typeof trigger === 'function') {
+    try { return trigger(remount); } catch { return () => {}; }
+  }
+  if (trigger === 'navigation') {
+    // Patch history methods + listen to popstate. Coalesce rapid calls
+    // (a router that fires both pushState and a custom event) into one
+    // remount via a microtask flag.
+    if (typeof window === 'undefined' || !window.history) return () => {};
+    let scheduled = false;
+    const fire = (): void => {
+      if (scheduled) return;
+      scheduled = true;
+      queueMicrotask(() => { scheduled = false; remount(); });
+    };
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+    history.pushState = function (...args: Parameters<typeof origPush>): ReturnType<typeof origPush> {
+      const r = origPush.apply(this, args);
+      fire();
+      return r;
+    };
+    history.replaceState = function (...args: Parameters<typeof origReplace>): ReturnType<typeof origReplace> {
+      const r = origReplace.apply(this, args);
+      fire();
+      return r;
+    };
+    const onPop = (): void => fire();
+    window.addEventListener('popstate', onPop);
+    return () => {
+      history.pushState = origPush;
+      history.replaceState = origReplace;
+      window.removeEventListener('popstate', onPop);
+    };
+  }
+  if (trigger === 'mutation') {
+    if (typeof MutationObserver === 'undefined') return () => {};
+    const obs = new MutationObserver(() => {
+      if (!host.isConnected) remount();
+    });
+    obs.observe(mountPoint, { childList: true, subtree: false });
+    return () => obs.disconnect();
+  }
+  return () => {};
+}
 
 /**
  * Mount (or remount) a CSUI descriptor. Idempotent per `id` — calling twice
@@ -127,6 +205,7 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
   // Existing mount with the same id? Tear it down first.
   const prev = ACTIVE.get(id);
   if (prev) {
+    try { prev.unwatchRemount?.(); } catch { /* swallow */ }
     try { prev.cleanup?.(); } catch { /* swallow */ }
     prev.host.remove();
     ACTIVE.delete(id);
@@ -181,11 +260,21 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
   const result = await descriptor.render(inner);
   const cleanup = typeof result === 'function' ? result : undefined;
 
-  ACTIVE.set(id, { host, cleanup });
+  // Wire the SPA/mutation trigger AFTER the mount succeeds so the
+  // remount callback doesn't fire during the initial render.
+  const unwatchRemount = subscribeRemount(
+    opts.remountOn,
+    mountPoint,
+    host,
+    () => { void mountCSUI(descriptor); },
+  );
+
+  ACTIVE.set(id, { host, cleanup, unwatchRemount });
 
   return () => {
     const cur = ACTIVE.get(id);
     if (!cur) return;
+    try { cur.unwatchRemount?.(); } catch { /* swallow */ }
     try { cur.cleanup?.(); } catch { /* swallow */ }
     cur.host.remove();
     ACTIVE.delete(id);
@@ -194,7 +283,8 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
 
 /** @internal — clears all active mounts. Used by tests. */
 export function __resetCSUI(): void {
-  for (const { host, cleanup } of ACTIVE.values()) {
+  for (const { host, cleanup, unwatchRemount } of ACTIVE.values()) {
+    try { unwatchRemount?.(); } catch { /* ignore */ }
     try { cleanup?.(); } catch { /* ignore */ }
     try { host.remove(); } catch { /* ignore */ }
   }

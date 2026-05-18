@@ -57,10 +57,14 @@ export async function loadExtForgeConfig(
     if (process.env['EXTFORGE_STRICT_CONFIG'] === '1' || (overrides as { _strictConfig?: boolean })?._strictConfig) {
       throw err;
     }
+    // Non-strict: warn loudly. Plugins downstream will receive `merged`
+    // (the unvalidated config) — they're free to defensively pick the
+    // fields they care about. The transition to errors in v0.4.0 is
+    // announced in the warning so users have time to migrate.
     const log = createLogger({ scope: 'config' });
     log.warn('Config validation warnings:');
     log.warn(err.message);
-    log.warn('These warnings will become errors in v0.4.0.');
+    log.warn('These warnings will become errors in v0.4.0. Set EXTFORGE_STRICT_CONFIG=1 to fail fast today.');
   }
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));

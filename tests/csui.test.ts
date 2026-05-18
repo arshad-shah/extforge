@@ -149,6 +149,20 @@ describe('mountCSUI', () => {
     expect(cleaned).toBe(true);
   });
 
+  it.runIf(typeof document !== 'undefined')('remounts on history.pushState when remountOn: "navigation"', async () => {
+    let mounts = 0;
+    await mountCSUI(defineCSUI({
+      id: 'spa', remountOn: 'navigation',
+    }, () => { mounts++; }));
+    expect(mounts).toBe(1);
+    history.pushState({}, '', '/route-b');
+    // Remount is scheduled via queueMicrotask + mountCSUI is async.
+    await Promise.resolve();
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mounts).toBeGreaterThanOrEqual(2);
+  });
+
   it.runIf(typeof document !== 'undefined')('mounts when the host page already attached a closed shadow root', async () => {
     // Simulate a host page that gave us a custom container whose page-side
     // shadow is closed (host.shadowRoot is null, attachShadow throws

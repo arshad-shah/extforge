@@ -190,6 +190,18 @@ describe('Storage (localStorage fallback)', () => {
     expect(await s.get('arr')).toBe('[1, 2, 3]');
   });
 
+  it('throws StorageQuotaExceededError when localStorage.setItem rejects on quota', async () => {
+    const { Storage: S, StorageQuotaExceededError } = await import('../src/core/storage/index.js');
+    // Override setItem to throw a DOMException-shaped error like real browsers do.
+    (globalThis as { localStorage: { setItem: (...a: unknown[]) => void } }).localStorage.setItem = () => {
+      const err = new Error('Quota exceeded') as Error & { name: string };
+      err.name = 'QuotaExceededError';
+      throw err;
+    };
+    const s = new S();
+    await expect(s.set('big', 'x'.repeat(100))).rejects.toThrow(StorageQuotaExceededError);
+  });
+
   it('clear() with namespace only removes namespaced keys', async () => {
     const ns = new Storage({ namespace: 'app' });
     const all = new Storage();
