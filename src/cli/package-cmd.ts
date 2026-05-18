@@ -5,6 +5,7 @@
 
 import { spawnSync } from 'node:child_process';
 import type { Logger } from '../core/logger/index.js';
+import { writeZip } from './zip-writer.js';
 
 const SAFE_FILENAME_RE = /[^a-zA-Z0-9._-]/g;
 
@@ -31,17 +32,34 @@ export interface PackageBrowserOptions {
   /** Absolute path of the archive to create. */
   archive: string;
   log: Logger;
+  /**
+   * Force a specific implementation. Defaults to `'auto'` — try the
+   * system `zip` first, fall back to the pure-JS writer when the binary
+   * isn't installed. Tests can pin this to `'js'` to get
+   * platform-independent behaviour.
+   */
+  impl?: 'auto' | 'system' | 'js';
 }
 
 /**
- * Zip the contents of `dist` into `archive`. Uses `spawnSync` with an argv
- * array — no shell — so neither `dist` nor `archive` can be interpreted as
- * a shell command, regardless of metacharacters in the path.
+ * Zip the contents of `dist` into `archive`. Prefers the system `zip`
+ * binary (faster, well-tested); falls back to a pure-Node implementation
+ * when it's not present (typical on Windows). Both paths use `spawnSync`
+ * with argv arrays — no shell — so paths with metacharacters can't be
+ * interpreted as shell commands regardless of impl.
  */
 export async function packageBrowser(opts: PackageBrowserOptions): Promise<void> {
-  const { dist, archive, log } = opts;
+  const { dist, archive, log, impl = 'auto' } = opts;
+
+  if (impl === 'js') {
+    writeZip(dist, archive);
+    return;
+  }
+
   // `-r .` zips the directory contents rather than a top-level `./` prefix.
-  const result = spawnSync('zip', ['-r', archive, '.'], {
+  // -X strips OS-specific extra fields so the output is reproducible
+  // enough for CI artefact diffing.
+  const result = spawnSync('zip', ['-rX', archive, '.'], {
     cwd: dist,
     stdio: 'pipe',
     shell: false,
@@ -49,8 +67,13 @@ export async function packageBrowser(opts: PackageBrowserOptions): Promise<void>
   if (result.error) {
     const code = (result.error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') {
-      log.error('The `zip` command was not found. Install it (e.g. apt-get install zip) or use a JS-based packager.');
-      throw result.error;
+      if (impl === 'system') {
+        log.error('The `zip` command was not found. Install it (e.g. apt-get install zip).');
+        throw result.error;
+      }
+      log.debug('zip binary not found — using pure-JS writer');
+      writeZip(dist, archive);
+      return;
     }
     throw result.error;
   }

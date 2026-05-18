@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { archiveFilename, packageBrowser } from '../src/cli/package-cmd.js';
@@ -56,5 +56,19 @@ describe('packageBrowser', () => {
     await packageBrowser({ dist, archive, log }).catch(() => { /* zip may not be installed */ });
 
     expect(existsSync(sentinel)).toBe(false);
+  });
+
+  it('uses the JS fallback when impl:"js" is forced — produces a valid archive without the zip binary', async () => {
+    const dist = join(tmp, 'dist', 'chrome');
+    mkdirSync(dist, { recursive: true });
+    writeFileSync(join(dist, 'manifest.json'), '{"name":"x"}');
+    const pkgDir = join(tmp, 'packages');
+    mkdirSync(pkgDir);
+    const archive = join(pkgDir, 'out.zip');
+
+    await packageBrowser({ dist, archive, log, impl: 'js' });
+    expect(existsSync(archive)).toBe(true);
+    const buf = readFileSync(archive);
+    expect(buf.readUInt32LE(0)).toBe(0x04034b50);
   });
 });

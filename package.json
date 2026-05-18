@@ -63,6 +63,7 @@
     "format": "prettier --write 'src/**/*.ts'",
     "typecheck": "tsc --noEmit",
     "compat:rebuild": "tsx src/core/compat/build-data.ts",
+    "compat:check-freshness": "tsx scripts/check-bcd-freshness.ts",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",

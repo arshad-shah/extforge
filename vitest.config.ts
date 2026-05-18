@@ -19,6 +19,16 @@ export default defineConfig({
         // One-shot scripts.
         'src/core/compat/build-data.ts',
       ],
+      // Floors — slightly below the current measured baseline (lines
+      // 75.25, branches 77.26, functions 82.72, statements 75.25 as of
+      // the audit-fix branch). CI fails if a future change drops below;
+      // raise these as coverage climbs.
+      thresholds: {
+        lines: 70,
+        branches: 70,
+        functions: 75,
+        statements: 70,
+      },
     },
     // Run test files sequentially across processes. Several HMR tests
     // (hmr-reserve-port, anything that binds a port) would otherwise
