@@ -38,6 +38,38 @@ export interface BuildOptions {
   _skipCompatScan?: boolean;
 }
 
+// Recursively collect TypeScript/JavaScript sources under a directory so the
+// compat scan covers imported helpers, not just top-level entry files.
+// Skip dependencies, build outputs, and other directories that shouldn't
+// contribute to the user's compat surface.
+const COMPAT_SOURCE_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs']);
+const COMPAT_SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', '.cache']);
+const COMPAT_MAX_FILES = 2000;
+
+function walkCompatSources(root: string, limit: number = COMPAT_MAX_FILES): string[] {
+  const out: string[] = [];
+  const stack = [root];
+  while (stack.length && out.length < limit) {
+    const dir = stack.pop()!;
+    let entries: import('node:fs').Dirent[];
+    try { entries = readdirSync(dir, { withFileTypes: true }); }
+    catch { continue; }
+    for (const ent of entries) {
+      if (out.length >= limit) break;
+      const full = join(dir, ent.name);
+      if (ent.isDirectory()) {
+        if (!COMPAT_SKIP_DIRS.has(ent.name)) stack.push(full);
+        continue;
+      }
+      if (!ent.isFile()) continue;
+      const dot = ent.name.lastIndexOf('.');
+      const ext = dot >= 0 ? ent.name.slice(dot) : '';
+      if (COMPAT_SOURCE_EXTS.has(ext)) out.push(full);
+    }
+  }
+  return out;
+}
+
 function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
   if (!opts.dev || !opts.hmrPort) return undefined;
   const client = loadTemplate('hmr-client.js.tpl', {
@@ -383,15 +415,16 @@ export async function build(
   // Skipped when called from buildAll, which runs the scan once for all browsers.
   if (!opts._skipCompatScan) {
     const compatBrowsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
-    const allEntryFiles = [
-      ...Object.values(esmEntries),
-      ...Object.values(iifeEntries),
-    ];
+    // Walk the configured src directory so chrome.* calls in helper modules
+    // imported by entries are inspected too, not just the entry files
+    // themselves. The walker keeps a sane cap to avoid pathological repos.
+    const srcDir = resolve(root, config.build?.srcDir ?? 'src');
+    const allFiles = existsSync(srcDir) ? walkCompatSources(srcDir) : [];
     const allIssues: CompatIssue[] = [];
-    for (const entryFile of allEntryFiles) {
+    for (const file of allFiles) {
       try {
-        const src = readFileSync(entryFile, 'utf8');
-        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers: compatBrowsers }));
+        const src = readFileSync(file, 'utf8');
+        allIssues.push(...checkSourceCompat({ source: src, file, browsers: compatBrowsers }));
       } catch { /* ignore unreadable files */ }
     }
     if (allIssues.length > 0) {
