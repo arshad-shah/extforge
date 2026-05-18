@@ -92,10 +92,10 @@ describe('applyV3Update', () => {
       type: 'hmr-update',
       timestamp: Date.now(),
       updates: [
-        { id: 'a', hash: 'h1', chunkUrl: 'https://stub/a.js' },
-        { id: 'b', hash: 'h2', chunkUrl: 'https://stub/b.js' },
+        { id: 'a', hash: 'h1', file: 'ui/popup/index.js' },
+        { id: 'b', hash: 'h2', file: 'ui/options/index.js' },
       ],
-    }, async (url) => ({ default: () => ({ url }) }));
+    }, async (file) => ({ default: () => ({ file }) }));
     expect(ok).toBe(true);
   });
 
@@ -106,7 +106,7 @@ describe('applyV3Update', () => {
       v: 3,
       type: 'hmr-update',
       timestamp: Date.now(),
-      updates: [{ id: 'a', hash: 'h', chunkUrl: 'x' }],
+      updates: [{ id: 'a', hash: 'h', file: 'ui/popup/index.js' }],
     }, async () => ({ default: () => ({}) }));
     expect(ok).toBe(false);
   });
@@ -120,5 +120,23 @@ describe('applyV3Update', () => {
       updates: [],
     }, async () => ({ default: () => ({}) }));
     expect(ok).toBe(true);
+  });
+
+  it('passes the server-emitted `file` field through to the fetcher', async () => {
+    // Locks in the wire-shape contract with src/core/hmr/index.ts which
+    // emits `{ id, hash, file }`. Regression test for the old runtime
+    // mismatch where it read `chunkUrl`.
+    const rt = createHMRRuntime();
+    const hot = rt.register('m', {});
+    hot.accept(() => {});
+    const seen: string[] = [];
+    const ok = await applyV3Update(rt, {
+      v: 3,
+      type: 'hmr-update',
+      timestamp: 0,
+      updates: [{ id: 'm', hash: 'h', file: 'ui/popup/index.js' }],
+    }, async (file) => { seen.push(file); return { default: () => ({}) }; });
+    expect(ok).toBe(true);
+    expect(seen).toEqual(['ui/popup/index.js']);
   });
 });
