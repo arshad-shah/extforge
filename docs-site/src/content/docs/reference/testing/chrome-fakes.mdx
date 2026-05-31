@@ -256,3 +256,16 @@ const extendedChrome = {
 <Aside type="tip">
 The trap is a Proxy on the fake's `chrome` sub-object. It only fires on property access, not on `'prop' in chrome.ns` checks. Use `typeof chrome.ns.method !== 'undefined'` guards to detect the fake in shared code.
 </Aside>
+
+## Exports
+
+`extforge/testing` exports the installer plus a factory and a type per namespace.
+
+| Export | Kind | Notes |
+|---|---|---|
+| `installChromeFakes()` | function | Install a fresh `ChromeFakes` on `globalThis.chrome`. Returns the handle. |
+| `resetChromeFakes()` | function | Reset state on the currently installed fakes (per-test cleanup). |
+| `createChromeFakes()` | function | Build a `ChromeFakes` handle without touching globals. |
+| `createRuntimeFake()` · `createStorageFake()` · `createTabsFake()` · `createActionFake()` · `createScriptingFake()` | functions | Per-namespace factories (see each section above). |
+| `ChromeFakes` | type | The aggregate handle returned by `installChromeFakes` / `createChromeFakes`. |
+| `RuntimeFake` · `StorageFake` · `StorageAreaFake` · `TabsFake` · `TabRecord` · `ActionFake` · `ScriptingFake` · `ExecuteScriptInjection` | types | Handles and record shapes for the individual namespace fakes. |

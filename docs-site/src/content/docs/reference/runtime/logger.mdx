@@ -63,6 +63,8 @@ Format placeholders match Node's `util.format`: `%s`, `%d`, `%o`, `%j`.
 
 `child(scope, overrides?)` inherits the parent's level and transports unless you pass `overrides` (a `Partial<LoggerOptions>`). The new scope is appended to the parent's, so a child of an `extforge`-scoped logger named `manifest` logs under `extforge:manifest`.
 
+The CLI also uses a handful of presentation helpers on the same logger — `banner()`, `group()`, `step(n, total, msg)`, `summary(title, rows)`, `file()`, and `hmr()`. They format ExtForge's own console output; plugin authors rarely need them, but they're available on every `Logger` instance.
+
 ## Transports
 
 A transport is `(entry: LogEntry) => void`. The default transport is a human-formatted writer with ANSI colour. To capture structured output (for CI, log aggregators, or tests):

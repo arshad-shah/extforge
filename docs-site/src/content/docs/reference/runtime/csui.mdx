@@ -108,3 +108,13 @@ The builder uses a string-aware regex pass (no AST parser) to read the `matches:
 defineCSUI({ matches: process.env.MATCHES.split(',') }, ...) // ⚠ won't extract — declare in config
 defineCSUI({ matches: ['https://example.com/*'] },     ...) // ✅ extracted
 ```
+
+## Exports
+
+| Export | Kind | Notes |
+|---|---|---|
+| `defineCSUI(options, render)` | function | Declare a content-script UI. Default-export it from a `*.csui.tsx` file for auto-discovery. |
+| `mountCSUI(descriptor)` | function | Manually mount a descriptor (see above). |
+| `CSUIOptions` | interface | `matches`, plus mount/style options passed to `defineCSUI`. |
+| `CSUIDescriptor<TRender>` | interface | The object returned by `defineCSUI` and consumed by the runtime / `mountCSUI`. |
+| `Renderer` | type | `(root: Element) => void \| (() => void) \| Promise<…>` — your mount function; an optional returned callback runs on unmount. |

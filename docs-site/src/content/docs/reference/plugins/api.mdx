@@ -5,6 +5,21 @@ description: Every type you need to write an ExtForge plugin.
 
 ExtForge plugins are TypeScript objects implementing `ExtForgePluginV1`. They register hooks during `setup()` and the runner fires those hooks at well-defined points in the build.
 
+## Module exports
+
+`extforge/plugins` exports:
+
+| Export | Kind | Notes |
+|---|---|---|
+| `presetReact` | function | The first-party React preset. See [presetReact](/reference/plugins/preset-react/). |
+| `PresetReactOptions` | type | Options accepted by `presetReact()`. |
+| `ExtForgePluginV1` | interface | The modern plugin shape (`apiVersion: 1`). Documented below. |
+| `ExtForgePluginLegacy` | interface | The pre-v1 plugin shape, still accepted. Documented below. |
+| `ExtForgePlugin` | type | Union of `ExtForgePluginV1 | ExtForgePluginLegacy`. |
+| `PluginContext`, `PluginHooks`, `EntryDescriptor` | interfaces | The context, hook registry, and entry descriptor. Documented below. |
+| `ManifestObject` | type | `Record<string, unknown>` — the untyped manifest passed to `onManifestTransform`. |
+| `PluginRunner` | class | The engine that loads plugins and fires hooks. Exported for advanced/test use; most plugins never touch it. |
+
 ### `EntryDescriptor`
 Describes a single entry point to be bundled by esbuild.
 

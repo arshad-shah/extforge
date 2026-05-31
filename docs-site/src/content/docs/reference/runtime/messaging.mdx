@@ -114,3 +114,20 @@ Replies:
 ```
 
 Foreign messages (no `__extforge: 'msg'`) are silently passed through. ExtForge never swallows messages it doesn't recognize.
+
+## Exports
+
+| Export | Kind | Notes |
+|---|---|---|
+| `defineHandler(route, handler)` | function | Register a handler for a route in `MessageMap`. |
+| `setupMessaging()` | function | Install the single `chrome.runtime.onMessage` listener that dispatches to handlers. Call once per context. |
+| `sendMessage(route, req)` | function | Send a typed request and await the typed response. |
+| `sendMessageToTab(tabId, route, req)` | function | Like `sendMessage`, but targets a specific tab. |
+| `openPort(channel)` | function | Open a typed long-lived `PortChannel`. |
+| `onPort(channel, cb)` | function | Accept incoming port connections on a channel. |
+| `MessageMap` | interface | Augmentable map of `route → { req; res }`. Declare your routes here. |
+| `MessageEnvelope<R>` | interface | The wire shape of a request (`{ __extforge: 'msg', route, payload }`). |
+| `PortEnvelope` | interface | The wire shape of a port message. |
+| `PortChannel<TIn, TOut>` | interface | The object returned by `openPort` (`post` / `onMessage` / `onDisconnect` / `close`). |
+| `Sender` | type | Alias for `chrome.runtime.MessageSender`, passed to handlers. |
+| `Handler<R>` | type | `(req, sender) => res \| Promise<res>` for route `R`. |
