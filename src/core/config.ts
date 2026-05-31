@@ -2,8 +2,9 @@
  * ExtForge Configuration
  */
 
-import { loadConfigFile, mergeConfig } from './config/loader.js';
-import type { z } from 'zod';
+import { loadConfig, objectSource, configFileSource } from '@arshad-shah/config-kit';
+import { loadConfigModule, resolveConfigFile, CONFIG_EXTENSIONS } from './config/loader.js';
+import type { z, ZodError } from 'zod';
 import type { ManifestConfig } from './manifest/index.js';
 import { extForgeConfigSchema } from './config/schema.js';
 import { formatZodError } from './config/format-errors.js';
@@ -42,34 +43,52 @@ export async function loadExtForgeConfig(
   cwd: string = process.cwd(),
   overrides?: Partial<ExtForgeConfig>,
 ): Promise<ExtForgeConfig> {
-  const { config: loaded, configFile } = await loadConfigFile<ExtForgeConfig>({
-    name: 'extforge',
-    cwd,
-    defaults: DEFAULT_CONFIG,
+  // v1: config validation failures are hard errors by default. The opt-out
+  // (`EXTFORGE_STRICT_CONFIG=0`) downgrades to a warning for users still
+  // migrating; the internal `_strictConfig` override always forces strict.
+  const forcedStrict = (overrides as { _strictConfig?: boolean })?._strictConfig === true;
+  const optedOut = process.env['EXTFORGE_STRICT_CONFIG'] === '0' && !forcedStrict;
+
+  // Resolved only so a validation error can cite the file; config-kit's
+  // configFileSource does its own discovery for loading.
+  const configFile = resolveConfigFile(cwd, 'extforge');
+
+  // Keep the internal strict flag out of the merged config object.
+  const cleanOverrides = overrides ? { ...overrides } : undefined;
+  if (cleanOverrides) delete (cleanOverrides as { _strictConfig?: boolean })._strictConfig;
+
+  const log = createLogger({ scope: 'config' });
+  // Adapt ExtForge's logger to config-kit's structural ConfigLogger (whose
+  // `error` also accepts an Error).
+  const cfgLogger = {
+    // config-kit emits a per-source "Loaded source" diagnostic at info; that's
+    // debug-level detail for ExtForge, so it only shows under --verbose.
+    info: (m: string, c?: Record<string, unknown>) => log.debug(m, c),
+    warn: (m: string, c?: Record<string, unknown>) => log.warn(m, c),
+    error: (m: string | Error, c?: Record<string, unknown>) => log.error(m instanceof Error ? m.message : m, c),
+  };
+
+  // config-kit owns discovery, deep-merge (defaults < file < overrides), and
+  // validation. ExtForge supplies the schema, the TS-aware module loader, and
+  // the strict/warn policy.
+  const merged = await loadConfig<ExtForgeConfig>({
+    schema: extForgeConfigSchema as unknown as { parse: (input: unknown) => ExtForgeConfig },
+    sources: [
+      objectSource(DEFAULT_CONFIG as Record<string, unknown>),
+      configFileSource({
+        name: 'extforge',
+        cwd,
+        extensions: [...CONFIG_EXTENSIONS],
+        searchParents: false,
+        load: (file) => loadConfigModule(file, cwd),
+      }),
+      ...(cleanOverrides ? [objectSource(cleanOverrides as Record<string, unknown>)] : []),
+    ],
+    mode: optedOut ? 'warn' : 'strict',
+    logger: cfgLogger,
+    onValidationError: (err) => formatZodError(err as ZodError, configFile),
   });
-  // Overrides win over file-loaded values. Deep-merge nested objects so a
-  // partial override (e.g. `{ dev: { port: 9000 } }`) doesn't drop the
-  // siblings that came from defaults / the config file.
-  const merged: ExtForgeConfig = mergeConfig(loaded, overrides);
-  const parsed = extForgeConfigSchema.safeParse(merged);
-  if (!parsed.success) {
-    const err = formatZodError(parsed.error, configFile);
-    // v1: config validation failures are hard errors by default. The opt-out
-    // (`EXTFORGE_STRICT_CONFIG=0`) downgrades to a warning for users still
-    // migrating; the internal `_strictConfig` override always forces strict.
-    const forcedStrict = (overrides as { _strictConfig?: boolean })?._strictConfig === true;
-    const optedOut = process.env['EXTFORGE_STRICT_CONFIG'] === '0' && !forcedStrict;
-    if (!optedOut) {
-      throw err;
-    }
-    // Opted out: warn loudly but continue. Plugins downstream receive `merged`
-    // (the unvalidated config) — they're free to defensively pick the fields
-    // they care about.
-    const log = createLogger({ scope: 'config' });
-    log.warn('Config validation warnings:');
-    log.warn(err.message);
-    log.warn('Continuing because EXTFORGE_STRICT_CONFIG=0. Unset it to fail fast on invalid config.');
-  }
+
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));
   }

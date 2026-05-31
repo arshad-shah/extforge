@@ -53,7 +53,7 @@ describe('Config System', () => {
         loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
       ).resolves.toBeDefined();
       const all = writeSpy.mock.calls.map((c) => String(c[0])).join('');
-      expect(all).toContain('Config validation warnings');
+      expect(all).toContain('extforge.config is invalid');
       writeSpy.mockRestore();
     });
   });

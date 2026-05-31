@@ -10,6 +10,7 @@ import {
   createLogger as createLkLogger,
   type Logger as LkLogger,
   type LogLevel as LkLogLevel,
+  type LogRecord as LkLogRecord,
   type Transport as LkTransport,
 } from '@arshad-shah/log-kit';
 
@@ -149,15 +150,16 @@ const consoleTransport: LogTransport = (entry: LogEntry) => {
 
 // ─── log-kit bridge ───────────────────────────────────────────────────────────
 // ExtForge's logger is reimplemented on top of @arshad-shah/log-kit: log-kit
-// owns the record fan-out (with per-transport failure isolation + an
-// onTransportError diagnostic channel), while ExtForge keeps its richer level
-// model, scope-string children, terminal presentation, and JSON shape.
+// owns record fan-out (with per-transport failure isolation + an
+// onTransportError diagnostic channel) and the native record fields ExtForge
+// needs — `scope` (hierarchical), `kind` (presentation tag), `args`, and
+// epoch-ms `timestamp`. ExtForge keeps its richer level model (Success), its
+// terminal presentation, and its public `LogEntry` / `jsonTransport` shape.
 //
-// Each ExtForge `LogTransport` is wrapped as a log-kit `Transport` that pulls
-// the original `LogEntry` back out of the record context, so the public
-// transport contract (and `jsonTransport`'s output) is byte-for-byte unchanged.
-
-const EF_ENTRY_KEY = '__extforgeEntry';
+// Each ExtForge `LogTransport` is wrapped as a log-kit `Transport`; the wrapper
+// rebuilds the original `LogEntry` from the record's native fields, so the
+// public transport contract is byte-for-byte unchanged. `duration` is the one
+// ExtForge-specific field log-kit has no slot for, so it rides in `meta`.
 
 function efLevelToLk(level: LogLevel): LkLogLevel {
   switch (level) {
@@ -169,21 +171,45 @@ function efLevelToLk(level: LogLevel): LkLogLevel {
   }
 }
 
-function toLkTransport(t: LogTransport, index: number): LkTransport {
+function lkLevelToEf(level: LkLogLevel): LogLevel {
+  switch (level) {
+    case 'error':
+    case 'fatal': return LogLevel.Error;
+    case 'warn':  return LogLevel.Warn;
+    case 'debug': return LogLevel.Debug;
+    case 'trace': return LogLevel.Trace;
+    default:      return LogLevel.Info;
+  }
+}
+
+function recordToEntry(record: LkLogRecord): LogEntry {
   return {
-    name: `extforge:${index}`,
-    write(record) {
-      const entry = (record.context as { [EF_ENTRY_KEY]?: LogEntry })[EF_ENTRY_KEY];
-      if (entry) t(entry);
-    },
+    // `kind: 'success'` is how dispatch() preserves the Success level, which
+    // collapses to log-kit's `info` on the level axis.
+    level: record.kind === 'success' ? LogLevel.Success : lkLevelToEf(record.level),
+    scope: record.scope ?? '',
+    message: record.message,
+    args: record.args ?? [],
+    timestamp: typeof record.timestamp === 'number' ? record.timestamp : Date.parse(record.timestamp),
+    duration: (record.meta as { duration?: number } | undefined)?.duration,
   };
 }
 
-function buildLkLogger(transports: LogTransport[]): LkLogger {
+function toLkTransport(t: LogTransport, index: number): LkTransport {
+  return {
+    name: `extforge:${index}`,
+    write(record) { t(recordToEntry(record)); },
+  };
+}
+
+function buildLkLogger(scope: string, transports: LogTransport[]): LkLogger {
   return createLkLogger({
     // ExtForge applies its own level gate before dispatch (see `emit`), so the
-    // backing logger must pass everything through to the wrapped transports.
+    // backing logger passes everything through to the wrapped transports.
     level: 'trace',
+    scope,
+    // Match ExtForge's documented JSON contract: timestamps are epoch ms.
+    timestamp: 'epoch',
     transports: transports.map(toLkTransport),
     onTransportError(err, info) {
       // A throwing transport never breaks the others; surface it so a broken
@@ -210,12 +236,18 @@ export class Logger {
     this.scope = opts.scope ?? '';
     this.transports = opts.transports ?? [consoleTransport];
     this.silentHumanOutput = opts.silentHumanOutput ?? false;
-    this.lk = buildLkLogger(this.transports);
+    this.lk = buildLkLogger(this.scope, this.transports);
   }
 
   /** Fan a fully-formed entry out through the log-kit pipeline. */
   private dispatch(entry: LogEntry): void {
-    this.lk[efLevelToLk(entry.level)](entry.message, { [EF_ENTRY_KEY]: entry });
+    this.lk.log({
+      level: efLevelToLk(entry.level),
+      message: entry.message,
+      args: entry.args,
+      ...(entry.level === LogLevel.Success ? { kind: 'success' } : {}),
+      ...(entry.duration !== undefined ? { meta: { duration: entry.duration } } : {}),
+    });
   }
 
   setLevel(level: LogLevel): void { this.level = level; }
@@ -345,8 +377,14 @@ export class Logger {
     process.stdout.write(line + '\n');
   }
 
-  addTransport(t: LogTransport): void { this.transports.push(t); this.lk = buildLkLogger(this.transports); }
-  clearTransports(): void { this.transports = []; this.lk = buildLkLogger(this.transports); }
+  addTransport(t: LogTransport): void {
+    this.transports.push(t);
+    this.lk.addTransport(toLkTransport(t, this.transports.length - 1));
+  }
+  clearTransports(): void {
+    this.transports = [];
+    this.lk.removeTransport();
+  }
 }
 
 // ─── JSON transport ──────────────────────────────────────────────────────────
