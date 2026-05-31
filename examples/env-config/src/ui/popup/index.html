@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ExtForge Env Example</title>
+    <style>
+      body { font: 14px/1.4 system-ui, sans-serif; padding: 12px; min-width: 280px; margin: 0; background: #0F172A; color: #fff; }
+      h1   { font-size: 14px; color: #A78BFA; margin: 0 0 8px; }
+      dl   { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 12px; }
+      dt   { color: #FBBF24; }
+      dd   { margin: 0; font-family: ui-monospace, monospace; word-break: break-all; }
+      .note { font-size: 11px; color: #94A3B8; margin-top: 10px; }
+    </style>
+  </head>
+  <body>
+    <h1 data-testid="title">ExtForge Env Example</h1>
+    <dl>
+      <dt>API base</dt>      <dd id="api" data-testid="api">—</dd>
+      <dt>Feature flag</dt>  <dd id="flag" data-testid="flag">—</dd>
+      <dt>Mode</dt>          <dd id="mode" data-testid="mode">—</dd>
+      <dt>Backend token</dt> <dd id="secret" data-testid="secret">—</dd>
+    </dl>
+    <p class="note">
+      The backend token is a non-public key — it is <strong>not</strong> inlined,
+      so it reads as <code>undefined</code> in the bundle.
+    </p>
+    <script type="module" src="./index.js"></script>
+  </body>
+</html>

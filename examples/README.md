@@ -7,6 +7,7 @@ fixtures driven by `tests-e2e/`.
 |---|---|
 | [`vanilla-popup`](./vanilla-popup) | Popup + content script + background SW in plain TypeScript. Tests `chrome.storage`, content-script DOM mutation, and SW message round-trip. |
 | [`react-csui`](./react-csui) | React popup + Shadow-DOM-mounted React widget injected by a content script. Tests cross-context messaging, Shadow DOM, and React rendering. |
+| [`env-config`](./env-config) | `.env` loading via `extforge/env`. Shows `EXTFORGE_PUBLIC_*` inlining, the public/private key split, and `import.meta.env.MODE`. |
 
 ## Build them all
 
