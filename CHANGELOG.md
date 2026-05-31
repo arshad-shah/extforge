@@ -1,5 +1,77 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [#43](https://github.com/arshad-shah/extforge/pull/43) [`ff96b10`](https://github.com/arshad-shah/extforge/commit/ff96b10bac75830a2a1c00ac4082af4e5e5b5cc1) Thanks [@arshad-shah](https://github.com/arshad-shah)! - cli: migrate the CLI onto `@arshad-shah/clif`
+
+  The hand-rolled argument parser (`src/cli/parser.ts`) has been replaced with
+  [`@arshad-shah/clif`](https://www.npmjs.com/package/@arshad-shah/clif), a
+  tiny zero-dependency CLI framework. Every command — `init`, `dev`, `build`,
+  `validate`, `doctor`, `upgrade`, `package`, `icons` — keeps the same flags and
+  defaults; the command tree now lives in `src/cli/commands.ts`.
+
+  User-visible changes are cosmetic: `--help` output is rendered by clif, and an
+  unknown subcommand now produces a "did you mean…?" suggestion instead of
+  falling through to the top-level help. Error formatting, exit codes, and the
+  `extforge.config` contract are unchanged — thrown errors are still routed
+  through ExtForge's formatter (code, hint, docs link, exit 1).
+
+- [#43](https://github.com/arshad-shah/extforge/pull/43) [`ff96b10`](https://github.com/arshad-shah/extforge/commit/ff96b10bac75830a2a1c00ac4082af4e5e5b5cc1) Thanks [@arshad-shah](https://github.com/arshad-shah)! - config: load `extforge.config` via `@arshad-shah/config-kit`
+
+  `loadExtForgeConfig` now uses [`@arshad-shah/config-kit`](https://www.npmjs.com/package/@arshad-shah/config-kit)
+  v2 for config-file discovery, deep-merge (defaults < file < overrides), and
+  strict/warn validation. ExtForge supplies the schema, the strict-by-default
+  policy (`EXTFORGE_STRICT_CONFIG=0` still downgrades to a warning), and a
+  TypeScript-aware module loader (esbuild) as config-kit's `configFileSource`
+  `load` callback.
+
+  No change to the public surface: `loadExtForgeConfig`, `defineConfig`,
+  `DEFAULT_CONFIG`, the supported `extforge.config.{ts,mts,cts,mjs,js,cjs,json}`
+  file set, deep-merge semantics, and the `EXT_CONFIG_INVALID` error are all
+  unchanged. The internal `loadConfigFile`/`mergeConfig` helpers (never exported)
+  were removed in favour of config-kit's pipeline.
+
+- [#43](https://github.com/arshad-shah/extforge/pull/43) [`ff96b10`](https://github.com/arshad-shah/extforge/commit/ff96b10bac75830a2a1c00ac4082af4e5e5b5cc1) Thanks [@arshad-shah](https://github.com/arshad-shah)! - logger: reimplement `extforge/logger` on top of `@arshad-shah/log-kit`
+
+  The logger now uses [`@arshad-shah/log-kit`](https://www.npmjs.com/package/@arshad-shah/log-kit)
+  v1.1 as its record-dispatch engine, leaning on its native fields — hierarchical
+  `scope`, the `kind` presentation tag (for `success`), `args`, `meta` (host
+  passthrough), and `timestamp: 'epoch'` — plus runtime `addTransport`/
+  `removeTransport`. This gains per-transport failure isolation (a throwing
+  transport no longer breaks the others) and an `onTransportError` diagnostic
+  channel. The public surface is unchanged: `LogLevel`, `LogEntry`,
+  `createLogger`, the `Logger` methods (including `success`/`banner`/`summary`/
+  `step`/`child(scope)`), `jsonTransport`'s output shape, and the terminal
+  formatting are all identical. log-kit is now a runtime dependency (zero-dep).
+
+- [#43](https://github.com/arshad-shah/extforge/pull/43) [`ff96b10`](https://github.com/arshad-shah/extforge/commit/ff96b10bac75830a2a1c00ac4082af4e5e5b5cc1) Thanks [@arshad-shah](https://github.com/arshad-shah)! - config + plugins: land two previously-deferred behaviors for v1
+  - **Strict config validation is now the default.** An invalid `extforge.config`
+    throws `extforge.config is invalid` instead of warning and continuing. This
+    is a behavior change: set `EXTFORGE_STRICT_CONFIG=0` to downgrade validation
+    failures to a warning while migrating. (`EXTFORGE_STRICT_CONFIG=1` is no
+    longer needed — strict is the default.)
+  - **`ctx.addEntry()` and `ctx.emitFile()` are implemented.** They previously
+    threw "not yet implemented". Plugins can now register a synthetic entry point
+    (`addEntry({ name, file, format })`, bundled into every build and routed to
+    the ESM or IIFE pass by `format`) and write files into each browser's output
+    directory (`emitFile(rel, contents)`). Repeated calls de-duplicate by entry
+    name / output path, and `emitFile` paths that escape the output directory are
+    rejected.
+
+### Patch Changes
+
+- [#43](https://github.com/arshad-shah/extforge/pull/43) [`ff96b10`](https://github.com/arshad-shah/extforge/commit/ff96b10bac75830a2a1c00ac4082af4e5e5b5cc1) Thanks [@arshad-shah](https://github.com/arshad-shah)! - fix: Node 24 HMR watcher compatibility and `ws` advisory
+  - **Watcher (Node 24):** `createWatcher` now checks the root exists up front
+    instead of relying on `fs.watch` to throw `ENOENT`. Node <23 threw
+    synchronously for a missing path; Node 24 returns a watcher and stays silent,
+    so the `onUnsupported` fallback never fired. The explicit existence check is
+    deterministic across Node 20/22/24.
+  - **Supply chain:** bump `ws` to `^8.21.0` to clear the moderate
+    `GHSA-58qx-3vcg-4xpx` (uninitialized memory disclosure) advisory, keeping
+    `pnpm audit --prod` at zero vulnerabilities.
+
 ## 0.4.0
 
 ### Minor Changes

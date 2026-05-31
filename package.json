@@ -1,6 +1,6 @@
 {
   "name": "extforge",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Lightning-fast browser extension build system with first-class HMR, interactive scaffolding, and cross-browser support (Chrome, Firefox, Safari, Edge — Manifest V3).",
   "type": "module",
   "bin": {
