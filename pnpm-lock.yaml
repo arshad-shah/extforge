@@ -12,6 +12,15 @@ importers:
 
   .:
     dependencies:
+      '@arshad-shah/clif':
+        specifier: ^1.1.2
+        version: 1.1.2
+      '@arshad-shah/config-kit':
+        specifier: ^2.0.0
+        version: 2.0.0(@arshad-shah/log-kit@1.1.0)(zod@3.25.76)
+      '@arshad-shah/log-kit':
+        specifier: ^1.1.0
+        version: 1.1.0
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -19,8 +28,8 @@ importers:
         specifier: '>=0.14.0'
         version: 0.18.0
       ws:
-        specifier: ^8.18.0
-        version: 8.20.0
+        specifier: ^8.21.0
+        version: 8.21.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -104,6 +113,16 @@ importers:
         specifier: ^0.33.0
         version: 0.33.5
 
+  examples/env-config:
+    dependencies:
+      extforge:
+        specifier: workspace:*
+        version: link:../..
+    devDependencies:
+      '@types/chrome':
+        specifier: ^0.0.290
+        version: 0.0.290
+
   examples/react-csui:
     dependencies:
       extforge:
@@ -159,6 +178,22 @@ packages:
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
+
+  '@arshad-shah/clif@1.1.2':
+    resolution: {integrity: sha512-eaKyEvQoPKhvz+VKfbZdz2QKMdlgvMO/MnQ7NcwYJ8aEOPUz1YD/wqwSlBkyeh0HsSZwUf2OqLhpkgxHl+IcJQ==}
+    engines: {node: '>=22.12.0'}
+
+  '@arshad-shah/config-kit@2.0.0':
+    resolution: {integrity: sha512-Zo0GgrjtwP5XcgwMa5bvJZYbNfhyIDuZ1Kj33pEkgGkYwQLb1+Li2MGnjxsaMUrHzVBgW+svgvDELZ8/NgFSuQ==}
+    peerDependencies:
+      '@arshad-shah/log-kit': ^1.1.0
+      zod: '>=3.22.0'
+    peerDependenciesMeta:
+      '@arshad-shah/log-kit':
+        optional: true
+
+  '@arshad-shah/log-kit@1.1.0':
+    resolution: {integrity: sha512-5JOYyI8mCUYzMsj+5mtSU1xqgJXi+jwLCNEwxWUg8OMNccyVQSzXF6+GQElYJytWbsiyiMEybcrWGnNSZvX9Kg==}
 
   '@astrojs/compiler@4.0.0':
     resolution: {integrity: sha512-eouss7G8ygdZqHuke033VMcVw5HTZUu+PXd/h06DGDUg/jt5btPYPqh66ENWw/mU78rBrf/oeC4oqoBwMtDMNA==}
@@ -3545,6 +3580,18 @@ packages:
       utf-8-validate:
         optional: true
 
+  ws@8.21.0:
+    resolution: {integrity: sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xxhash-wasm@1.1.0:
     resolution: {integrity: sha512-147y/6YNh+tlp6nd/2pWq38i9h6mz/EuQ6njIrmW8D1BS5nCqs0P6DG+m6zTGnNz5I+uhZ0SHxBs9BsPrwcKDA==}
 
@@ -3575,6 +3622,16 @@ snapshots:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
+
+  '@arshad-shah/clif@1.1.2': {}
+
+  '@arshad-shah/config-kit@2.0.0(@arshad-shah/log-kit@1.1.0)(zod@3.25.76)':
+    dependencies:
+      zod: 3.25.76
+    optionalDependencies:
+      '@arshad-shah/log-kit': 1.1.0
+
+  '@arshad-shah/log-kit@1.1.0': {}
 
   '@astrojs/compiler@4.0.0': {}
 
@@ -5610,7 +5667,7 @@ snapshots:
       '@types/ws': 8.18.1
       entities: 7.0.1
       whatwg-mimetype: 3.0.0
-      ws: 8.20.0
+      ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -7495,6 +7552,8 @@ snapshots:
       strip-ansi: 7.2.0
 
   ws@8.20.0: {}
+
+  ws@8.21.0: {}
 
   xxhash-wasm@1.1.0: {}
 

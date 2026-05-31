@@ -82,6 +82,7 @@ Working reference extensions live in [`examples/`](./examples):
 
 - **[`vanilla-popup`](./examples/vanilla-popup)** — popup + content + background in plain TypeScript. Uses `extforge/messaging` and `extforge/storage`.
 - **[`react-csui`](./examples/react-csui)** — React popup + Shadow-DOM-mounted React widget injected via `extforge/csui` (auto-discovered).
+- **[`env-config`](./examples/env-config)** — `.env` loading via `extforge/env`: `EXTFORGE_PUBLIC_*` inlining and the public/private key split.
 
 Both build for `chrome` and `firefox` from a single config, exercised end-to-end in [`tests-e2e/`](./tests-e2e) via Playwright with Chrome's new headless mode.
 

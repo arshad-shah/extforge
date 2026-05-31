@@ -200,7 +200,7 @@ extforge build --browser firefox
 See [deployment](/guides/deployment/) for packaging and store submission.
 
 <Aside type="note">
-The compat scan covers entry-point source files. Transitive imports are not yet scanned (planned for v0.4). For now, consolidate API calls in entry-point files or manually suppress with `// extforge-ignore-compat`.
+The compat scan walks every source file under `srcDir`, not just entry points, so API calls in imported helper modules are covered too. Suppress a specific line with `// extforge-ignore-compat: <reason>`.
 </Aside>
 
 See [`EXT_COMPAT_UNSUPPORTED`](/reference/errors/EXT_COMPAT_UNSUPPORTED/) for the error reference when strict mode is on.

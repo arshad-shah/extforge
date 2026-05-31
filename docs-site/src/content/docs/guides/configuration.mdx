@@ -354,4 +354,6 @@ Run `extforge validate` after changing your config to catch schema errors before
 4. Built-in plugins (`presetReact()`, etc.) are prepended to the plugin list.
 5. `onConfigResolved` hooks from all plugins fire.
 
-If the config file is missing, `loadExtForgeConfig` falls back to the defaults and logs a warning. It does not error unless `EXTFORGE_STRICT_CONFIG=1` is set.
+If the config file is missing, `loadExtForgeConfig` falls back to the defaults (which are valid) and logs a warning — no error.
+
+If the config is **present but invalid**, validation fails hard by default: `loadExtForgeConfig` throws an `extforge.config is invalid` error. Set `EXTFORGE_STRICT_CONFIG=0` to downgrade validation failures to a warning while you migrate.

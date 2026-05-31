@@ -14,6 +14,7 @@
     "extforge-docs",
     "@extforge-example/vanilla-popup",
     "@extforge-example/react-csui",
+    "@extforge-example/env-config",
     "@extforge/tests-e2e"
   ]
 }

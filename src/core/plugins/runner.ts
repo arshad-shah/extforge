@@ -15,7 +15,10 @@ import {
   isV1Plugin,
 } from './types.js';
 
-type RunnerCtx = Omit<PluginContext, 'hooks'>;
+// `hooks`, `addEntry`, and `emitFile` are supplied by the runner itself when
+// it builds each plugin's context (see `setup`), so callers only provide the
+// static fields.
+type RunnerCtx = Omit<PluginContext, 'hooks' | 'addEntry' | 'emitFile'>;
 
 interface HookRegistry {
   configResolved: Array<(c: ExtForgeConfig) => void | Promise<void>>;
@@ -70,8 +73,34 @@ export class PluginRunner {
 
   readonly plugins: ReadonlyArray<ExtForgePluginV1>;
 
+  // Synthetic build inputs contributed by plugins via ctx.addEntry / ctx.emitFile.
+  // Keyed (by entry name / output path) so repeated calls de-duplicate rather
+  // than accumulate across multiple builds (buildAll fans out per browser).
+  private readonly addedEntries = new Map<string, EntryDescriptor>();
+  private readonly emittedFiles = new Map<string, string | Uint8Array>();
+
   constructor(plugins: ExtForgePlugin[], private ctx: RunnerCtx) {
     this.plugins = plugins.map(p => isV1Plugin(p) ? p : adaptLegacy(p));
+  }
+
+  /** Record a synthetic entry point. Last write wins per `entry.name`. */
+  addEntry(entry: EntryDescriptor): void {
+    this.addedEntries.set(entry.name, entry);
+  }
+
+  /** Synthetic entries contributed by plugins, in insertion order. */
+  getAddedEntries(): EntryDescriptor[] {
+    return [...this.addedEntries.values()];
+  }
+
+  /** Record a file to write into each browser's output directory. Last write wins per `rel`. */
+  emitFile(rel: string, contents: string | Uint8Array): void {
+    this.emittedFiles.set(rel, contents);
+  }
+
+  /** Files contributed by plugins, as `[relativePath, contents]` pairs. */
+  getEmittedFiles(): Array<[string, string | Uint8Array]> {
+    return [...this.emittedFiles.entries()];
   }
 
   async setup(): Promise<void> {
@@ -84,7 +113,12 @@ export class PluginRunner {
         onBuildEnd:          (fn) => { this.hooks.buildEnd.push(wrap(p.name, 'onBuildEnd', fn)); },
         onDevReload:         (fn) => { this.hooks.devReload.push(wrap(p.name, 'onDevReload', fn)); },
       };
-      const ctx: PluginContext = { ...this.ctx, hooks: pluginHooks };
+      const ctx: PluginContext = {
+        ...this.ctx,
+        hooks: pluginHooks,
+        addEntry: (entry) => this.addEntry(entry),
+        emitFile: (rel, contents) => this.emitFile(rel, contents),
+      };
       try {
         await p.setup(ctx);
       } catch (err) {

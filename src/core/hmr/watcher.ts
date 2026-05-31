@@ -11,7 +11,7 @@
  *   listener shape the rest of the HMR module expects.
  */
 
-import { watch, statSync, readdirSync, type FSWatcher as NodeFSWatcher } from 'node:fs';
+import { watch, statSync, readdirSync, existsSync, type FSWatcher as NodeFSWatcher } from 'node:fs';
 import { join } from 'node:path';
 
 export type WatchEventType = 'change' | 'add' | 'unlink';
@@ -54,13 +54,21 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
   const poll = options.awaitWriteFinish?.pollInterval ?? 50;
 
   let nodeWatcher: NodeFSWatcher | null = null;
+  // Missing root: report and no-op. We check up front rather than relying on
+  // `fs.watch` to throw — Node <23 throws ENOENT synchronously, but Node 24+
+  // returns a watcher and stays silent for a missing path, so the catch below
+  // never fires. The explicit existence check is deterministic across versions.
+  if (!existsSync(path)) {
+    options.onUnsupported?.('ENOENT');
+    return makeNoop();
+  }
   try {
     nodeWatcher = watch(path, { recursive: true, persistent: true });
   } catch (err) {
-    // Path missing or recursive watch unsupported (e.g. Linux Node <20).
-    // Return a no-op watcher so callers don't crash, but report the reason
-    // so the dev server can surface a warning instead of silently no-oping
-    // and leaving the user wondering why HMR never fires.
+    // Recursive watch unsupported (e.g. Linux Node <20) or another start-time
+    // failure. Return a no-op watcher so callers don't crash, but report the
+    // reason so the dev server can surface a warning instead of silently
+    // no-oping and leaving the user wondering why HMR never fires.
     const e = err as NodeJS.ErrnoException;
     options.onUnsupported?.(e?.code ?? e?.message ?? 'unknown');
     return makeNoop();

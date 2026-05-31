@@ -1,148 +1,97 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadConfigFile } from '../src/core/config/loader.js';
+import { loadConfigModule, resolveConfigFile } from '../src/core/config/loader.js';
 import { ExtForgeError } from '../src/core/errors/index.js';
 
-interface SampleCfg {
-  flag?: boolean;
-  list?: number[];
-  nested?: { value: string };
-}
-
-const DEFAULTS: SampleCfg = { flag: false, list: [1, 2] };
-
-describe('loadConfigFile', () => {
+/**
+ * Discovery + deep-merge + validation now live in @arshad-shah/config-kit (see
+ * loadExtForgeConfig). This module owns the one piece config-kit delegates to a
+ * host: turning a resolved config file path into its default export, compiling
+ * TypeScript on the fly. These tests pin that loading behaviour.
+ */
+describe('loadConfigModule', () => {
   let dir: string;
 
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'cfg-loader-'));
-  });
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-  });
-
-  it('returns defaults when no config file exists', async () => {
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config).toEqual(DEFAULTS);
-    expect(r.configFile).toBeUndefined();
-  });
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cfg-loader-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
 
   it('loads a TypeScript config (default export)', async () => {
-    writeFileSync(
-      join(dir, 'foo.config.ts'),
-      `export default { flag: true, nested: { value: 'hi' } };`,
-    );
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.flag).toBe(true);
-    expect(r.config.nested).toEqual({ value: 'hi' });
-    // shallow-merged: list comes from defaults
-    expect(r.config.list).toEqual([1, 2]);
-    expect(r.configFile).toMatch(/foo\.config\.ts$/);
+    const file = join(dir, 'foo.config.ts');
+    writeFileSync(file, `export default { flag: true, nested: { value: 'hi' } };`);
+    const cfg = await loadConfigModule<{ flag: boolean; nested: { value: string } }>(file, dir);
+    expect(cfg.flag).toBe(true);
+    expect(cfg.nested).toEqual({ value: 'hi' });
   });
 
   it('loads an MJS config (default export)', async () => {
-    writeFileSync(
-      join(dir, 'foo.config.mjs'),
-      `export default { flag: true };`,
-    );
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.flag).toBe(true);
+    const file = join(dir, 'foo.config.mjs');
+    writeFileSync(file, `export default { flag: true };`);
+    expect((await loadConfigModule<{ flag: boolean }>(file, dir)).flag).toBe(true);
   });
 
   it('loads a JS config in an ESM package', async () => {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: 'module' }));
-    writeFileSync(join(dir, 'foo.config.js'), `export default { flag: true };`);
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.flag).toBe(true);
+    const file = join(dir, 'foo.config.js');
+    writeFileSync(file, `export default { flag: true };`);
+    expect((await loadConfigModule<{ flag: boolean }>(file, dir)).flag).toBe(true);
   });
 
   it('loads a CJS config (module.exports)', async () => {
-    writeFileSync(join(dir, 'foo.config.cjs'), `module.exports = { flag: true };`);
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.flag).toBe(true);
+    const file = join(dir, 'foo.config.cjs');
+    writeFileSync(file, `module.exports = { flag: true };`);
+    expect((await loadConfigModule<{ flag: boolean }>(file, dir)).flag).toBe(true);
   });
 
-  it('user values win over defaults', async () => {
-    writeFileSync(
-      join(dir, 'foo.config.ts'),
-      `export default { list: [9, 9, 9] };`,
-    );
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.list).toEqual([9, 9, 9]);
-    expect(r.config.flag).toBe(false); // from defaults
+  it('loads a JSON config', async () => {
+    const file = join(dir, 'foo.config.json');
+    writeFileSync(file, `{ "flag": true }`);
+    expect((await loadConfigModule<{ flag: boolean }>(file, dir)).flag).toBe(true);
   });
 
   it('throws ExtForgeError(EXT_CONFIG_INVALID) on syntax error in TS', async () => {
-    writeFileSync(join(dir, 'foo.config.ts'), `export const x = ;`);
+    const file = join(dir, 'foo.config.ts');
+    writeFileSync(file, `export const x = ;`);
     let caught: unknown;
-    try {
-      await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    } catch (err) {
-      caught = err;
-    }
+    try { await loadConfigModule(file, dir); } catch (err) { caught = err; }
     expect(caught).toBeInstanceOf(ExtForgeError);
     expect((caught as ExtForgeError).code).toBe('EXT_CONFIG_INVALID');
   });
 
-  it('respects probe order: .ts wins over .js when both exist', async () => {
-    writeFileSync(join(dir, 'foo.config.ts'), `export default { flag: true };`);
-    writeFileSync(join(dir, 'foo.config.js'), `module.exports = { flag: false };`);
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.flag).toBe(true);
-    expect(r.configFile).toMatch(/\.ts$/);
-  });
-
-  it('handles a TS config that imports another module (bundled)', async () => {
-    // Note: packages from node_modules stay external via packages: 'external'.
-    // This test exercises only relative imports being inlined — write two
-    // local files and import one from the other.
-    writeFileSync(
-      join(dir, 'helper.ts'),
-      `export const VAL = 42;`,
-    );
-    writeFileSync(
-      join(dir, 'foo.config.ts'),
-      `import { VAL } from './helper.js'; export default { list: [VAL] };`,
-    );
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.list).toEqual([42]);
-  });
-
-  it('exports configFile as an absolute path', async () => {
-    writeFileSync(join(dir, 'foo.config.ts'), `export default {};`);
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.configFile).toBeDefined();
-    expect(r.configFile!.startsWith('/') || /^[A-Z]:/.test(r.configFile!)).toBe(true);
+  it('inlines relative imports via esbuild bundling', async () => {
+    writeFileSync(join(dir, 'helper.ts'), `export const VAL = 42;`);
+    const file = join(dir, 'foo.config.ts');
+    writeFileSync(file, `import { VAL } from './helper.js'; export default { list: [VAL] };`);
+    expect((await loadConfigModule<{ list: number[] }>(file, dir)).list).toEqual([42]);
   });
 
   it('unwraps `module.exports = { default: {...} }` only when default is present', async () => {
-    writeFileSync(
-      join(dir, 'foo.config.cjs'),
-      `module.exports = { default: { flag: true } };`,
-    );
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.flag).toBe(true);
+    const file = join(dir, 'foo.config.cjs');
+    writeFileSync(file, `module.exports = { default: { flag: true } };`);
+    expect((await loadConfigModule<{ flag: boolean }>(file, dir)).flag).toBe(true);
+  });
+});
+
+describe('resolveConfigFile', () => {
+  let dir: string;
+  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cfg-resolve-')); });
+  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+
+  it('returns undefined when no config file exists', () => {
+    expect(resolveConfigFile(dir, 'foo')).toBeUndefined();
   });
 
-  it('deep-merges nested objects so partial overrides keep default siblings', async () => {
-    const defaults = { nested: { a: 1, b: 2 } } as const;
-    writeFileSync(
-      join(dir, 'foo.config.ts'),
-      `export default { nested: { a: 99 } };`,
-    );
-    const r = await loadConfigFile<typeof defaults>({ name: 'foo', cwd: dir, defaults });
-    // User-overridden field changes, sibling from defaults survives.
-    expect(r.config.nested).toEqual({ a: 99, b: 2 });
+  it('resolves to an absolute path', () => {
+    writeFileSync(join(dir, 'foo.config.ts'), `export default {};`);
+    const p = resolveConfigFile(dir, 'foo');
+    expect(p).toBeDefined();
+    expect(p!.startsWith('/') || /^[A-Z]:/.test(p!)).toBe(true);
   });
 
-  it('replaces arrays wholesale instead of concatenating', async () => {
-    writeFileSync(
-      join(dir, 'foo.config.ts'),
-      `export default { list: [9] };`,
-    );
-    const r = await loadConfigFile<SampleCfg>({ name: 'foo', cwd: dir, defaults: DEFAULTS });
-    expect(r.config.list).toEqual([9]);
+  it('probes in order: .ts wins over .js when both exist', () => {
+    writeFileSync(join(dir, 'foo.config.ts'), `export default {};`);
+    writeFileSync(join(dir, 'foo.config.js'), `module.exports = {};`);
+    expect(resolveConfigFile(dir, 'foo')).toMatch(/\.ts$/);
   });
 });

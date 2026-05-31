@@ -36,6 +36,7 @@ export default defineConfig({
             { label: 'Plugins', slug: 'guides/plugins' },
             { label: 'Testing', slug: 'guides/testing' },
             { label: 'Deployment', slug: 'guides/deployment' },
+            { label: 'Supply chain', slug: 'guides/supply-chain' },
           ],
         },
         {

@@ -1,0 +1,19 @@
+{
+  "name": "@extforge-example/env-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "ExtForge env example: .env loading with EXTFORGE_PUBLIC_* inlining via extforge/env. Demonstrates build-time config and the public/private key split.",
+  "scripts": {
+    "_comment": "Invoke the workspace extforge build directly via its dist path rather than via the bin symlink, which may not exist until both install and build have run.",
+    "build": "node ../../dist/cli/index.js build",
+    "build:chrome": "node ../../dist/cli/index.js build --browser chrome",
+    "dev": "node ../../dist/cli/index.js dev"
+  },
+  "dependencies": {
+    "extforge": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.290"
+  }
+}

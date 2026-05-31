@@ -89,3 +89,16 @@ try {
 ```
 
 The `chrome.storage` path doesn't throw `StorageQuotaExceededError` — Chrome surfaces its own quota error via `chrome.runtime.lastError`. Wrap calls accordingly if you target both.
+
+## Exported types
+
+| Export | Kind | Notes |
+|---|---|---|
+| `Storage` | class | The main wrapper (see above). |
+| `StorageQuotaExceededError` | class | Thrown by the localStorage fallback on quota errors; carries `key` and `cause`. |
+| `StorageArea` | type | `'local' \| 'sync' \| 'session' \| 'managed'`. |
+| `StorageOptions` | interface | Constructor options: `{ area?; namespace?; preferChromeStorage? }`. |
+| `WatchHandler<T>` | type | `(newValue: T \| undefined, oldValue: T \| undefined) => void`. |
+| `WatchHandlers` | type | `Record<string, WatchHandler>` — the shape passed to `watch()`. |
+| `Unwatch` | type | `() => void` — the unsubscribe function returned by `watch()`. |
+| `UseStorageReturn<T>` | interface | Return type of the `extforge/storage/react` hook: `{ value; setValue; remove; isLoading }`. |

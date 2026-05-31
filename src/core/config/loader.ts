@@ -1,47 +1,37 @@
 /**
- * Config file loader — replaces c12 (which transitively pulls a vulnerable
- * tar via giget). Resolves and loads `<name>.config.{ts,mts,cts,js,mjs,cjs}`,
- * compiling TypeScript on the fly via esbuild when needed.
+ * Config file module loader.
  *
- * Intentionally limited compared to c12: no `extends:` from URLs, no template
- * fetching, no rc-file merging. Those are not used by ExtForge.
+ * Discovery, deep-merge, and validation now live in `@arshad-shah/config-kit`
+ * (see `loadExtForgeConfig`); this module owns the one piece config-kit
+ * delegates to a host: turning a resolved config file path into its default
+ * export, compiling TypeScript on the fly via esbuild when needed.
+ *
+ * Intentionally limited: no `extends:` from URLs, no template fetching, no
+ * rc-file merging. Those are not used by ExtForge.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
-import { join, resolve, isAbsolute } from 'node:path';
-import { sep } from 'node:path';
+import { join, resolve, isAbsolute, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import * as esbuild from 'esbuild';
 import { ExtForgeError } from '../errors/index.js';
 
-export interface LoadConfigOptions<T> {
-  /** Base name of the config file, e.g. `'extforge'` for `extforge.config.ts`. */
-  name: string;
-  /** Working directory where the config file lives. */
-  cwd: string;
-  /** Defaults merged underneath the loaded user config. */
-  defaults: T;
-  /** Extension order to probe; first match wins. */
-  extensions?: readonly string[];
-}
-
-export interface LoadConfigResult<T> {
-  /** The merged config: `{ ...defaults, ...userConfig }` (user wins). */
-  config: T;
-  /** Absolute path of the resolved config file, if any. */
-  configFile?: string;
-}
-
-const DEFAULT_EXTENSIONS = ['.ts', '.mts', '.cts', '.mjs', '.js', '.cjs'] as const;
+/** Extensions probed for `<name>.config.<ext>`, in priority order (first match wins). */
+export const CONFIG_EXTENSIONS = ['ts', 'mts', 'cts', 'mjs', 'js', 'cjs', 'json'] as const;
 
 function toAbs(p: string): string {
   return isAbsolute(p) ? p : resolve(p);
 }
 
-function resolveConfigFile(cwd: string, name: string, exts: readonly string[]): string | undefined {
+/** Resolve the first existing `<name>.config.<ext>` in `cwd`, or `undefined`. */
+export function resolveConfigFile(
+  cwd: string,
+  name: string,
+  exts: readonly string[] = CONFIG_EXTENSIONS,
+): string | undefined {
   for (const ext of exts) {
-    const candidate = join(toAbs(cwd), `${name}.config${ext}`);
+    const candidate = join(toAbs(cwd), `${name}.config.${ext}`);
     if (existsSync(candidate)) return candidate;
   }
   return undefined;
@@ -120,94 +110,43 @@ function pickDefault<T>(mod: unknown): T {
 }
 
 /**
- * Recursively merge plain-object branches; replace arrays and primitives.
- * Exported so callers in src/core/config.ts can apply the same merge rule
- * to user overrides as we apply to the file-loaded config.
- *
- * Why this shape: ExtForge's defaults contain nested objects (e.g.
- * `dev: { port, host, debounce, open }`) that users almost always patch
- * with a single key (`dev: { port: 9000 }`). A shallow merge silently
- * dropped the siblings, which surprised users worse than the c12-style
- * array-concat would. We keep arrays as "replace" so list-shaped config
- * (browsers, plugins) still behaves as expected.
+ * Load a resolved config file and return its default export. Used as the
+ * `load` callback for config-kit's `configFileSource`, so config-kit handles
+ * discovery + deep-merge + validation while ExtForge keeps the TS-compilation
+ * and ESM/CJS resolution rules it needs.
  */
-export function mergeConfig<T>(defaults: T, user: Partial<T> | undefined): T {
-  if (!user) return defaults as T;
-  if (!isPlainObject(defaults) || !isPlainObject(user)) return user as T;
-  const out: Record<string, unknown> = { ...(defaults as Record<string, unknown>) };
-  for (const [k, v] of Object.entries(user as Record<string, unknown>)) {
-    const dv = (defaults as Record<string, unknown>)[k];
-    if (isPlainObject(dv) && isPlainObject(v)) {
-      out[k] = mergeConfig(dv, v as Record<string, unknown>);
-    } else {
-      out[k] = v;
-    }
-  }
-  return out as T;
-}
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  if (v === null || typeof v !== 'object') return false;
-  if (Array.isArray(v)) return false;
-  const proto = Object.getPrototypeOf(v);
-  return proto === null || proto === Object.prototype;
-}
-
-/**
- * @deprecated Use mergeConfig — kept as an alias for older callers.
- */
-function mergeDefaults<T>(defaults: T, user: Partial<T> | undefined): T {
-  return mergeConfig(defaults, user);
-}
-
-/**
- * Load a config file. Returns `{ config: defaults, configFile: undefined }`
- * if no file exists — callers can decide whether that's an error.
- */
-export async function loadConfigFile<T>(opts: LoadConfigOptions<T>): Promise<LoadConfigResult<T>> {
-  const exts = opts.extensions ?? DEFAULT_EXTENSIONS;
-  const file = resolveConfigFile(opts.cwd, opts.name, exts);
-  if (!file) {
-    return { config: opts.defaults };
-  }
-
-  // Normalise to OS-native path (esbuild + Windows hates posix-only paths)
+export async function loadConfigModule<T = unknown>(file: string, cwd: string): Promise<T> {
   const nativeFile = file.split('/').join(sep);
-
-  let userConfig: Partial<T> | undefined;
-
   const ext = (() => {
-    const m = /\.(ts|mts|cts|mjs|js|cjs)$/.exec(file);
+    const m = /\.(ts|mts|cts|mjs|js|cjs|json)$/.exec(file);
     return m ? `.${m[1]}` : '';
   })();
 
   try {
+    if (ext === '.json') {
+      return JSON.parse(readFileSync(nativeFile, 'utf8')) as T;
+    }
     if (ext === '.ts' || ext === '.mts' || ext === '.cts') {
-      const { tmpDir, outFile } = compileTsConfig(nativeFile, opts.cwd);
+      const { tmpDir, outFile } = compileTsConfig(nativeFile, cwd);
       try {
-        const mod = await importEsm(outFile);
-        userConfig = pickDefault<Partial<T>>(mod);
+        return pickDefault<T>(await importEsm(outFile));
       } finally {
         rmSync(tmpDir, { recursive: true, force: true });
       }
-    } else if (ext === '.mjs') {
-      const mod = await importEsm(nativeFile);
-      userConfig = pickDefault<Partial<T>>(mod);
-    } else if (ext === '.cjs') {
-      const require = createRequire(pathToFileURL(__filenameSafe(nativeFile)).href);
-      const mod = require(nativeFile);
-      userConfig = pickDefault<Partial<T>>(mod);
-    } else if (ext === '.js') {
-      // Behaviour depends on the host package.json. ESM if "type": "module".
-      if (isPackageEsm(opts.cwd)) {
-        const mod = await importEsm(nativeFile);
-        userConfig = pickDefault<Partial<T>>(mod);
-      } else {
-        const require = createRequire(pathToFileURL(__filenameSafe(nativeFile)).href);
-        const mod = require(nativeFile);
-        userConfig = pickDefault<Partial<T>>(mod);
-      }
     }
+    if (ext === '.mjs') {
+      return pickDefault<T>(await importEsm(nativeFile));
+    }
+    if (ext === '.cjs') {
+      const require = createRequire(pathToFileURL(nativeFile).href);
+      return pickDefault<T>(require(nativeFile));
+    }
+    // .js — ESM if the host package.json says so, CJS otherwise.
+    if (isPackageEsm(cwd)) {
+      return pickDefault<T>(await importEsm(nativeFile));
+    }
+    const require = createRequire(pathToFileURL(nativeFile).href);
+    return pickDefault<T>(require(nativeFile));
   } catch (err) {
     if (err instanceof ExtForgeError) throw err;
     throw new ExtForgeError({
@@ -218,19 +157,4 @@ export async function loadConfigFile<T>(opts: LoadConfigOptions<T>): Promise<Loa
       cause: err,
     });
   }
-
-  return {
-    config: mergeDefaults(opts.defaults, userConfig),
-    configFile: file,
-  };
-}
-
-/**
- * `createRequire` needs a real URL of an existing file. We compute one from
- * the config file's directory rather than the file itself so we don't bind
- * `require` to a possibly-deleted temp.
- */
-function __filenameSafe(file: string): string {
-  // createRequire accepts a path or file:// URL; passing the path is fine.
-  return file;
 }

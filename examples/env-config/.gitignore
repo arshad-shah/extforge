@@ -1,0 +1,7 @@
+dist/
+node_modules/
+
+# Local, machine-specific overrides — never committed. `.env` (below) IS
+# committed here because it holds only public, non-secret demo values.
+.env.local
+.env.*.local

@@ -6,6 +6,13 @@
  */
 
 import pc from './ansi.js';
+import {
+  createLogger as createLkLogger,
+  type Logger as LkLogger,
+  type LogLevel as LkLogLevel,
+  type LogRecord as LkLogRecord,
+  type Transport as LkTransport,
+} from '@arshad-shah/log-kit';
 
 // ─── Log Levels (co-located constant) ────────────────────────────────────────
 
@@ -141,6 +148,79 @@ const consoleTransport: LogTransport = (entry: LogEntry) => {
   }
 };
 
+// ─── log-kit bridge ───────────────────────────────────────────────────────────
+// ExtForge's logger is reimplemented on top of @arshad-shah/log-kit: log-kit
+// owns record fan-out (with per-transport failure isolation + an
+// onTransportError diagnostic channel) and the native record fields ExtForge
+// needs — `scope` (hierarchical), `kind` (presentation tag), `args`, and
+// epoch-ms `timestamp`. ExtForge keeps its richer level model (Success), its
+// terminal presentation, and its public `LogEntry` / `jsonTransport` shape.
+//
+// Each ExtForge `LogTransport` is wrapped as a log-kit `Transport`; the wrapper
+// rebuilds the original `LogEntry` from the record's native fields, so the
+// public transport contract is byte-for-byte unchanged. `duration` is the one
+// ExtForge-specific field log-kit has no slot for, so it rides in `meta`.
+
+function efLevelToLk(level: LogLevel): LkLogLevel {
+  switch (level) {
+    case LogLevel.Error: return 'error';
+    case LogLevel.Warn:  return 'warn';
+    case LogLevel.Debug: return 'debug';
+    case LogLevel.Trace: return 'trace';
+    default:             return 'info'; // Info / Success share the Info threshold
+  }
+}
+
+function lkLevelToEf(level: LkLogLevel): LogLevel {
+  switch (level) {
+    case 'error':
+    case 'fatal': return LogLevel.Error;
+    case 'warn':  return LogLevel.Warn;
+    case 'debug': return LogLevel.Debug;
+    case 'trace': return LogLevel.Trace;
+    default:      return LogLevel.Info;
+  }
+}
+
+function recordToEntry(record: LkLogRecord): LogEntry {
+  return {
+    // `kind: 'success'` is how dispatch() preserves the Success level, which
+    // collapses to log-kit's `info` on the level axis.
+    level: record.kind === 'success' ? LogLevel.Success : lkLevelToEf(record.level),
+    scope: record.scope ?? '',
+    message: record.message,
+    args: record.args ?? [],
+    timestamp: typeof record.timestamp === 'number' ? record.timestamp : Date.parse(record.timestamp),
+    duration: (record.meta as { duration?: number } | undefined)?.duration,
+  };
+}
+
+function toLkTransport(t: LogTransport, index: number): LkTransport {
+  return {
+    name: `extforge:${index}`,
+    write(record) { t(recordToEntry(record)); },
+  };
+}
+
+function buildLkLogger(scope: string, transports: LogTransport[]): LkLogger {
+  return createLkLogger({
+    // ExtForge applies its own level gate before dispatch (see `emit`), so the
+    // backing logger passes everything through to the wrapped transports.
+    level: 'trace',
+    scope,
+    // Match ExtForge's documented JSON contract: timestamps are epoch ms.
+    timestamp: 'epoch',
+    transports: transports.map(toLkTransport),
+    onTransportError(err, info) {
+      // A throwing transport never breaks the others; surface it so a broken
+      // --json pipe or log sink is at least visible.
+      process.stderr.write(
+        `[extforge:logger] transport ${info.transport} ${info.op} failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    },
+  });
+}
+
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
 export class Logger {
@@ -149,12 +229,25 @@ export class Logger {
   private transports: LogTransport[];
   private silentHumanOutput: boolean;
   private timers = new Map<string, number>();
+  private lk: LkLogger;
 
   constructor(opts: LoggerOptions = {}) {
     this.level = opts.level ?? LogLevel.Info;
     this.scope = opts.scope ?? '';
     this.transports = opts.transports ?? [consoleTransport];
     this.silentHumanOutput = opts.silentHumanOutput ?? false;
+    this.lk = buildLkLogger(this.scope, this.transports);
+  }
+
+  /** Fan a fully-formed entry out through the log-kit pipeline. */
+  private dispatch(entry: LogEntry): void {
+    this.lk.log({
+      level: efLevelToLk(entry.level),
+      message: entry.message,
+      args: entry.args,
+      ...(entry.level === LogLevel.Success ? { kind: 'success' } : {}),
+      ...(entry.duration !== undefined ? { meta: { duration: entry.duration } } : {}),
+    });
   }
 
   setLevel(level: LogLevel): void { this.level = level; }
@@ -172,7 +265,7 @@ export class Logger {
   private emit(level: LogLevel, message: string, args: unknown[], duration?: number): void {
     if (level > this.level) return;
     const entry: LogEntry = { level, scope: this.scope, message, args, timestamp: Date.now(), duration };
-    for (const t of this.transports) t(entry);
+    this.dispatch(entry);
   }
 
   error(msg: string, ...args: unknown[]) { this.emit(LogLevel.Error, tint(pc.red, msg), args); }
@@ -187,7 +280,7 @@ export class Logger {
       level: LogLevel.Success, scope: this.scope,
       message: tint(pc.green, msg), args, timestamp: Date.now(),
     };
-    for (const t of this.transports) t(entry);
+    this.dispatch(entry);
   }
 
   // ── Timing ─────────────────────────────────────────────────────────
@@ -207,7 +300,7 @@ export class Logger {
         level: LogLevel.Info, scope: this.scope,
         message: message ?? label, args: [], timestamp: Date.now(), duration,
       };
-      for (const t of this.transports) t(entry);
+      this.dispatch(entry);
     }
     return duration;
   }
@@ -284,8 +377,14 @@ export class Logger {
     process.stdout.write(line + '\n');
   }
 
-  addTransport(t: LogTransport): void { this.transports.push(t); }
-  clearTransports(): void { this.transports = []; }
+  addTransport(t: LogTransport): void {
+    this.transports.push(t);
+    this.lk.addTransport(toLkTransport(t, this.transports.length - 1));
+  }
+  clearTransports(): void {
+    this.transports = [];
+    this.lk.removeTransport();
+  }
 }
 
 // ─── JSON transport ──────────────────────────────────────────────────────────
