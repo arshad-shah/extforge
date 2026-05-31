@@ -54,17 +54,21 @@ export async function loadExtForgeConfig(
   const parsed = extForgeConfigSchema.safeParse(merged);
   if (!parsed.success) {
     const err = formatZodError(parsed.error, configFile);
-    if (process.env['EXTFORGE_STRICT_CONFIG'] === '1' || (overrides as { _strictConfig?: boolean })?._strictConfig) {
+    // v1: config validation failures are hard errors by default. The opt-out
+    // (`EXTFORGE_STRICT_CONFIG=0`) downgrades to a warning for users still
+    // migrating; the internal `_strictConfig` override always forces strict.
+    const forcedStrict = (overrides as { _strictConfig?: boolean })?._strictConfig === true;
+    const optedOut = process.env['EXTFORGE_STRICT_CONFIG'] === '0' && !forcedStrict;
+    if (!optedOut) {
       throw err;
     }
-    // Non-strict: warn loudly. Plugins downstream will receive `merged`
-    // (the unvalidated config) — they're free to defensively pick the
-    // fields they care about. The eventual transition to errors is
-    // announced in the warning so users have time to migrate.
+    // Opted out: warn loudly but continue. Plugins downstream receive `merged`
+    // (the unvalidated config) — they're free to defensively pick the fields
+    // they care about.
     const log = createLogger({ scope: 'config' });
     log.warn('Config validation warnings:');
     log.warn(err.message);
-    log.warn('These warnings will become errors in a future major release. Set EXTFORGE_STRICT_CONFIG=1 to fail fast today.');
+    log.warn('Continuing because EXTFORGE_STRICT_CONFIG=0. Unset it to fail fast on invalid config.');
   }
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));
@@ -76,6 +80,8 @@ export async function loadExtForgeConfig(
   if (merged.framework === 'react') builtins.push(presetReact());
   const allPlugins = [...builtins, ...userPlugins];
 
+  // addEntry / emitFile are provided by the runner itself when it builds each
+  // plugin's context, so they're not passed here.
   const runner = new PluginRunner(allPlugins, {
     config: Object.freeze({ ...merged }),
     paths: {
@@ -84,12 +90,6 @@ export async function loadExtForgeConfig(
       dist: resolve(cwd, merged.build?.outDir ?? 'dist'),
     },
     logger: createLogger({ scope: 'plugins' }),
-    addEntry: () => {
-      throw new Error('PluginContext.addEntry is not yet implemented (planned for a future release); use onBuildEntry to modify existing entries.');
-    },
-    emitFile: () => {
-      throw new Error('PluginContext.emitFile is not yet implemented (planned for a future release).');
-    },
   });
   await runner.setup();
   await runner.fireConfigResolved(merged);

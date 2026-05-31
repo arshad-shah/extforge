@@ -37,7 +37,14 @@ describe('Config System', () => {
       delete process.env['EXTFORGE_STRICT_CONFIG'];
     });
 
-    it('should warn but NOT throw on invalid browsers when EXTFORGE_STRICT_CONFIG is unset', async () => {
+    it('throws on invalid browsers by default (strict-by-default since v1)', async () => {
+      await expect(
+        loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
+      ).rejects.toThrow('extforge.config is invalid');
+    });
+
+    it('warns but does NOT throw when EXTFORGE_STRICT_CONFIG=0 (opt-out)', async () => {
+      process.env['EXTFORGE_STRICT_CONFIG'] = '0';
       // Logger writes warnings to stderr via process.stderr.write. Spy on it
       // to verify the warning surfaces, regardless of which console.* path
       // was used internally.
@@ -48,13 +55,6 @@ describe('Config System', () => {
       const all = writeSpy.mock.calls.map((c) => String(c[0])).join('');
       expect(all).toContain('Config validation warnings');
       writeSpy.mockRestore();
-    });
-
-    it('should throw on invalid browsers when EXTFORGE_STRICT_CONFIG=1', async () => {
-      process.env['EXTFORGE_STRICT_CONFIG'] = '1';
-      await expect(
-        loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
-      ).rejects.toThrow('extforge.config is invalid');
     });
   });
 

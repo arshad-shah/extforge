@@ -181,7 +181,24 @@ const legacyPlugin = {
 The runner detects the missing `apiVersion` and adapts the legacy plugin automatically. Legacy plugins do not have access to `onManifestTransform`, `onBuildEntry`, or `onDevReload`. Migrate to `apiVersion: 1` to use those hooks.
 
 <Aside type="note">
-`ctx.addEntry()` and `ctx.emitFile()` are declared in the type but not yet implemented (planned for a future release). Calling either will throw a descriptive error at build time.
+`ctx.addEntry()` registers a synthetic entry point (bundled into every build,
+routed to the ESM or IIFE pass by its `format`), and `ctx.emitFile()` writes a
+file into each browser's output directory. Call both from `setup()`; repeated
+calls de-duplicate by entry name / output path. Paths passed to `emitFile` that
+escape the output directory are rejected.
+
+```ts
+export default {
+  plugins: [{
+    name: 'my-plugin',
+    apiVersion: 1,
+    setup(ctx) {
+      ctx.addEntry({ name: 'worker', file: 'src/worker.ts', format: 'esm' });
+      ctx.emitFile('build-info.json', JSON.stringify({ builtAt: Date.now() }));
+    },
+  }],
+};
+```
 </Aside>
 
 See [`/reference/plugins/api/`](/reference/plugins/api/) for the complete hook type reference, and [`/reference/plugins/preset-react/`](/reference/plugins/preset-react/) for the built-in React preset docs.

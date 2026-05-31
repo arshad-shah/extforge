@@ -100,7 +100,7 @@ ExtForge reads its configuration from \`extforge.config.ts\` (or \`.js\`/\`.mjs\
 
 Defaults and user values are **deep-merged** for plain-object keys (e.g. \`dev\`, \`build\`). A partial override like \`dev: { port: 9000 }\` keeps \`host: 'localhost'\`, \`debounce: 150\`, and \`open: false\` from the defaults rather than dropping them. Arrays (\`browsers\`, \`plugins\`) and primitives are replaced wholesale.
 
-Validation failures emit a warning by default; set \`EXTFORGE_STRICT_CONFIG=1\` to fail fast. The warning path is slated to become a hard error in a future major release.
+Config validation failures are hard errors by default. Set \`EXTFORGE_STRICT_CONFIG=0\` to downgrade them to warnings while migrating.
 
 ## Top-level keys
 

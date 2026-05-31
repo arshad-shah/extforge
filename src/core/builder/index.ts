@@ -7,7 +7,7 @@ import {
   copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
   statSync, writeFileSync,
 } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, isAbsolute, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
@@ -434,6 +434,14 @@ export async function build(
     iifeEntries[c.entryKey] = c.file;
   }
 
+  // Synthetic entries contributed by plugins via ctx.addEntry(). Paths may be
+  // absolute or root-relative; routed into the ESM or IIFE pass by `format`.
+  for (const e of runner?.getAddedEntries() ?? []) {
+    const file = isAbsolute(e.file) ? e.file : resolve(root, e.file);
+    if (e.format === 'iife') iifeEntries[e.name] = file;
+    else esmEntries[e.name] = file;
+  }
+
   if (Object.keys(esmEntries).length === 0 && Object.keys(iifeEntries).length === 0) {
     errors.push('No entry points found in src/');
     log.error('No entry points discovered');
@@ -569,6 +577,19 @@ export async function build(
   copyHTML(srcDir, outDir, log);
   copyIcons(root, outDir, log);
   copyPublic(root, outDir, log);
+
+  // Files contributed by plugins via ctx.emitFile(). Written relative to this
+  // browser's output directory; paths that escape outDir are rejected.
+  for (const [rel, contents] of runner?.getEmittedFiles() ?? []) {
+    const dest = resolve(outDir, rel);
+    const within = relative(outDir, dest);
+    if (isAbsolute(rel) || within.startsWith('..')) {
+      log.warn(`[plugin] emitFile path escapes the output directory, skipping: ${rel}`);
+      continue;
+    }
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, contents);
+  }
 
   const files: Array<{ path: string; size: number }> = [];
   if (result?.metafile) {
