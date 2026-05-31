@@ -59,12 +59,12 @@ export async function loadExtForgeConfig(
     }
     // Non-strict: warn loudly. Plugins downstream will receive `merged`
     // (the unvalidated config) — they're free to defensively pick the
-    // fields they care about. The transition to errors in v0.4.0 is
+    // fields they care about. The eventual transition to errors is
     // announced in the warning so users have time to migrate.
     const log = createLogger({ scope: 'config' });
     log.warn('Config validation warnings:');
     log.warn(err.message);
-    log.warn('These warnings will become errors in v0.4.0. Set EXTFORGE_STRICT_CONFIG=1 to fail fast today.');
+    log.warn('These warnings will become errors in a future major release. Set EXTFORGE_STRICT_CONFIG=1 to fail fast today.');
   }
   if (merged.browsers) {
     merged.browsers = Array.from(new Set(merged.browsers));
@@ -85,10 +85,10 @@ export async function loadExtForgeConfig(
     },
     logger: createLogger({ scope: 'plugins' }),
     addEntry: () => {
-      throw new Error('PluginContext.addEntry is not yet implemented (planned for v0.4); use onBuildEntry to modify existing entries.');
+      throw new Error('PluginContext.addEntry is not yet implemented (planned for a future release); use onBuildEntry to modify existing entries.');
     },
     emitFile: () => {
-      throw new Error('PluginContext.emitFile is not yet implemented (planned for v0.4).');
+      throw new Error('PluginContext.emitFile is not yet implemented (planned for a future release).');
     },
   });
   await runner.setup();

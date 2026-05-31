@@ -181,7 +181,7 @@ const legacyPlugin = {
 The runner detects the missing `apiVersion` and adapts the legacy plugin automatically. Legacy plugins do not have access to `onManifestTransform`, `onBuildEntry`, or `onDevReload`. Migrate to `apiVersion: 1` to use those hooks.
 
 <Aside type="note">
-`ctx.addEntry()` and `ctx.emitFile()` are declared in the type but not yet implemented (planned for v0.4). Calling either will throw a descriptive error at build time.
+`ctx.addEntry()` and `ctx.emitFile()` are declared in the type but not yet implemented (planned for a future release). Calling either will throw a descriptive error at build time.
 </Aside>
 
 See [`/reference/plugins/api/`](/reference/plugins/api/) for the complete hook type reference, and [`/reference/plugins/preset-react/`](/reference/plugins/preset-react/) for the built-in React preset docs.
