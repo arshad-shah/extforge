@@ -19,11 +19,11 @@ status-only: each unchecked item still needs explicit sign-off before `1.0.0`.
 
 - Released: **`0.4.0`** (`CHANGELOG.md`).
 - Pending changesets in `.changeset/`: **5** release entries (`*.md` excluding `README.md`).
-- `CHANGELOG.md` currently has no `## [Unreleased]` section.
+- `CHANGELOG.md` currently includes `## [Unreleased]` with additional queued work.
 
 ### Must-have (blocks v1)
 
-- [x] Ship the `0.4.0` release and clear `## [Unreleased]`.
+- [ ] Ship the `0.4.0` release and clear `## [Unreleased]` (0.4.0 is shipped; unreleased entries remain).
 - [ ] Soak period: one minor cycle with no new `fix-*` changesets in core areas.
 - [ ] API freeze audit for all public subpath exports (`@internal` tagging + docs split).
 - [ ] Config schema lock-in (`extforge.config.*`) and experimental labeling for anything still in flux.
