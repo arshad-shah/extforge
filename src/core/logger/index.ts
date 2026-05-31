@@ -6,6 +6,12 @@
  */
 
 import pc from './ansi.js';
+import {
+  createLogger as createLkLogger,
+  type Logger as LkLogger,
+  type LogLevel as LkLogLevel,
+  type Transport as LkTransport,
+} from '@arshad-shah/log-kit';
 
 // ─── Log Levels (co-located constant) ────────────────────────────────────────
 
@@ -141,6 +147,54 @@ const consoleTransport: LogTransport = (entry: LogEntry) => {
   }
 };
 
+// ─── log-kit bridge ───────────────────────────────────────────────────────────
+// ExtForge's logger is reimplemented on top of @arshad-shah/log-kit: log-kit
+// owns the record fan-out (with per-transport failure isolation + an
+// onTransportError diagnostic channel), while ExtForge keeps its richer level
+// model, scope-string children, terminal presentation, and JSON shape.
+//
+// Each ExtForge `LogTransport` is wrapped as a log-kit `Transport` that pulls
+// the original `LogEntry` back out of the record context, so the public
+// transport contract (and `jsonTransport`'s output) is byte-for-byte unchanged.
+
+const EF_ENTRY_KEY = '__extforgeEntry';
+
+function efLevelToLk(level: LogLevel): LkLogLevel {
+  switch (level) {
+    case LogLevel.Error: return 'error';
+    case LogLevel.Warn:  return 'warn';
+    case LogLevel.Debug: return 'debug';
+    case LogLevel.Trace: return 'trace';
+    default:             return 'info'; // Info / Success share the Info threshold
+  }
+}
+
+function toLkTransport(t: LogTransport, index: number): LkTransport {
+  return {
+    name: `extforge:${index}`,
+    write(record) {
+      const entry = (record.context as { [EF_ENTRY_KEY]?: LogEntry })[EF_ENTRY_KEY];
+      if (entry) t(entry);
+    },
+  };
+}
+
+function buildLkLogger(transports: LogTransport[]): LkLogger {
+  return createLkLogger({
+    // ExtForge applies its own level gate before dispatch (see `emit`), so the
+    // backing logger must pass everything through to the wrapped transports.
+    level: 'trace',
+    transports: transports.map(toLkTransport),
+    onTransportError(err, info) {
+      // A throwing transport never breaks the others; surface it so a broken
+      // --json pipe or log sink is at least visible.
+      process.stderr.write(
+        `[extforge:logger] transport ${info.transport} ${info.op} failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    },
+  });
+}
+
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
 export class Logger {
@@ -149,12 +203,19 @@ export class Logger {
   private transports: LogTransport[];
   private silentHumanOutput: boolean;
   private timers = new Map<string, number>();
+  private lk: LkLogger;
 
   constructor(opts: LoggerOptions = {}) {
     this.level = opts.level ?? LogLevel.Info;
     this.scope = opts.scope ?? '';
     this.transports = opts.transports ?? [consoleTransport];
     this.silentHumanOutput = opts.silentHumanOutput ?? false;
+    this.lk = buildLkLogger(this.transports);
+  }
+
+  /** Fan a fully-formed entry out through the log-kit pipeline. */
+  private dispatch(entry: LogEntry): void {
+    this.lk[efLevelToLk(entry.level)](entry.message, { [EF_ENTRY_KEY]: entry });
   }
 
   setLevel(level: LogLevel): void { this.level = level; }
@@ -172,7 +233,7 @@ export class Logger {
   private emit(level: LogLevel, message: string, args: unknown[], duration?: number): void {
     if (level > this.level) return;
     const entry: LogEntry = { level, scope: this.scope, message, args, timestamp: Date.now(), duration };
-    for (const t of this.transports) t(entry);
+    this.dispatch(entry);
   }
 
   error(msg: string, ...args: unknown[]) { this.emit(LogLevel.Error, tint(pc.red, msg), args); }
@@ -187,7 +248,7 @@ export class Logger {
       level: LogLevel.Success, scope: this.scope,
       message: tint(pc.green, msg), args, timestamp: Date.now(),
     };
-    for (const t of this.transports) t(entry);
+    this.dispatch(entry);
   }
 
   // ── Timing ─────────────────────────────────────────────────────────
@@ -207,7 +268,7 @@ export class Logger {
         level: LogLevel.Info, scope: this.scope,
         message: message ?? label, args: [], timestamp: Date.now(), duration,
       };
-      for (const t of this.transports) t(entry);
+      this.dispatch(entry);
     }
     return duration;
   }
@@ -284,8 +345,8 @@ export class Logger {
     process.stdout.write(line + '\n');
   }
 
-  addTransport(t: LogTransport): void { this.transports.push(t); }
-  clearTransports(): void { this.transports = []; }
+  addTransport(t: LogTransport): void { this.transports.push(t); this.lk = buildLkLogger(this.transports); }
+  clearTransports(): void { this.transports = []; this.lk = buildLkLogger(this.transports); }
 }
 
 // ─── JSON transport ──────────────────────────────────────────────────────────

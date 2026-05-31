@@ -78,6 +78,7 @@
   },
   "dependencies": {
     "@arshad-shah/clif": "^1.1.2",
+    "@arshad-shah/log-kit": "^1.0.1",
     "esbuild": "^0.28.0",
     "ws": "^8.18.0",
     "zod": "^3.25.76"

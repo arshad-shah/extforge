@@ -140,4 +140,4 @@ log.info('hook fired');
 
 ## Why a custom logger?
 
-ExtForge ships zero runtime dependencies in `extforge/logger` so it stays usable from the CLI, plugins, build hooks, and CI scripts without dragging in `pino`, `winston`, or similar. The trade-off is a smaller feature surface — if you need log rotation, remote shipping, or sampling, pipe `jsonTransport()` into a process that handles that.
+`extforge/logger` adds the build-tool presentation layer — badges, scopes, banners, summaries, timers, and the printf-style API the CLI relies on — on top of [`@arshad-shah/log-kit`](https://www.npmjs.com/package/@arshad-shah/log-kit), a tiny zero-dependency structured logger that handles record fan-out and per-transport failure isolation. That keeps it lightweight enough to use from the CLI, plugins, build hooks, and CI scripts without dragging in `pino`, `winston`, or similar. If you need log rotation, remote shipping, or sampling, pipe `jsonTransport()` into a process that handles that.
