@@ -77,6 +77,7 @@
     "docs:build": "pnpm docs:gen && pnpm --filter extforge-docs build"
   },
   "dependencies": {
+    "@arshad-shah/clif": "^1.1.2",
     "esbuild": "^0.28.0",
     "ws": "^8.18.0",
     "zod": "^3.25.76"

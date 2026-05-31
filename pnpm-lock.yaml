@@ -12,6 +12,9 @@ importers:
 
   .:
     dependencies:
+      '@arshad-shah/clif':
+        specifier: ^1.1.2
+        version: 1.1.2
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -159,6 +162,10 @@ packages:
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
     engines: {node: '>=6.0.0'}
+
+  '@arshad-shah/clif@1.1.2':
+    resolution: {integrity: sha512-eaKyEvQoPKhvz+VKfbZdz2QKMdlgvMO/MnQ7NcwYJ8aEOPUz1YD/wqwSlBkyeh0HsSZwUf2OqLhpkgxHl+IcJQ==}
+    engines: {node: '>=22.12.0'}
 
   '@astrojs/compiler@4.0.0':
     resolution: {integrity: sha512-eouss7G8ygdZqHuke033VMcVw5HTZUu+PXd/h06DGDUg/jt5btPYPqh66ENWw/mU78rBrf/oeC4oqoBwMtDMNA==}
@@ -3575,6 +3582,8 @@ snapshots:
     dependencies:
       '@jridgewell/gen-mapping': 0.3.13
       '@jridgewell/trace-mapping': 0.3.31
+
+  '@arshad-shah/clif@1.1.2': {}
 
   '@astrojs/compiler@4.0.0': {}
 

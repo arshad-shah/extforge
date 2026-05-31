@@ -100,7 +100,7 @@ export function installProcessGuards(): void {
 
 /**
  * Run a CLI entry function with formatted error handling. Use as the
- * outermost wrapper around `runMain(...)`.
+ * outermost wrapper around the clif `cli.run(...)` call.
  */
 export async function withErrorHandler(fn: () => Promise<void> | void): Promise<void> {
   installProcessGuards();
