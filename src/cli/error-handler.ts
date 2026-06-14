@@ -6,7 +6,7 @@
  * exceptions don't dump raw stack traces on users.
  */
 
-import pc from '../core/logger/ansi.js';
+import { style, link } from '@arshad-shah/clif';
 import { isExtForgeError } from '../core/errors/index.js';
 
 export interface FormattedError {
@@ -56,18 +56,23 @@ export function formatError(err: unknown): FormattedError {
 export function printError(err: unknown): void {
   const f = formatError(err);
   /* eslint-disable no-console */
+  // Rendered with clif's `style`/`link` — it owns NO_COLOR / FORCE_COLOR / pipe
+  // detection, and `link` emits an OSC 8 hyperlink in capable terminals while
+  // degrading to `Docs → (url)` everywhere else, so the URL is never lost.
   console.error('');
-  console.error(pc.bold(pc.red(`✖ ${f.title}`)));
+  console.error(style.bold.red(`✖ ${f.title}`));
   if (f.detail) console.error(`  ${f.detail}`);
-  if (f.hint) console.error('');
-  if (f.hint) console.error(pc.dim(`  Hint: ${f.hint}`));
-  if (f.docsUrl) console.error(pc.dim(`  Docs: ${f.docsUrl}`));
+  if (f.hint) {
+    console.error('');
+    console.error(style.dim(`  Hint: ${f.hint}`));
+  }
+  if (f.docsUrl) console.error('  ' + style.dim('Docs: ') + style.cyan(link('Docs →', f.docsUrl)));
   if (process.env.EXTFORGE_DEBUG && f.cause instanceof Error && f.cause.stack) {
     console.error('');
-    console.error(pc.dim(f.cause.stack));
+    console.error(style.dim(f.cause.stack));
   } else if (f.cause instanceof Error) {
     console.error('');
-    console.error(pc.dim('  Run with EXTFORGE_DEBUG=1 to see the full stack trace.'));
+    console.error(style.dim('  Run with EXTFORGE_DEBUG=1 to see the full stack trace.'));
   }
   console.error('');
   /* eslint-enable no-console */

@@ -2,6 +2,10 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
+    // tsup's DTS bundler (rollup-plugin-dts) injects a `baseUrl`, which TS 6.0
+    // deprecates ahead of removal in 7.0. Silence it until the toolchain stops
+    // emitting it; our own tsconfig no longer sets baseUrl/paths.
+    "ignoreDeprecations": "6.0",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
@@ -16,9 +20,6 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "paths": {
-      "@/*": ["./src/*"]
-    },
     "types": ["node"]
   },
   "include": ["src/**/*"],

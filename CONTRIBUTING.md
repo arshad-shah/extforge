@@ -7,7 +7,7 @@ process lives in [SECURITY.md](./SECURITY.md).
 
 ## Local setup
 
-The repo is a pnpm workspace. Node `>=20` and pnpm `10.x` are required
+The repo is a pnpm workspace. Node `>=22.12` and pnpm `10.x` are required
 (`packageManager` in `package.json` is the source of truth).
 
 ```bash
@@ -28,7 +28,7 @@ A single sequence that mirrors what CI runs:
 pnpm typecheck && pnpm lint && pnpm test && pnpm build
 ```
 
-CI runs the same matrix on Node 20 / 22 / 24, plus e2e on Ubuntu and macOS.
+CI runs the same matrix on Node 22 / 24, plus e2e on Ubuntu and macOS.
 
 ## Project layout
 

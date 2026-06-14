@@ -56,7 +56,7 @@ function compileTsConfig(file: string, cwd: string): { tmpDir: string; outFile: 
       bundle: true,
       format: 'esm',
       platform: 'node',
-      target: 'node20',
+      target: 'node22',
       // Don't try to bundle node_modules into the config — keep them external.
       packages: 'external',
       outfile: outFile,

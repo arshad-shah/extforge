@@ -58,7 +58,7 @@ The release workflow (`.github/workflows/release.yml`) and the manual publish wo
 
 Every PR runs through:
 
-- **Unit tests + build** on Node 20, 22, and 24.
+- **Unit tests + build** on Node 22 and 24.
 - **`pnpm audit --prod`** — production dependency tree must be zero vulnerabilities to merge.
 - **Playwright E2E** on Ubuntu and macOS.
 - **CodeQL** with the `security-and-quality` query suite.

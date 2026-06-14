@@ -86,7 +86,10 @@ export async function loadExtForgeConfig(
     ],
     mode: optedOut ? 'warn' : 'strict',
     logger: cfgLogger,
-    onValidationError: (err) => formatZodError(err as ZodError, configFile),
+    // Surface the merged values to the error formatter: Zod 4 no longer carries
+    // the rejected value on the issue, so we recover it from `ctx.merged`.
+    includeValuesInErrors: true,
+    onValidationError: (err, ctx) => formatZodError(err as ZodError, configFile, ctx.merged),
   });
 
   if (merged.browsers) {

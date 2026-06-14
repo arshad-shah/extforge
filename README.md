@@ -62,7 +62,7 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 pnpm add -D extforge
 ```
 
-Requires Node 20+. Optional: `pnpm add -D @swc/core react-refresh` to enable React Fast Refresh in dev. See [install guide](https://extforge.arshadshah.com/getting-started/install/) for npm/yarn/bun.
+Requires Node 22.12+. Optional: `pnpm add -D @swc/core react-refresh` to enable React Fast Refresh in dev. See [install guide](https://extforge.arshadshah.com/getting-started/install/) for npm/yarn/bun.
 
 ## Docs <span id="docs"></span>
 
