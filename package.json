@@ -77,36 +77,36 @@
     "docs:build": "pnpm docs:gen && pnpm --filter extforge-docs build"
   },
   "dependencies": {
-    "@arshad-shah/clif": "^1.1.2",
+    "@arshad-shah/clif": "^1.3.0",
     "@arshad-shah/config-kit": "^2.0.0",
     "@arshad-shah/log-kit": "^1.1.0",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "ws": "^8.21.0",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@changesets/changelog-github": "^0.5.0",
+    "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.0",
-    "@eslint/js": "^9.39.4",
-    "@mdn/browser-compat-data": "^7.3.14",
-    "@swc/core": "^1.15.0",
-    "@types/chrome": "^0.0.290",
-    "@types/node": "^22.0.0",
-    "@types/react": "^18.3.0",
-    "@types/react-dom": "18",
-    "@types/ws": "^8.5.13",
-    "@vitest/coverage-v8": "^2.1.9",
-    "eslint": "^9.0.0",
-    "happy-dom": "^20.0.0",
-    "prettier": "^3.4.0",
-    "react": "18",
-    "react-dom": "18",
+    "@eslint/js": "^10.0.1",
+    "@mdn/browser-compat-data": "^8.0.3",
+    "@swc/core": "^1.15.41",
+    "@types/chrome": "^0.1.43",
+    "@types/node": "^22.19.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
+    "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^10.5.0",
+    "happy-dom": "^20.10.3",
+    "prettier": "^3.8.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "ts-morph": "^28.0.0",
-    "tsup": "^8.3.5",
-    "tsx": "^4.21.0",
-    "typescript": "^5.7.0",
-    "typescript-eslint": "^8.59.1",
-    "vitest": "^2.1.0"
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "@swc/core": ">=1.7.0",
@@ -129,7 +129,7 @@
     }
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "packageManager": "pnpm@10.0.0",
   "files": [
@@ -175,7 +175,7 @@
   },
   "pnpm": {
     "overrides": {
-      "esbuild@<0.25.0": ">=0.25.0",
+      "esbuild@<0.28.1": ">=0.28.1",
       "devalue@>=5.6.3 <5.8.1": ">=5.8.1"
     }
   }

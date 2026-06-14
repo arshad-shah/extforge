@@ -24,7 +24,7 @@ export default defineConfig({
   // their own extension; debugging extforge internals isn't a goal of
   // a published library.
   sourcemap: false,
-  target: 'node20',
+  target: 'node22',
   splitting: true,
   treeshake: true,
   external: ['esbuild', 'react', 'react-dom', 'react/jsx-runtime'],

@@ -7,7 +7,7 @@ import { Tabs, TabItem, Aside } from '@astrojs/starlight/components';
 
 ## Prerequisites
 
-- **Node.js 20 or later.** ExtForge uses native ESM and requires the `fetch` global available in Node 18+, but Node 20 LTS is the tested baseline.
+- **Node.js 22.12 or later.** ExtForge uses native ESM, and its CLI dependencies (e.g. `@arshad-shah/clif`) require Node 22.12+. Node 22 LTS is the tested baseline.
 - **A package manager.** pnpm is recommended; npm, yarn, and bun all work.
 - **A Chromium-based browser** for local testing (Chrome, Edge, or Brave). Firefox requires a separate profile. Safari requires Xcode.
 
@@ -118,7 +118,7 @@ pnpm exec extforge doctor
 
 `extforge doctor` reports:
 
-- Node.js version (✓ if 20+, ✗ if below)
+- Node.js version (✓ if 22.12+, ✗ if below)
 - Package manager detected
 - `extforge.config.ts` present and valid
 - `icons/` directory present with required sizes

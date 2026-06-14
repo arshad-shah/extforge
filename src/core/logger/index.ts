@@ -7,6 +7,11 @@
 
 import pc from './ansi.js';
 import {
+  box, indent, keyValue, stripAnsi,
+  formatDuration as clifFormatDuration,
+  formatBytes as clifFormatBytes,
+} from '@arshad-shah/clif';
+import {
   createLogger as createLkLogger,
   type Logger as LkLogger,
   type LogLevel as LkLogLevel,
@@ -74,33 +79,23 @@ export interface LoggerOptions {
   silentHumanOutput?: boolean;
 }
 
-// ─── Color env detection ─────────────────────────────────────────────────────
+// ─── Color application ───────────────────────────────────────────────────────
+// clif's formatters already honor NO_COLOR / FORCE_COLOR / TERM=dumb / TTY, so
+// `tint` is just a readable alias for "paint this text" — a disabled terminal
+// gets the plain string straight back from clif.
 
-const useColor = (): boolean => {
-  if (process.env.FORCE_COLOR === '1') return true;
-  if (process.env.NO_COLOR === '1' || process.env.NO_COLOR === 'true') return false;
-  if (process.env.TERM === 'dumb') return false;
-  return process.stdout.isTTY ?? false;
-};
-
-const tint = (fn: (s: string) => string, text: string): string =>
-  useColor() ? fn(text) : text;
+const tint = (fn: (s: string) => string, text: string): string => fn(text);
 
 // ─── Format utilities ────────────────────────────────────────────────────────
+// Human-readable number formatting is owned by clif (`formatDuration` /
+// `formatBytes`). These thin wrappers keep ExtForge's stable export names.
 
 export function formatDuration(ms: number): string {
-  if (ms < 1) return `${(ms * 1000).toFixed(0)}μs`;
-  if (ms < 1000) return `${ms.toFixed(ms < 10 ? 1 : 0)}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(2)}s`;
-  const mins = Math.floor(ms / 60000);
-  const secs = ((ms % 60000) / 1000).toFixed(1);
-  return `${mins}m ${secs}s`;
+  return clifFormatDuration(ms);
 }
 
 export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return clifFormatBytes(bytes);
 }
 
 export function formatPath(filePath: string, cwd?: string): string {
@@ -343,27 +338,21 @@ export class Logger {
   summary(title: string, rows: Array<{ label: string; value: string }>): void {
     if (this.silentHumanOutput) return;
     this.emit(LogLevel.Info, tint(pc.bold, title), []);
-    const w = Math.max(...rows.map(r => r.label.length));
-    for (const r of rows) {
-      const pad = ' '.repeat(w - r.label.length);
-      this.emit(LogLevel.Info, `  ${tint(pc.dim, r.label)}${pad}  ${r.value}`, []);
+    // clif's `keyValue` owns the column alignment and key coloring; we split it
+    // back into lines so each row stays a badged log entry on its own.
+    const data = Object.fromEntries(rows.map(r => [r.label, r.value]));
+    for (const line of keyValue(data, { indent: 2, keyColor: pc.dim }).split('\n')) {
+      this.emit(LogLevel.Info, line, []);
     }
   }
 
   banner(title: string, lines: string[] = []): void {
     if (this.silentHumanOutput) return;
-    const maxLen = Math.max(title.length, ...lines.map(l => l.length));
-    const pad = (s: string) => s + ' '.repeat(maxLen - s.length);
-    const hr = tint(pc.dim, '─'.repeat(maxLen + 4));
-    const bar = tint(pc.dim, '│');
-
-    process.stdout.write(`\n  ${hr}\n`);
-    process.stdout.write(`  ${bar} ${tint(pc.bold, pad(title))} ${bar}\n`);
-    if (lines.length > 0) {
-      process.stdout.write(`  ${bar} ${' '.repeat(maxLen)} ${bar}\n`);
-      for (const l of lines) process.stdout.write(`  ${bar} ${pad(l)} ${bar}\n`);
-    }
-    process.stdout.write(`  ${hr}\n\n`);
+    // clif's `box` owns the framing, padding, width, and color-aware borders.
+    const rendered = lines.length > 0
+      ? box(lines.join('\n'), { title, border: 'round', padding: 1, titleColor: pc.bold })
+      : box(title, { border: 'round', padding: 1 });
+    process.stdout.write(`\n${indent(rendered, 2)}\n\n`);
   }
 
   /**
@@ -442,8 +431,9 @@ export function jsonTransport(write: (line: string) => void = (s) => process.std
       v: 1,
       level: entry.level,
       scope: entry.scope,
-      // eslint-disable-next-line no-control-regex
-      message: entry.message.replace(new RegExp('\x1b\\[[0-9;]*m', 'g'), ''),
+      // clif's stripAnsi removes every escape (SGR colors, 256/truecolor, OSC 8
+      // links) so the JSON payload is always plain text.
+      message: stripAnsi(entry.message),
       timestamp: entry.timestamp,
       duration: entry.duration,
       args: entry.args,

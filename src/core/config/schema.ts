@@ -12,7 +12,7 @@ export const extForgeConfigSchema = z.object({
     outDir: z.string().optional(),
     srcDir: z.string().optional(),
     sourcemap: z.boolean().optional(),
-    esbuild: z.record(z.unknown()).optional(),
+    esbuild: z.record(z.string(), z.unknown()).optional(),
   }).optional(),
   dev: z.object({
     port: z.number().int().min(1).max(65535).optional(),

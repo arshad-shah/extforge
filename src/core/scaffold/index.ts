@@ -7,7 +7,7 @@
  */
 
 import { ask, type Prompt } from './prompter.js';
-import pc from '../logger/ansi.js';
+import { style } from '@arshad-shah/clif';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
@@ -39,8 +39,8 @@ export interface ScaffoldAnswers {
 
 async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<ScaffoldAnswers | null> {
   log.raw('');
-  log.raw('  ' + pc.bold(pc.magenta('extforge')) + pc.dim(' › ') + pc.bold('create a new browser extension'));
-  log.raw(pc.dim('  Answer a few questions to scaffold your project.\n'));
+  log.raw('  ' + style.bold.magenta('extforge') + style.dim(' › ') + style.bold('create a new browser extension'));
+  log.raw(style.dim('  Answer a few questions to scaffold your project.\n'));
 
   const promptList: Prompt[] = [
     {
@@ -61,17 +61,17 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
     {
       type: 'select', name: 'framework', message: 'UI framework',
       choices: [
-        { title: `${pc.cyan('React')}      — Component-based with JSX/TSX`, value: 'react' },
-        { title: `${pc.yellow('Vanilla')}    — Plain TypeScript`, value: 'vanilla' },
+        { title: `${style.cyan('React')}      — Component-based with JSX/TSX`, value: 'react' },
+        { title: `${style.yellow('Vanilla')}    — Plain TypeScript`, value: 'vanilla' },
       ],
       initial: 0,
     },
     {
       type: 'select', name: 'css', message: 'CSS framework',
       choices: [
-        { title: `${pc.cyan('Tailwind CSS')} — Utility-first CSS`, value: 'tailwind' },
-        { title: `${pc.yellow('Vanilla CSS')}  — Plain CSS/PostCSS`, value: 'vanilla' },
-        { title: `${pc.dim('None')}          — No CSS setup`, value: 'none' },
+        { title: `${style.cyan('Tailwind CSS')} — Utility-first CSS`, value: 'tailwind' },
+        { title: `${style.yellow('Vanilla CSS')}  — Plain CSS/PostCSS`, value: 'vanilla' },
+        { title: `${style.dim('None')}          — No CSS setup`, value: 'none' },
       ],
       initial: 0,
     },
@@ -89,11 +89,11 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
       type: 'multiselect', name: 'features', message: 'Extension features',
       hint: '— Space to toggle',
       choices: [
-        { title: `${pc.cyan('Popup')}           — Toolbar popup`, value: 'popup', selected: true },
-        { title: `${pc.green('Background')}      — Service worker`, value: 'background', selected: true },
-        { title: `${pc.yellow('Content Script')}  — Inject into pages`, value: 'content', selected: false },
-        { title: `${pc.magenta('Options Page')}    — Settings page`, value: 'options', selected: false },
-        { title: `${pc.blue('Side Panel')}      — Browser side panel`, value: 'sidepanel', selected: false },
+        { title: `${style.cyan('Popup')}           — Toolbar popup`, value: 'popup', selected: true },
+        { title: `${style.green('Background')}      — Service worker`, value: 'background', selected: true },
+        { title: `${style.yellow('Content Script')}  — Inject into pages`, value: 'content', selected: false },
+        { title: `${style.magenta('Options Page')}    — Settings page`, value: 'options', selected: false },
+        { title: `${style.blue('Side Panel')}      — Browser side panel`, value: 'sidepanel', selected: false },
       ],
     },
     {
@@ -101,7 +101,7 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
       hint: '— Space to toggle',
       choices: Object.entries(PERMISSION_GROUPS).flatMap(([group, info]) =>
         info.permissions.map(perm => ({
-          title: `${pc.dim(`[${group}]`)} ${perm}`,
+          title: `${style.dim(`[${group}]`)} ${perm}`,
           value: perm,
           selected: DEFAULTS.permissions.includes(perm as never),
         }))
@@ -110,7 +110,7 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
   ];
 
   const response = await ask(promptList, {
-    onCancel: () => { log.raw(pc.red('\n  Cancelled.\n')); },
+    onCancel: () => { log.raw(style.red('\n  Cancelled.\n')); },
   });
   if (!response || !response['name']) return null;
   return response as unknown as ScaffoldAnswers;
@@ -279,7 +279,7 @@ export async function scaffold(
   }
 
   log.time('scaffold');
-  log.info(`Scaffolding ${pc.bold(answers.name)} in ${pc.cyan(projectDir)}...`);
+  log.info(`Scaffolding ${style.bold(answers.name)} in ${style.cyan(projectDir)}...`);
 
   // Template interpolation vars
   const vars = {
@@ -342,14 +342,14 @@ export async function scaffold(
   log.timeEnd('scaffold', 'Scaffolded project');
 
   log.raw('');
-  log.raw(pc.bold(pc.green('  ✔ Project created!')));
+  log.raw(style.bold.green('  ✔ Project created!'));
   log.raw('');
-  log.raw(pc.dim('  Next steps:'));
-  log.raw(`    ${pc.cyan('cd')} ${answers.name}`);
-  log.raw(`    ${pc.cyan('npm install')}`);
-  log.raw(`    ${pc.cyan('npm run dev')}`);
+  log.raw(style.dim('  Next steps:'));
+  log.raw(`    ${style.cyan('cd')} ${answers.name}`);
+  log.raw(`    ${style.cyan('npm install')}`);
+  log.raw(`    ${style.cyan('npm run dev')}`);
   log.raw('');
-  log.raw(pc.dim(`  Then load the extension from ${pc.cyan('dist/chrome/')} in your browser.`));
+  log.raw(style.dim(`  Then load the extension from ${style.cyan('dist/chrome/')} in your browser.`));
   log.raw('');
 
   return projectDir;

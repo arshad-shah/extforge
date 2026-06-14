@@ -1,174 +1,161 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Readable, Writable } from 'node:stream';
 import { ask } from '../src/core/scaffold/prompter.js';
+import { text, select, multiselect, PromptError } from '@arshad-shah/clif/prompts';
 
-interface FakeStdin extends Readable {
-  isTTY: boolean;
-  setRawMode: (mode: boolean) => void;
-  pause: () => this;
-  resume: () => this;
+/**
+ * The prompter is a thin adapter over `@arshad-shah/clif/prompts` — clif owns
+ * the terminal handling (raw mode, key parsing, rendering), which it tests on
+ * its own. These tests guard ExtForge's adapter layer:
+ *   - the `Prompt[]` shape is mapped onto clif's options correctly,
+ *   - clif cancellations collapse to `null` + `onCancel`,
+ *   - non-TTY contexts resolve to defaults instead of touching clif.
+ */
+
+vi.mock('@arshad-shah/clif/prompts', () => {
+  class PromptError extends Error {
+    code: string;
+    constructor(code: string, message?: string) {
+      super(message ?? code);
+      this.code = code;
+    }
+  }
+  return {
+    PromptError,
+    text: vi.fn(),
+    select: vi.fn(),
+    multiselect: vi.fn(),
+  };
+});
+
+const mockText = vi.mocked(text);
+const mockSelect = vi.mocked(select);
+const mockMultiselect = vi.mocked(multiselect);
+
+function setTTY(value: boolean): void {
+  Object.defineProperty(process.stdin, 'isTTY', { value, configurable: true });
 }
 
-function makeFakeStdin(): FakeStdin {
-  const s = new Readable({ read() {} }) as FakeStdin;
-  s.isTTY = true;
-  s.setRawMode = vi.fn();
-  return s;
-}
-
-function makeFakeStdout(): Writable & { chunks: string[] } {
-  const chunks: string[] = [];
-  const w = new Writable({
-    write(chunk, _enc, cb) { chunks.push(chunk.toString()); cb(); },
-  }) as Writable & { chunks: string[] };
-  w.chunks = chunks;
-  return w;
-}
-
-describe('prompter', () => {
-  const origStdin = process.stdin;
-  const origStdout = process.stdout;
-  let fakeIn: FakeStdin;
-  let fakeOut: ReturnType<typeof makeFakeStdout>;
+describe('prompter (clif adapter)', () => {
+  const original = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
 
   beforeEach(() => {
-    fakeIn = makeFakeStdin();
-    fakeOut = makeFakeStdout();
-    Object.defineProperty(process, 'stdin', { value: fakeIn, configurable: true });
-    Object.defineProperty(process, 'stdout', { value: fakeOut, configurable: true });
+    vi.clearAllMocks();
+    setTTY(true);
   });
 
   afterEach(() => {
-    Object.defineProperty(process, 'stdin', { value: origStdin, configurable: true });
-    Object.defineProperty(process, 'stdout', { value: origStdout, configurable: true });
+    if (original) Object.defineProperty(process.stdin, 'isTTY', original);
   });
 
-  describe('rendering select prompts', () => {
-    it('emits real ANSI escape sequences (not literal "[2K" text) when redrawing', async () => {
-      const askPromise = ask([{
-        type: 'select',
-        name: 'pick',
-        message: 'choose',
-        choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }],
-      }]);
+  describe('delegation & mapping', () => {
+    it('forwards a text prompt to clif with its default and validator', async () => {
+      mockText.mockResolvedValue('chosen');
+      const validate = (v: string) => (v ? true : 'required');
 
-      // First render happens synchronously inside rawCursorPrompt.setup → ctx.render()
-      await new Promise(r => setImmediate(r));
+      const result = await ask([
+        { type: 'text', name: 'name', message: 'Name', initial: 'world', validate },
+      ]);
 
-      // Trigger a re-render by sending a "down" keypress, which forces the
-      // clear-previous-render code path that uses ANSI cursor controls.
-      fakeIn.emit('keypress', undefined, { name: 'down' });
-      await new Promise(r => setImmediate(r));
-
-      // Confirm with Enter so the promise resolves.
-      fakeIn.emit('keypress', undefined, { name: 'return' });
-      await askPromise;
-
-      const out = fakeOut.chunks.join('');
-
-      // ESC byte should appear in cursor-up + clear-line sequences.
-      expect(out).toContain('\x1b[');
-
-      // The bug: literal "[2K" / "[1A" without ESC byte leaks into output.
-      // After fix, these substrings only appear preceded by \x1b.
-      const literalClearLine = out.match(/(^|[^\x1b])\[2K/);
-      expect(literalClearLine).toBeNull();
-      const literalCursorUp = out.match(/(^|[^\x1b])\[\d+A/);
-      expect(literalCursorUp).toBeNull();
+      expect(mockText).toHaveBeenCalledWith({ message: 'Name', default: 'world', validate });
+      expect(result).toEqual({ name: 'chosen' });
     });
 
-    it('wraps cursor around with up/down keys', async () => {
-      const askPromise = ask([{
-        type: 'select',
-        name: 'pick',
+    it('maps select choices to clif options and the initial index to a default value', async () => {
+      mockSelect.mockResolvedValue('b');
+
+      const result = await ask([
+        {
+          type: 'select', name: 'pick', message: 'choose', initial: 1,
+          choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }],
+        },
+      ]);
+
+      expect(mockSelect).toHaveBeenCalledWith({
         message: 'choose',
-        choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }, { title: 'C', value: 'c' }],
-      }]);
-      await new Promise(r => setImmediate(r));
-      // Up from index 0 wraps to last item.
-      fakeIn.emit('keypress', undefined, { name: 'up' });
-      await new Promise(r => setImmediate(r));
-      fakeIn.emit('keypress', undefined, { name: 'return' });
-      const result = await askPromise;
-      expect(result).toEqual({ pick: 'c' });
+        options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }],
+        default: 'b',
+      });
+      expect(result).toEqual({ pick: 'b' });
     });
 
-    it('resolves Ctrl-C as a cancellation', async () => {
-      const askPromise = ask([{
-        type: 'select',
-        name: 'pick',
-        message: 'choose',
-        choices: [{ title: 'A', value: 'a' }],
-      }], { onCancel: () => {} });
-      await new Promise(r => setImmediate(r));
-      fakeIn.emit('keypress', undefined, { name: 'c', ctrl: true });
-      const result = await askPromise;
-      expect(result).toBeNull();
-    });
-  });
+    it('maps multiselect pre-selection to clif `default` and forwards `min`', async () => {
+      mockMultiselect.mockResolvedValue(['a', 'c']);
 
-  describe('multiselect prompts', () => {
-    it('toggles selection with space and returns the sorted picks on enter', async () => {
-      const askPromise = ask([{
-        type: 'multiselect',
-        name: 'picks',
-        message: 'choose many',
-        choices: [
-          { title: 'A', value: 'a' },
-          { title: 'B', value: 'b' },
-          { title: 'C', value: 'c' },
+      const result = await ask([
+        {
+          type: 'multiselect', name: 'picks', message: 'choose', min: 1,
+          choices: [
+            { title: 'A', value: 'a', selected: true },
+            { title: 'B', value: 'b' },
+            { title: 'C', value: 'c', selected: true },
+          ],
+        },
+      ]);
+
+      expect(mockMultiselect).toHaveBeenCalledWith({
+        message: 'choose',
+        options: [
+          { label: 'A', value: 'a' },
+          { label: 'B', value: 'b' },
+          { label: 'C', value: 'c' },
         ],
-      }]);
-      await new Promise(r => setImmediate(r));
-      // Select A.
-      fakeIn.emit('keypress', undefined, { name: 'space' });
-      await new Promise(r => setImmediate(r));
-      // Move to C and select.
-      fakeIn.emit('keypress', undefined, { name: 'down' });
-      fakeIn.emit('keypress', undefined, { name: 'down' });
-      fakeIn.emit('keypress', undefined, { name: 'space' });
-      await new Promise(r => setImmediate(r));
-      fakeIn.emit('keypress', undefined, { name: 'return' });
-      const result = await askPromise;
+        default: ['a', 'c'],
+        min: 1,
+      });
       expect(result).toEqual({ picks: ['a', 'c'] });
     });
 
-    it('ignores Enter until the `min` requirement is met', async () => {
-      const askPromise = ask([{
-        type: 'multiselect',
-        name: 'picks',
-        message: 'pick 1+',
-        min: 1,
-        choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }],
-      }]);
-      await new Promise(r => setImmediate(r));
-      // No selection yet — Enter should be a no-op.
-      fakeIn.emit('keypress', undefined, { name: 'return' });
-      await new Promise(r => setImmediate(r));
-      fakeIn.emit('keypress', undefined, { name: 'space' });
-      await new Promise(r => setImmediate(r));
-      fakeIn.emit('keypress', undefined, { name: 'return' });
-      const result = await askPromise;
-      expect(result).toEqual({ picks: ['a'] });
+    it('runs prompts in order, keyed by name', async () => {
+      mockText.mockResolvedValueOnce('n').mockResolvedValueOnce('d');
+      const result = await ask([
+        { type: 'text', name: 'name', message: 'Name' },
+        { type: 'text', name: 'desc', message: 'Description' },
+      ]);
+      expect(result).toEqual({ name: 'n', desc: 'd' });
+    });
+  });
+
+  describe('cancellation', () => {
+    it('returns null and calls onCancel when clif throws a cancellation', async () => {
+      mockSelect.mockRejectedValue(new PromptError('cancelled'));
+      const onCancel = vi.fn();
+
+      const result = await ask(
+        [{ type: 'select', name: 'pick', message: 'choose', choices: [{ title: 'A', value: 'a' }] }],
+        { onCancel },
+      );
+
+      expect(result).toBeNull();
+      expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('rethrows unexpected errors', async () => {
+      mockText.mockRejectedValue(new Error('boom'));
+      await expect(
+        ask([{ type: 'text', name: 'n', message: 'x' }]),
+      ).rejects.toThrow('boom');
     });
   });
 
   describe('non-TTY behavior', () => {
-    it('text prompts resolve to the initial value', async () => {
-      fakeIn.isTTY = false;
+    beforeEach(() => setTTY(false));
+
+    it('text prompts resolve to the initial value without touching clif', async () => {
       const result = await ask([{ type: 'text', name: 'n', message: 'who?', initial: 'world' }]);
       expect(result).toEqual({ n: 'world' });
+      expect(mockText).not.toHaveBeenCalled();
     });
+
     it('select prompts resolve to the initial-index choice', async () => {
-      fakeIn.isTTY = false;
       const result = await ask([{
         type: 'select', name: 'pick', message: 'choose', initial: 1,
         choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }],
       }]);
       expect(result).toEqual({ pick: 'b' });
+      expect(mockSelect).not.toHaveBeenCalled();
     });
+
     it('multiselect prompts resolve to the pre-selected items', async () => {
-      fakeIn.isTTY = false;
       const result = await ask([{
         type: 'multiselect', name: 'picks', message: 'choose',
         choices: [
@@ -178,6 +165,7 @@ describe('prompter', () => {
         ],
       }]);
       expect(result).toEqual({ picks: ['a', 'c'] });
+      expect(mockMultiselect).not.toHaveBeenCalled();
     });
   });
 });

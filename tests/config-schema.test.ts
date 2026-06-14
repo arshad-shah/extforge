@@ -30,9 +30,10 @@ describe('extForgeConfigSchema', () => {
 
 describe('formatZodError', () => {
   it('produces an ExtForgeError with EXT_CONFIG_INVALID and a hint', () => {
-    const r = extForgeConfigSchema.safeParse({ browsers: ['brave'] });
+    const input = { browsers: ['brave'] };
+    const r = extForgeConfigSchema.safeParse(input);
     if (r.success) throw new Error('expected failure');
-    const ext = formatZodError(r.error, '/p/extforge.config.ts');
+    const ext = formatZodError(r.error, '/p/extforge.config.ts', input);
     expect(ext.code).toBe('EXT_CONFIG_INVALID');
     expect(ext.message).toMatch(/browsers\.0/);
     expect(ext.message).toMatch(/brave/);

@@ -13,15 +13,35 @@ const SUGGESTIONS: Record<string, (received: unknown) => string | undefined> = {
   },
 };
 
-function pathPattern(path: (string | number)[]): string {
-  return path.map(p => (typeof p === 'number' ? '*' : p)).join('.');
+function pathPattern(path: PropertyKey[]): string {
+  return path.map(p => (typeof p === 'number' ? '*' : String(p))).join('.');
 }
 
-export function formatZodError(err: ZodError, file?: string): ExtForgeError {
+/** Walk a Zod issue path on the original input to recover the offending value. */
+function valueAtPath(input: unknown, path: PropertyKey[]): unknown {
+  let cur: unknown = input;
+  for (const key of path) {
+    if (cur === null || typeof cur !== 'object') return undefined;
+    cur = (cur as Record<PropertyKey, unknown>)[key];
+  }
+  return cur;
+}
+
+/**
+ * Render a Zod validation failure as an ExtForgeError.
+ *
+ * Zod 4 no longer carries the rejected value on the issue (the old `received`
+ * field is gone), so the caller passes the merged `input` and we resolve each
+ * value by walking the issue path. That keeps the "received:" line and the
+ * field-specific suggestions working.
+ */
+export function formatZodError(err: ZodError, file?: string, input?: unknown): ExtForgeError {
   const lines: string[] = [];
   for (const issue of err.issues) {
     const path = issue.path.join('.') || '<root>';
-    const received = (issue as { received?: unknown }).received;
+    const received = input !== undefined
+      ? valueAtPath(input, issue.path)
+      : (issue as { received?: unknown }).received;
     const expectedField = (issue as { expected?: unknown }).expected ?? issue.code;
     const suggestion = SUGGESTIONS[pathPattern(issue.path)]?.(received);
     lines.push(`  ${path}`);
