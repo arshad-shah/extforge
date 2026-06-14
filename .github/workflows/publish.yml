@@ -39,7 +39,7 @@ jobs:
       id-token: write
     if: ${{ github.repository == 'arshad-shah/extforge' && (github.event_name == 'release' || github.event.inputs.registry == 'github' || github.event.inputs.registry == 'both') }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
@@ -65,7 +65,7 @@ jobs:
     if: ${{ github.repository == 'arshad-shah/extforge' && (github.event.inputs.registry == 'npm' || github.event.inputs.registry == 'both') }}
     environment: npm-publish
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@a15d269cd4658e1107c09f1fabf4cbd7bd1f308a  # v4.4.0
