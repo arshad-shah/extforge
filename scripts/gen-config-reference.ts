@@ -12,27 +12,30 @@ mkdirSync(outDir, { recursive: true });
 
 interface Field { path: string; type: string; doc?: string; defaultValue?: string }
 
+// Zod 4 schema internals: `_def.type` is a lowercase tag ('object', 'optional',
+// 'enum', 'array', 'record', …) and the child accessors changed names
+// (`innerType`, `element`, `valueType`, `entries`).
 function describeZod(node: any): string {
-  const t = node._def?.typeName;
-  switch (t) {
-    case 'ZodOptional': return describeZod(node._def.innerType);
-    case 'ZodEnum':     return node._def.values.map((v: string) => `'${v}'`).join(' \\| ');
-    case 'ZodString':   return 'string';
-    case 'ZodNumber':   return 'number';
-    case 'ZodBoolean':  return 'boolean';
-    case 'ZodArray':    return `Array<${describeZod(node._def.type)}>`;
-    case 'ZodRecord':   return `Record<string, ${describeZod(node._def.valueType)}>`;
-    case 'ZodObject':   return 'object';
-    case 'ZodUnknown':  return 'unknown';
-    default:            return t ?? 'unknown';
+  const d = node?._def ?? {};
+  switch (d.type) {
+    case 'optional': return describeZod(d.innerType);
+    case 'enum':     return Object.values(d.entries ?? {}).map((v) => `'${v}'`).join(' \\| ');
+    case 'string':   return 'string';
+    case 'number':   return 'number';
+    case 'boolean':  return 'boolean';
+    case 'array':    return `Array<${describeZod(d.element)}>`;
+    case 'record':   return `Record<string, ${describeZod(d.valueType)}>`;
+    case 'object':   return 'object';
+    case 'unknown':  return 'unknown';
+    default:         return d.type ?? 'unknown';
   }
 }
 
 function walk(schema: any, prefix: string, out: Field[]): void {
-  const t = schema._def?.typeName;
-  if (t === 'ZodOptional') return walk(schema._def.innerType, prefix, out);
-  if (t === 'ZodObject') {
-    const shape = typeof schema._def.shape === 'function' ? schema._def.shape() : schema.shape;
+  const d = schema?._def ?? {};
+  if (d.type === 'optional') return walk(d.innerType, prefix, out);
+  if (d.type === 'object') {
+    const shape = d.shape ?? {};
     for (const [key, sub] of Object.entries(shape)) {
       const path = prefix ? `${prefix}.${key}` : key;
       out.push({ path, type: describeZod(sub) });
