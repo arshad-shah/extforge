@@ -1,41 +1,21 @@
 /**
- * Internal ANSI helper. Replaces `picocolors` with ~50 LOC. Honors NO_COLOR
- * (https://no-color.org), FORCE_COLOR, TERM=dumb, and isTTY.
+ * Color palette for the logger — backed by `@arshad-shah/clif`.
  *
- * Public API matches the subset of picocolors we use: red, yellow, green,
- * blue, magenta, cyan, gray, dim, bold. Each is a function `(s: string) => string`.
+ * clif owns both the ANSI generation and the detection logic: it honors
+ * `NO_COLOR` (https://no-color.org), `FORCE_COLOR`, `TERM=dumb`, and TTY/pipe
+ * detection, so callers never gate on color themselves — a disabled terminal
+ * simply gets the plain string back.
  *
- * Functions accept `unknown` and coerce to string so `pc.dim(123)` keeps
- * working without extra ceremony at call sites.
+ * The formatters are re-exported in a picocolors-shaped default object so the
+ * public `colors` export of `extforge/logger` keeps its `colors.cyan('x')`
+ * shape for plugins that want to match ExtForge's look-and-feel.
  */
 
-const supports = (() => {
-  if (typeof process === 'undefined') return false;
-  if (process.env['FORCE_COLOR'] === '1') return true;
-  if (process.env['NO_COLOR'] === '1' || process.env['NO_COLOR'] === 'true') return false;
-  if (process.env['TERM'] === 'dumb') return false;
-  return Boolean(process.stdout?.isTTY);
-})();
+import {
+  red, green, yellow, blue, magenta, cyan, white, gray, dim, bold,
+} from '@arshad-shah/clif';
 
-function wrap(open: number, close: number): (s: unknown) => string {
-  if (!supports) return (s) => String(s);
-  return (s) => `[${open}m${String(s)}[${close}m`;
-}
+export { red, green, yellow, blue, magenta, cyan, white, gray, dim, bold };
 
-export const red     = wrap(31, 39);
-export const green   = wrap(32, 39);
-export const yellow  = wrap(33, 39);
-export const blue    = wrap(34, 39);
-export const magenta = wrap(35, 39);
-export const cyan    = wrap(36, 39);
-export const white   = wrap(37, 39);
-export const gray    = wrap(90, 39);
-export const dim     = wrap(2, 22);
-export const bold    = wrap(1, 22);
-
-/**
- * picocolors-shaped default export so `import pc from '…/ansi.js'` works at
- * call sites that previously imported picocolors.
- */
 const pc = { red, green, yellow, blue, magenta, cyan, white, gray, dim, bold };
 export default pc;

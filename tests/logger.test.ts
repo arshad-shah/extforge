@@ -180,9 +180,10 @@ describe('Logger', () => {
 });
 
 describe('Format utilities', () => {
+  // Formatting is delegated to clif's formatDuration / formatBytes.
   describe('formatDuration', () => {
-    it('should format microseconds', () => {
-      expect(formatDuration(0.5)).toBe('500μs');
+    it('should format sub-millisecond durations', () => {
+      expect(formatDuration(0.5)).toBe('0.5ms');
     });
 
     it('should format milliseconds', () => {
@@ -191,12 +192,12 @@ describe('Format utilities', () => {
     });
 
     it('should format seconds', () => {
-      expect(formatDuration(1500)).toBe('1.50s');
-      expect(formatDuration(42000)).toBe('42.00s');
+      expect(formatDuration(1500)).toBe('1.5s');
+      expect(formatDuration(42000)).toBe('42.0s');
     });
 
     it('should format minutes', () => {
-      expect(formatDuration(90000)).toBe('1m 30.0s');
+      expect(formatDuration(90000)).toBe('1m 30s');
     });
   });
 
@@ -210,7 +211,7 @@ describe('Format utilities', () => {
     });
 
     it('should format megabytes', () => {
-      expect(formatFileSize(1048576)).toBe('1.00 MB');
+      expect(formatFileSize(1048576)).toBe('1.0 MB');
     });
   });
 });
