@@ -26,6 +26,31 @@ describe('extForgeConfigSchema', () => {
     const r = extForgeConfigSchema.safeParse({ futureKey: 1 });
     expect(r.success).toBe(true);
   });
+
+  it('accepts a built-in css preset', () => {
+    expect(extForgeConfigSchema.safeParse({ css: 'tailwind' }).success).toBe(true);
+    expect(extForgeConfigSchema.safeParse({ css: 'vanilla' }).success).toBe(true);
+    expect(extForgeConfigSchema.safeParse({ css: 'none' }).success).toBe(true);
+  });
+
+  it('rejects an unknown css preset', () => {
+    expect(extForgeConfigSchema.safeParse({ css: 'sass' }).success).toBe(false);
+  });
+
+  it('accepts a custom css processor with a transform', () => {
+    const r = extForgeConfigSchema.safeParse({ css: { name: 'upper', transform: (c: { code: string }) => c.code } });
+    expect(r.success).toBe(true);
+  });
+
+  it('accepts a custom css processor with a command', () => {
+    const r = extForgeConfigSchema.safeParse({ css: { name: 'sass', command: 'sass', args: ['{input}', '{output}'] } });
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a custom css processor with neither transform nor command', () => {
+    const r = extForgeConfigSchema.safeParse({ css: { name: 'empty' } });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe('formatZodError', () => {

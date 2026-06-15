@@ -37,6 +37,7 @@ It is for extension authors who need to ship the same extension to multiple brow
 - **Dev server with HMR** — WebSocket-driven targeted reloads, React Fast Refresh for popup/options/sidepanel, full-page error overlay on build failures.
 - **Cross-browser builds** — Per-browser output with polyfill and compat shims applied automatically. Pure-Node ZIP fallback for Windows packaging.
 - **Scaffold (`extforge init`)** — Interactive project generator: framework, CSS, browsers, features, permissions.
+- **Open CSS pipeline** — Built-in `tailwind` / `vanilla` / `none` presets, plus custom processors (inline `transform` or CLI `command`) and an `onCssTransform` plugin hook so any toolchain plugs in. See the [Styling guide](/guides/styling/).
 - **Runtime packages** — Typed `chrome.storage` wrapper (`extforge/storage`), typed RPC + Ports (`extforge/messaging`), Shadow-DOM Content Script UI (`extforge/csui`), structured logger (`extforge/logger`), `.env` loader (`extforge/env`).
 - **Testing helpers** — Vitest preset with Chrome API fakes; Playwright fixtures for end-to-end.
 

@@ -52,8 +52,11 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 - **`extforge/testing`** — `chrome.*` fakes for runtime/storage/tabs/action/scripting plus a vitest preset.
 - **`extforge/logger`** — structured logger used by the CLI. Exposes scoped loggers, timers, and a JSON transport for piping CI output into log aggregators.
 
+### Styling
+- **Bring any CSS toolchain.** Built-in `tailwind`, `vanilla`, and `none` presets, plus an open pipeline: point `css` at a custom processor (an inline `transform` or a CLI `command`), or register the `onCssTransform` plugin hook. Tailwind, Sass, Lightning CSS, UnoCSS, PostCSS pipelines — all plug in.
+
 ### Extensibility
-- **Typed plugin API.** Hooks for config, manifest, build, and dev-reload events. Legacy plugin shape still works.
+- **Typed plugin API.** Hooks for config, manifest, build, CSS-transform, and dev-reload events. Legacy plugin shape still works.
 - **`extforge doctor`** — 9 preflight checks for node version, config validity, icons, HMR port, browser overrides, permissions, and cross-browser API support.
 
 ## Install <span id="installation"></span>
@@ -70,6 +73,7 @@ Full documentation lives at **[extforge.arshadshah.com](https://extforge.arshads
 
 - [Configuration](https://extforge.arshadshah.com/reference/config/)
 - [Storage](https://extforge.arshadshah.com/reference/runtime/storage/) · [Messaging](https://extforge.arshadshah.com/reference/runtime/messaging/) · [CSUI](https://extforge.arshadshah.com/reference/runtime/csui/) · [Env](https://extforge.arshadshah.com/reference/runtime/env/) · [Logger](https://extforge.arshadshah.com/reference/runtime/logger/)
+- [Styling](https://extforge.arshadshah.com/guides/styling/)
 - [HMR & Fast Refresh](https://extforge.arshadshah.com/guides/hmr/)
 - [Plugin API](https://extforge.arshadshah.com/reference/plugins/api/)
 - [CLI commands](https://extforge.arshadshah.com/reference/cli/commands/)

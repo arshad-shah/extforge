@@ -8,7 +8,6 @@ import {
   statSync, writeFileSync,
 } from 'node:fs';
 import { join, resolve, dirname, isAbsolute, relative } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
 import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
 import { validateProject } from '../validator/index.js';
@@ -20,6 +19,7 @@ import { loadTemplateRaw as loadHmrTemplateRaw } from '../hmr/template-loader.js
 import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
+import { resolveCssProcessor, processStylesheet, type CssTransformContext } from './css.js';
 import { loadEnv, publicEnvToDefine } from '../env/index.js';
 import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
 import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
@@ -142,38 +142,6 @@ export function partitionEntriesForFormat(
   }
 
   return { esmEntries, iifeEntries };
-}
-
-// ─── CSS ─────────────────────────────────────────────────────────────────────
-
-async function processCSS(
-  input: string,
-  output: string,
-  log: Logger,
-  opts: { dev?: boolean } = {},
-): Promise<void> {
-  if (!existsSync(input)) return;
-  mkdirSync(dirname(output), { recursive: true });
-  // Probe tailwindcss with an arg array (no shell) — paths with spaces or
-  // shell metacharacters in the project root could otherwise execute
-  // arbitrary commands via the previous execSync template literal.
-  const probe = spawnSync('npx', ['tailwindcss', '--help'], { stdio: 'ignore', shell: false });
-  if (probe.status !== 0) {
-    copyFileSync(input, output);
-    log.debug(`Copied CSS (no Tailwind): ${input}`);
-    return;
-  }
-  const tailwindArgs = ['tailwindcss', '-i', input, '-o', output];
-  // Don't force --minify in dev — keeps source readable and avoids
-  // unnecessary work on every rebuild.
-  if (!opts.dev) tailwindArgs.push('--minify');
-  const result = spawnSync('npx', tailwindArgs, { stdio: 'pipe', shell: false });
-  if (result.status !== 0) {
-    copyFileSync(input, output);
-    log.debug(`Copied CSS (tailwindcss failed): ${input}`);
-    return;
-  }
-  log.debug(`Processed CSS: ${input}`);
 }
 
 // ─── Asset copying ───────────────────────────────────────────────────────────
@@ -562,8 +530,17 @@ export async function build(
     }
   }
 
-  await processCSS(join(srcDir, 'styles/globals.css'), join(outDir, 'styles/globals.css'), log, { dev: opts.dev });
-  await processCSS(join(srcDir, 'styles/content.css'), join(outDir, 'styles/content.css'), log, { dev: opts.dev });
+  // ─── CSS ───────────────────────────────────────────────────────────────────
+  // Resolve the strategy once (built-in preset, custom command, or transform),
+  // then run each stylesheet through it followed by the plugin transform chain.
+  const cssProcessor = resolveCssProcessor(config.css);
+  const cssBase = { root, srcDir, dev: !!opts.dev };
+  const cssPluginChain = runner
+    ? (ctx: CssTransformContext): Promise<string> => runner.fireCssTransform(ctx)
+    : undefined;
+  for (const rel of ['styles/globals.css', 'styles/content.css']) {
+    await processStylesheet(join(srcDir, rel), join(outDir, rel), cssProcessor, cssPluginChain, cssBase, log);
+  }
 
   if (config.manifest) {
     let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;

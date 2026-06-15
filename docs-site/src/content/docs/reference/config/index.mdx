@@ -21,5 +21,5 @@ Config validation failures are hard errors by default. Set `EXTFORGE_STRICT_CONF
 | [`build`](/reference/config/build/) | `object` |  |
 | [`dev`](/reference/config/dev/) | `object` |  |
 | [`framework`](/reference/config/framework/) | `'react' \| 'vanilla'` | UI framework. Drives auto-injection of first-party plugins (e.g., `presetReact()` when set to `react`). |
-| [`css`](/reference/config/css/) | `'tailwind' \| 'vanilla' \| 'none'` | CSS strategy. |
+| [`css`](/reference/config/css/) | `'tailwind' \| 'vanilla' \| 'none' \| object` | CSS strategy: a built-in preset (`'tailwind'`, `'vanilla'`, `'none'`) or a custom processor object (`{ name, transform }` or `{ name, command, args }`). See the [Styling guide](/guides/styling/). |
 | [`plugins`](/reference/config/plugins/) | `Array<unknown>` | List of ExtForge plugins. Both the V1 shape and the legacy thin shape are accepted. |

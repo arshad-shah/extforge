@@ -12,6 +12,13 @@ mkdirSync(outDir, { recursive: true });
 
 interface Field { path: string; type: string; doc?: string; defaultValue?: string }
 
+// Frontmatter values may contain colons, brackets, or backticks (e.g. the
+// `css` description). JSON-encoding produces a double-quoted scalar that YAML
+// parses verbatim, so embedded `: ` can't be mistaken for a mapping.
+function yaml(value: string): string {
+  return JSON.stringify(value);
+}
+
 // Zod 4 schema internals: `_def.type` is a lowercase tag ('object', 'optional',
 // 'enum', 'array', 'record', …) and the child accessors changed names
 // (`innerType`, `element`, `valueType`, `entries`).
@@ -25,6 +32,8 @@ function describeZod(node: any): string {
     case 'boolean':  return 'boolean';
     case 'array':    return `Array<${describeZod(d.element)}>`;
     case 'record':   return `Record<string, ${describeZod(d.valueType)}>`;
+    case 'union':    return (d.options ?? []).map((o: any) => describeZod(o)).join(' \\| ');
+    case 'pipe':     return describeZod(d.in ?? d.out);
     case 'object':   return 'object';
     case 'unknown':  return 'unknown';
     default:         return d.type ?? 'unknown';
@@ -67,7 +76,7 @@ for (const top of topLevels) {
   const lines: string[] = [
     `---`,
     `title: ${top}`,
-    `description: ${own.doc ?? `Configuration for ${top}.`}`,
+    `description: ${yaml(own.doc ?? `Configuration for ${top}.`)}`,
     `---`,
     ``,
     own.doc ? own.doc : `Configuration for \`${top}\`.`,

@@ -31,6 +31,7 @@ export default defineConfig({
           label: 'Guides',
           items: [
             { label: 'Configuration', slug: 'guides/configuration' },
+            { label: 'Styling', slug: 'guides/styling' },
             { label: 'HMR', slug: 'guides/hmr' },
             { label: 'Cross-browser', slug: 'guides/cross-browser' },
             { label: 'Plugins', slug: 'guides/plugins' },

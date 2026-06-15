@@ -46,6 +46,7 @@ All hooks are registered inside `setup` via `ctx.hooks`:
 | `onBuildStart` | Once per browser build | `({ browser, dev }) => void` |
 | `onBuildEntry` | Once per entry point | `(entry) => entry \| void` |
 | `onBuildEnd` | Once per browser, after all entries bundled | `(result) => void` |
+| `onCssTransform` | Per stylesheet, after the base CSS processor | `(ctx) => string \| void` |
 | `onDevReload` | Each HMR reload event in dev mode | `(event) => void` |
 
 See [`/reference/plugins/api/`](/reference/plugins/api/) for full type signatures.
@@ -63,35 +64,31 @@ For reduce-style hooks (`onManifestTransform` and `onBuildEntry`), the output of
 
 ---
 
-## Worked example 1: `presetTailwind()`
+## Worked example 1: a CSS processor plugin
 
-A plugin that enables esbuild minification and runs a pre-build step before each browser build:
+`onCssTransform` runs for every stylesheet ExtForge emits, after the base CSS
+strategy (`config.css`) has run. Each hook receives the previous step's output
+as `ctx.code`, so plugins can chain. Here's a plugin that runs every stylesheet
+through [Lightning CSS](https://lightningcss.dev) for autoprefixing and
+minification:
 
 ```ts
 import type { ExtForgePluginV1 } from 'extforge';
-import { spawnSync } from 'node:child_process';
+import { transform } from 'lightningcss';
 
-export function presetTailwind(): ExtForgePluginV1 {
+export function presetLightning(): ExtForgePluginV1 {
   return {
-    name: 'extforge:preset-tailwind',
+    name: 'extforge:preset-lightning',
     apiVersion: 1,
-    setup({ hooks, logger }) {
-      // Run Tailwind CLI before each browser build
-      hooks.onBuildStart(({ browser }) => {
-        logger.info(`[preset-tailwind] Running tailwindcss for ${browser}`);
-        spawnSync('npx', ['tailwindcss', '-i', 'src/styles/globals.css', '-o', 'src/styles/out.css'], {
-          stdio: 'pipe',
+    setup({ hooks }) {
+      hooks.onCssTransform((ctx) => {
+        const { code } = transform({
+          filename: ctx.file,
+          code: Buffer.from(ctx.code),
+          minify: !ctx.dev,
         });
+        return code.toString();
       });
-
-      // Enable minification in all esbuild entry builds
-      hooks.onBuildEntry((entry) => ({
-        ...entry,
-        esbuildOptions: {
-          ...(entry.esbuildOptions ?? {}),
-          minify: true,
-        },
-      }));
     },
   };
 }
@@ -101,12 +98,18 @@ Register it in your config:
 
 ```ts
 import { defineConfig } from 'extforge';
-import { presetTailwind } from './plugins/preset-tailwind';
+import { presetLightning } from './plugins/preset-lightning';
 
 export default defineConfig({
-  plugins: [presetTailwind()],
+  plugins: [presetLightning()],
 });
 ```
+
+<Aside type="tip">
+For one-off processors you don't need a plugin at all — point `config.css` at a
+custom processor object directly. See the [Styling guide](/guides/styling/) for
+the full menu of options (presets, CLI commands, inline transforms, and plugins).
+</Aside>
 
 ---
 

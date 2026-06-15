@@ -1,0 +1,213 @@
+---
+title: Styling
+description: ExtForge's CSS pipeline — built-in presets, custom processors, CLI commands, and the onCssTransform plugin hook.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+ExtForge processes the two first-class stylesheets — `src/styles/globals.css`
+(for your popup, options, and side-panel UIs) and `src/styles/content.css`
+(injected into host pages by content scripts) — through a single, open CSS
+pipeline. Three presets cover the common cases, and a small API lets **any**
+styling toolchain plug in.
+
+Every stylesheet flows through the same two stages:
+
+1. the **base processor** resolved from `config.css`, then
+2. the **`onCssTransform` plugin chain** (each step receives the previous output).
+
+The result is written to `dist/<browser>/styles/`. Child processes are always
+spawned without a shell, so project paths with spaces or shell metacharacters
+can never inject a command.
+
+---
+
+## Built-in presets
+
+Set `css` to one of three preset strings:
+
+```ts
+import { defineConfig } from 'extforge';
+
+export default defineConfig({
+  css: 'tailwind', // 'tailwind' | 'vanilla' | 'none'
+});
+```
+
+| Preset | What it does |
+|---|---|
+| `'tailwind'` (default) | Compiles each stylesheet with the Tailwind CLI (`--minify` in production). Falls back to a plain copy if the CLI isn't installed. `extforge init` scaffolds `tailwind.config.js` + `postcss.config.js`. |
+| `'vanilla'` | Copies the stylesheet through untouched — plain CSS, no build step. |
+| `'none'` | Same copy-through behaviour; use it when you process CSS yourself (e.g. entirely inside a plugin). |
+
+---
+
+## Custom processors
+
+When the presets aren't enough, set `css` to a **`CssProcessor`** object. It has
+two interchangeable mechanisms — a programmatic `transform`, a CLI `command`, or
+both (the command runs first, then the transform post-processes its output).
+
+### Inline transform
+
+A `transform` receives the current CSS and returns the processed CSS. Returning
+nothing means "no change".
+
+```ts
+import { defineConfig } from 'extforge';
+import { compileString } from 'sass';
+
+export default defineConfig({
+  css: {
+    name: 'sass',
+    transform: ({ code, file }) => compileString(code, { url: new URL(`file://${file}`) }).css,
+  },
+});
+```
+
+The `transform` is handed a [`CssTransformContext`](#csstransformcontext) with
+the source, file paths, project root, and a `dev` flag so you can skip
+minification during `extforge dev`.
+
+### CLI command
+
+For tools that ship a CLI, give a `command` and `args`. Two placeholders are
+substituted with absolute paths:
+
+- `{input}` — the source stylesheet.
+- `{output}` — where ExtForge expects the processed CSS.
+
+If `{output}` appears in `args`, ExtForge reads the file the tool wrote.
+Otherwise the source is piped to the command's **stdin** and its **stdout** is
+captured as the result.
+
+```ts
+export default defineConfig({
+  // Writes to a file:  sass src/styles/globals.css dist/.../globals.css
+  css: { name: 'sass', command: 'sass', args: ['{input}', '{output}'] },
+});
+```
+
+```ts
+export default defineConfig({
+  // Pipes via stdin → stdout (no {output} placeholder)
+  css: { name: 'postcss', command: 'npx', args: ['postcss'] },
+});
+```
+
+<Aside type="caution">
+If a command exits non-zero, ExtForge logs a warning and falls back to copying
+the source stylesheet through unchanged, so a missing or misconfigured tool
+never fails the whole build.
+</Aside>
+
+---
+
+## The `onCssTransform` plugin hook
+
+For a reusable processor — one you publish, or share across projects — register
+the `onCssTransform` hook from a [plugin](/guides/plugins/). It runs for every
+stylesheet **after** the base processor, and hooks **chain**: each receives the
+previous step's `ctx.code`. This means you can layer a plugin on top of a preset
+(e.g. autoprefix Tailwind's output).
+
+```ts
+import type { ExtForgePluginV1 } from 'extforge';
+import { transform } from 'lightningcss';
+
+export function presetLightning(): ExtForgePluginV1 {
+  return {
+    name: 'extforge:preset-lightning',
+    apiVersion: 1,
+    setup({ hooks }) {
+      hooks.onCssTransform((ctx) => {
+        const { code } = transform({
+          filename: ctx.file,
+          code: Buffer.from(ctx.code),
+          minify: !ctx.dev,
+        });
+        return code.toString();
+      });
+    },
+  };
+}
+```
+
+```ts
+import { defineConfig } from 'extforge';
+import { presetLightning } from './plugins/preset-lightning';
+
+export default defineConfig({
+  css: 'tailwind',          // base: compile Tailwind
+  plugins: [presetLightning()], // then: autoprefix + minify the output
+});
+```
+
+---
+
+## Pipeline order
+
+For a single stylesheet, ExtForge runs:
+
+```
+read src file
+  → config.css processor (preset, command, or transform)
+  → onCssTransform plugin 1
+  → onCssTransform plugin 2
+  → …
+  → write dist file
+```
+
+A returned non-string from any transform/hook means "no change" and leaves the
+prior output in place.
+
+---
+
+## Styling content-script UIs
+
+Content scripts mounted via [`extforge/csui`](/reference/runtime/csui/) render
+inside a Shadow DOM, so page styles can't leak in and your styles can't leak
+out. Inject your compiled CSS into the shadow tree with `getStyle`:
+
+```ts
+import { defineCSUI } from 'extforge/csui';
+import css from './widget.css'; // your processed stylesheet, imported as text
+
+export default defineCSUI(
+  { matches: ['https://example.com/*'], getStyle: () => css },
+  (root) => { root.innerHTML = '<button class="btn">Hi</button>'; },
+);
+```
+
+The string returned from `getStyle` is wrapped in a `<style>` element inside the
+Shadow Root before mount. See the [CSUI reference](/reference/runtime/csui/) for
+the full descriptor API.
+
+---
+
+## Reference: `CssProcessor`
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | `string` | Identifier surfaced in build logs. |
+| `transform?` | `(ctx: CssTransformContext) => string \| void \| Promise<…>` | Programmatic transform. Runs after `command`, if both are given. |
+| `command?` | `string` | Executable to spawn (no shell), e.g. `'npx'` or `'sass'`. |
+| `args?` | `string[]` | Arguments for `command`. `{input}` / `{output}` are replaced with absolute paths. |
+
+### `CssTransformContext`
+
+| Field | Type | Description |
+|---|---|---|
+| `code` | `string` | Current CSS source — the previous step's output when chained. |
+| `file` | `string` | Absolute path to the input stylesheet. |
+| `outFile` | `string` | Absolute path the processed CSS will be written to. |
+| `root` | `string` | Absolute project root. |
+| `srcDir` | `string` | Absolute source directory. |
+| `dev` | `boolean` | `true` during `extforge dev` — skip minification, keep sources readable. |
+
+These types are exported from both `extforge` (for `defineConfig`) and
+`extforge/plugins` (for plugin authors):
+
+```ts
+import type { CssProcessor, CssTransformContext } from 'extforge';
+```
