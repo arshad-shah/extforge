@@ -20,7 +20,10 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
   'build.outDir': { description: 'Output directory for builds.', defaultValue: '"dist"' },
   'build.srcDir': { description: 'Source directory.', defaultValue: '"src"' },
   'build.sourcemap': { description: 'Emit source maps.', defaultValue: 'false' },
-  'build.esbuild': { description: 'Pass-through esbuild options merged into every entry build.' },
+  'build.esbuild': {
+    description:
+      "Pass-through esbuild options merged into every entry build. `define`, `loader` and `alias` merge key-by-key with the built-ins; `plugins` is appended after ExtForge's own; every other option replaces. Options ExtForge owns (`entryPoints`, `outdir`, `outfile`, `format`, `splitting`, `metafile`, `write`, `banner`) are ignored with a warning.",
+  },
   'dev.port': { description: 'WebSocket port for the HMR server.', defaultValue: '35729' },
   'dev.host': { description: 'Host to bind the HMR server to.', defaultValue: '"localhost"' },
   'dev.debounce': {
