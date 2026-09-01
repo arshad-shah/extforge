@@ -18,11 +18,19 @@ const presetFile = project.addSourceFileAtPath(
   resolve(__dirname, '../src/core/plugins/preset-react.ts'),
 );
 
+// Escape the backslash FIRST. Escaping `|` or `{` before backslashes means an
+// input already containing a backslash emits `\\|`, which Markdown reads as a
+// literal backslash followed by an *unescaped* cell delimiter — the table row
+// breaks. In MDX an unescaped `{` is worse: it opens a JSX expression and fails
+// the build.
+function escapeBackslashes(s: string): string {
+  return s.replace(/\\/g, '\\\\');
+}
 function escapeType(s: string): string {
-  return s.replace(/\|/g, '\\|');
+  return escapeBackslashes(s).replace(/\|/g, '\\|');
 }
 function escapeDoc(s: string): string {
-  return s.replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+  return escapeBackslashes(s).replace(/[{}]/g, '\\$&');
 }
 
 function renderInterface(decl: any): string {
