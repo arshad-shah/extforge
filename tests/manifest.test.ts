@@ -1,12 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  generateManifest,
-  validateManifestConfig,
-  applyInjectedDefaults,
   ALL_BROWSERS,
-  PERMISSION_GROUPS,
+  applyInjectedDefaults,
+  generateManifest,
   type ManifestConfig,
-  type Browser,
+  PERMISSION_GROUPS,
+  validateManifestConfig,
 } from '../src/core/manifest/index.js';
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -126,7 +125,10 @@ describe('Manifest Engine', () => {
       });
 
       it('should include browser_specific_settings with gecko ID', () => {
-        const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+        const settings = manifest.browser_specific_settings as Record<
+          string,
+          Record<string, unknown>
+        >;
         expect(settings.gecko).toBeDefined();
         expect(settings.gecko.id).toBeTruthy();
         expect(settings.gecko.strict_min_version).toBe('109.0');
@@ -256,9 +258,7 @@ describe('Manifest Engine', () => {
         ...validConfig,
         browserOverrides: {
           firefox: {
-            contentScripts: [
-              { matches: ['https://firefox.test/*'], js: ['content/firefox.js'] },
-            ],
+            contentScripts: [{ matches: ['https://firefox.test/*'], js: ['content/firefox.js'] }],
           },
         },
       };
@@ -277,7 +277,10 @@ describe('Manifest Engine', () => {
         name: 'Résumé Helper',
       };
       const manifest = generateManifest(cfg, 'firefox');
-      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const settings = manifest.browser_specific_settings as Record<
+        string,
+        Record<string, unknown>
+      >;
       const id = settings.gecko.id as string;
       // The Firefox addon id grammar is [a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+
       expect(id).toMatch(/^[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+$/);
@@ -289,7 +292,10 @@ describe('Manifest Engine', () => {
         name: 'My & Cool / Ext 🚀',
       };
       const manifest = generateManifest(cfg, 'firefox');
-      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const settings = manifest.browser_specific_settings as Record<
+        string,
+        Record<string, unknown>
+      >;
       const id = settings.gecko.id as string;
       expect(id).toMatch(/^[a-zA-Z0-9-._]+@[a-zA-Z0-9-._]+$/);
     });
@@ -297,7 +303,10 @@ describe('Manifest Engine', () => {
     it('respects an explicitly-provided firefoxId verbatim', () => {
       const cfg: ManifestConfig = { ...validConfig, firefoxId: 'custom@example.com' };
       const manifest = generateManifest(cfg, 'firefox');
-      const settings = manifest.browser_specific_settings as Record<string, Record<string, unknown>>;
+      const settings = manifest.browser_specific_settings as Record<
+        string,
+        Record<string, unknown>
+      >;
       expect(settings.gecko.id).toBe('custom@example.com');
     });
   });
@@ -404,7 +413,10 @@ describe('Manifest commands', () => {
     };
     const manifest = generateManifest(cfg, 'chrome');
     const cmds = manifest.commands as Record<string, Record<string, unknown>>;
-    expect(cmds['toggle-popup']?.suggested_key).toEqual({ default: 'Ctrl+Shift+P', mac: 'Command+Shift+P' });
+    expect(cmds['toggle-popup']?.suggested_key).toEqual({
+      default: 'Ctrl+Shift+P',
+      mac: 'Command+Shift+P',
+    });
     expect(cmds['toggle-popup']?.description).toBe('Toggle the popup');
   });
 });
@@ -422,7 +434,7 @@ describe('Manifest Validation', () => {
     it('should reject missing name', () => {
       const result = validateManifestConfig({ ...validConfig, name: '' });
       expect(result.valid).toBe(false);
-      expect(result.errors.some(e => e.includes('name'))).toBe(true);
+      expect(result.errors.some((e) => e.includes('name'))).toBe(true);
     });
 
     it('should reject name over 45 chars', () => {
@@ -444,7 +456,7 @@ describe('Manifest Validation', () => {
   describe('Given warning conditions', () => {
     it('should warn about missing description', () => {
       const result = validateManifestConfig({ ...validConfig, description: '' });
-      expect(result.warnings.some(w => w.includes('description'))).toBe(true);
+      expect(result.warnings.some((w) => w.includes('description'))).toBe(true);
     });
 
     it('should warn about <all_urls> host permissions', () => {
@@ -453,7 +465,7 @@ describe('Manifest Validation', () => {
         permissions: { ...validConfig.permissions, host: ['<all_urls>'] },
       };
       const result = validateManifestConfig(config);
-      expect(result.warnings.some(w => w.includes('all URLs'))).toBe(true);
+      expect(result.warnings.some((w) => w.includes('all URLs'))).toBe(true);
     });
   });
 });
@@ -464,13 +476,13 @@ describe('Permission Groups', () => {
   });
 
   it('should have descriptions for each group', () => {
-    for (const [name, group] of Object.entries(PERMISSION_GROUPS)) {
+    for (const group of Object.values(PERMISSION_GROUPS)) {
       expect(group.description).toBeTruthy();
       expect(group.permissions.length).toBeGreaterThan(0);
     }
   });
 
   it('should include storage in Core group', () => {
-    expect(PERMISSION_GROUPS['Core'].permissions).toContain('storage');
+    expect(PERMISSION_GROUPS.Core.permissions).toContain('storage');
   });
 });

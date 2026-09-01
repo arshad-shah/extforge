@@ -13,20 +13,24 @@ The repo is a pnpm workspace. Node `>=22.12` and pnpm `10.x` are required
 ```bash
 pnpm install
 pnpm typecheck                          # tsc --noEmit
-pnpm lint                               # eslint flat config
+pnpm lint                               # biome check (lint + format)
 pnpm test                               # vitest run (happy-dom)
 pnpm build                              # tsup -> dist/
 
 pnpm docs:dev                           # docs site at http://localhost:4321
 pnpm examples:build                     # build example extensions
+pnpm check:cross-browser                # build examples for all four targets
 pnpm test:e2e                           # Playwright e2e against built fixtures
 ```
 
 A single sequence that mirrors what CI runs:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm test && pnpm build
+pnpm typecheck && pnpm lint && pnpm test && pnpm build && pnpm check:cross-browser
 ```
+
+`pnpm lint` runs Biome, which covers both linting and formatting. Use
+`pnpm format` to apply its fixes in place.
 
 CI runs the same matrix on Node 22 / 24, plus e2e on Ubuntu and macOS.
 

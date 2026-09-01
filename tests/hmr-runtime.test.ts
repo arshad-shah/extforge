@@ -1,5 +1,10 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createHMRRuntime, ensureGlobalRuntime, applyV3Update, type HMRRuntime } from '../src/core/hmr/runtime.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  applyV3Update,
+  createHMRRuntime,
+  ensureGlobalRuntime,
+  type HMRRuntime,
+} from '../src/core/hmr/runtime.js';
 
 describe('HMR runtime', () => {
   let rt: HMRRuntime;
@@ -24,7 +29,9 @@ describe('HMR runtime', () => {
     rt.register('a', { x: 1 });
     const seen: Array<unknown> = [];
     const hot = rt.register('a', { x: 1 });
-    hot.accept((next) => { seen.push(next); });
+    hot.accept((next) => {
+      seen.push(next);
+    });
     const ok = rt.apply('a', () => ({ x: 2 }));
     expect(ok).toBe(true);
     expect(seen).toEqual([{ x: 2 }]);
@@ -35,7 +42,9 @@ describe('HMR runtime', () => {
     const order: string[] = [];
     const hot = rt.register('a', {});
     hot.dispose(() => order.push('dispose'));
-    hot.accept(() => { order.push('accept'); });
+    hot.accept(() => {
+      order.push('accept');
+    });
     rt.apply('a', () => ({}));
     expect(order).toEqual(['dispose', 'accept']);
   });
@@ -50,7 +59,9 @@ describe('HMR runtime', () => {
   it('apply() returns true and is a no-op when hash matches', () => {
     const hot = rt.register('a', { x: 1 });
     let calls = 0;
-    hot.accept(() => { calls++; });
+    hot.accept(() => {
+      calls++;
+    });
     rt.apply('a', () => ({ x: 1 }), 'h1');
     rt.apply('a', () => ({ x: 1 }), 'h1'); // same hash → no-op
     expect(calls).toBe(1);
@@ -59,7 +70,9 @@ describe('HMR runtime', () => {
   it('factory throwing aborts the swap and returns false', () => {
     const hot = rt.register('a', { x: 1 });
     hot.accept(() => {});
-    const ok = rt.apply('a', () => { throw new Error('boom'); });
+    const ok = rt.apply('a', () => {
+      throw new Error('boom');
+    });
     expect(ok).toBe(false);
     expect(rt.get('a')?.exports).toEqual({ x: 1 });
   });
@@ -87,38 +100,50 @@ describe('applyV3Update', () => {
     const hot2 = rt.register('b', {});
     hot1.accept(() => {});
     hot2.accept(() => {});
-    const ok = await applyV3Update(rt, {
-      v: 3,
-      type: 'hmr-update',
-      timestamp: Date.now(),
-      updates: [
-        { id: 'a', hash: 'h1', file: 'ui/popup/index.js' },
-        { id: 'b', hash: 'h2', file: 'ui/options/index.js' },
-      ],
-    }, async (file) => ({ default: () => ({ file }) }));
+    const ok = await applyV3Update(
+      rt,
+      {
+        v: 3,
+        type: 'hmr-update',
+        timestamp: Date.now(),
+        updates: [
+          { id: 'a', hash: 'h1', file: 'ui/popup/index.js' },
+          { id: 'b', hash: 'h2', file: 'ui/options/index.js' },
+        ],
+      },
+      async (file) => ({ default: () => ({ file }) }),
+    );
     expect(ok).toBe(true);
   });
 
   it('returns false if any update could not be accepted', async () => {
     const rt = createHMRRuntime();
-    rt.register('a', {});  // no accept → must reload
-    const ok = await applyV3Update(rt, {
-      v: 3,
-      type: 'hmr-update',
-      timestamp: Date.now(),
-      updates: [{ id: 'a', hash: 'h', file: 'ui/popup/index.js' }],
-    }, async () => ({ default: () => ({}) }));
+    rt.register('a', {}); // no accept → must reload
+    const ok = await applyV3Update(
+      rt,
+      {
+        v: 3,
+        type: 'hmr-update',
+        timestamp: Date.now(),
+        updates: [{ id: 'a', hash: 'h', file: 'ui/popup/index.js' }],
+      },
+      async () => ({ default: () => ({}) }),
+    );
     expect(ok).toBe(false);
   });
 
   it('empty updates is a true no-op', async () => {
     const rt = createHMRRuntime();
-    const ok = await applyV3Update(rt, {
-      v: 3,
-      type: 'hmr-update',
-      timestamp: 0,
-      updates: [],
-    }, async () => ({ default: () => ({}) }));
+    const ok = await applyV3Update(
+      rt,
+      {
+        v: 3,
+        type: 'hmr-update',
+        timestamp: 0,
+        updates: [],
+      },
+      async () => ({ default: () => ({}) }),
+    );
     expect(ok).toBe(true);
   });
 
@@ -130,12 +155,19 @@ describe('applyV3Update', () => {
     const hot = rt.register('m', {});
     hot.accept(() => {});
     const seen: string[] = [];
-    const ok = await applyV3Update(rt, {
-      v: 3,
-      type: 'hmr-update',
-      timestamp: 0,
-      updates: [{ id: 'm', hash: 'h', file: 'ui/popup/index.js' }],
-    }, async (file) => { seen.push(file); return { default: () => ({}) }; });
+    const ok = await applyV3Update(
+      rt,
+      {
+        v: 3,
+        type: 'hmr-update',
+        timestamp: 0,
+        updates: [{ id: 'm', hash: 'h', file: 'ui/popup/index.js' }],
+      },
+      async (file) => {
+        seen.push(file);
+        return { default: () => ({}) };
+      },
+    );
     expect(ok).toBe(true);
     expect(seen).toEqual(['ui/popup/index.js']);
   });

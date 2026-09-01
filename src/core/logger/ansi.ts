@@ -11,11 +11,9 @@
  * shape for plugins that want to match ExtForge's look-and-feel.
  */
 
-import {
-  red, green, yellow, blue, magenta, cyan, white, gray, dim, bold,
-} from '@arshad-shah/clif';
+import { blue, bold, cyan, dim, gray, green, magenta, red, white, yellow } from '@arshad-shah/clif';
 
-export { red, green, yellow, blue, magenta, cyan, white, gray, dim, bold };
+export { blue, bold, cyan, dim, gray, green, magenta, red, white, yellow };
 
 const pc = { red, green, yellow, blue, magenta, cyan, white, gray, dim, bold };
 export default pc;

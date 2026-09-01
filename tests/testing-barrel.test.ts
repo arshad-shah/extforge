@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as testingBarrel from '../src/core/testing/index.js';
 
 describe('extforge/testing barrel', () => {

@@ -21,7 +21,10 @@ export const pkg = defineCommand({
 
     for (const b of browsers) {
       const dist = join(process.cwd(), 'dist', b);
-      if (!existsSync(dist)) { log.warn(`No build for ${b} — run \`extforge build\` first`); continue; }
+      if (!existsSync(dist)) {
+        log.warn(`No build for ${b} — run \`extforge build\` first`);
+        continue;
+      }
       const name = archiveFilename(config.manifest?.name, config.manifest?.version, b);
       const archive = join(pkgDir, name);
       try {

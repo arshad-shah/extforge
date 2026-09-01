@@ -1,9 +1,9 @@
-import type { ExtForgeConfig } from '../config.js';
-import type { Browser } from '../manifest/index.js';
-import type { Logger } from '../logger/index.js';
-import type { BuildResult } from '../builder/index.js';
 import type { CssTransformContext } from '../builder/css.js';
+import type { BuildResult } from '../builder/index.js';
+import type { ExtForgeConfig } from '../config.js';
 import type { HMRUpdate } from '../hmr/index.js';
+import type { Logger } from '../logger/index.js';
+import type { Browser } from '../manifest/index.js';
 
 /** An untyped manifest object passed through plugin transform hooks. */
 export type ManifestObject = Record<string, unknown>;
@@ -27,11 +27,15 @@ export interface PluginHooks {
   /** Called once after config resolution, before any build. */
   onConfigResolved(fn: (config: ExtForgeConfig) => void | Promise<void>): void;
   /** Called for each browser after the manifest is assembled, allowing mutation. */
-  onManifestTransform(fn: (manifest: ManifestObject, browser: Browser) => ManifestObject | Promise<ManifestObject>): void;
+  onManifestTransform(
+    fn: (manifest: ManifestObject, browser: Browser) => ManifestObject | Promise<ManifestObject>,
+  ): void;
   /** Called at the start of each browser build. */
   onBuildStart(fn: (info: { browser: Browser; dev: boolean }) => void | Promise<void>): void;
   /** Called once per entry point, allowing plugins to mutate or replace the descriptor. */
-  onBuildEntry(fn: (entry: EntryDescriptor) => EntryDescriptor | void | Promise<EntryDescriptor | void>): void;
+  onBuildEntry(
+    fn: (entry: EntryDescriptor) => EntryDescriptor | void | Promise<EntryDescriptor | void>,
+  ): void;
   /** Called after all entries for a browser have been bundled. */
   onBuildEnd(fn: (result: BuildResult) => void | Promise<void>): void;
   /**

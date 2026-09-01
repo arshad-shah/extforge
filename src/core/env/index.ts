@@ -95,12 +95,7 @@ export function parseDotenv(source: string): Record<string, string> {
  */
 export function loadEnv(options: LoadEnvOptions): LoadedEnv {
   const mode = options.mode ?? 'production';
-  const candidates = [
-    '.env',
-    '.env.local',
-    `.env.${mode}`,
-    `.env.${mode}.local`,
-  ];
+  const candidates = ['.env', '.env.local', `.env.${mode}`, `.env.${mode}.local`];
 
   const raw: Record<string, string> = {};
   const filesRead: string[] = [];
@@ -137,7 +132,11 @@ export function publicEnvToDefine(
 ): Record<string, string> {
   const define: Record<string, string> = {};
   // Synthesize a single `import.meta.env` object literal.
-  const envObj: Record<string, string> = { MODE: mode, PROD: String(mode === 'production'), DEV: String(mode === 'development') };
+  const envObj: Record<string, string> = {
+    MODE: mode,
+    PROD: String(mode === 'production'),
+    DEV: String(mode === 'development'),
+  };
   for (const [k, v] of Object.entries(publicEnv)) envObj[k] = v;
   define['import.meta.env'] = JSON.stringify(envObj);
 

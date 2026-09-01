@@ -16,17 +16,12 @@ updates:
       typescript:
         patterns:
           - "typescript"
-          - "@typescript-eslint/*"
-          - "typescript-eslint"
           - "tsup"
           - "tsx"
           - "ts-morph"
-      eslint:
+      biome:
         patterns:
-          - "eslint"
-          - "eslint-*"
-          - "@eslint/*"
-          - "globals"
+          - "@biomejs/*"
       vitest:
         patterns:
           - "vitest"

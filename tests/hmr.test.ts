@@ -1,10 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { generateHMRClientCode, classifyChange } from '../src/core/hmr/index.js';
-
+import { describe, expect, it } from 'vitest';
+import { classifyChange, generateHMRClientCode } from '../src/core/hmr/index.js';
 
 describe('HMR System', () => {
   describe('Change Classification', () => {
-
     describe('Given a CSS file change', () => {
       it('should classify .css as css update', () => {
         expect(classifyChange('src/styles/globals.css')).toBe('css');
@@ -130,7 +128,10 @@ describe('HMR System', () => {
       class TestDebouncer {
         private pending = new Map<string, string>();
         private timer: ReturnType<typeof setTimeout> | null = null;
-        constructor(private delay: number, private callback: (changes: Map<string, string>) => void) {}
+        constructor(
+          private delay: number,
+          private callback: (changes: Map<string, string>) => void,
+        ) {}
         add(file: string, type: string) {
           this.pending.set(file, type);
           if (this.timer) clearTimeout(this.timer);
@@ -143,14 +144,17 @@ describe('HMR System', () => {
         }
       }
 
-      const debouncer = new TestDebouncer(50, (changes) => { callCount++; lastChanges = changes; });
+      const debouncer = new TestDebouncer(50, (changes) => {
+        callCount++;
+        lastChanges = changes;
+      });
       debouncer.add('a.ts', 'js');
       debouncer.add('b.ts', 'js');
       debouncer.add('c.css', 'css');
       debouncer.add('d.ts', 'js');
       debouncer.add('a.ts', 'js');
 
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
       expect(callCount).toBe(1);
       expect(lastChanges.size).toBe(4);
       expect(lastChanges.has('c.css')).toBe(true);

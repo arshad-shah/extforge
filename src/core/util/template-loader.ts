@@ -15,7 +15,7 @@
  * because the answer is consumer-specific.
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export interface TemplateLoader {
@@ -53,12 +53,12 @@ export function createTemplateLoader(opts: TemplateLoaderOptions): TemplateLoade
 
   function resolve(): string {
     const candidates = [
-      join(callerDir, leaf),                                       // source layout
-      join(callerDir, subPath),                                    // bundled at root
-      join(callerDir, '..', subPath),                              // one level down
-      join(callerDir, '..', '..', subPath),                        // two levels down
-      join(callerDir, '..', '..', '..', subPath),                  // three levels
-      join(callerDir, '..', '..', '..', 'src', subPath),           // dev fallback
+      join(callerDir, leaf), // source layout
+      join(callerDir, subPath), // bundled at root
+      join(callerDir, '..', subPath), // one level down
+      join(callerDir, '..', '..', subPath), // two levels down
+      join(callerDir, '..', '..', '..', subPath), // three levels
+      join(callerDir, '..', '..', '..', 'src', subPath), // dev fallback
     ];
     for (const c of candidates) if (existsSync(c)) return c;
     return candidates[0]!;
@@ -72,7 +72,9 @@ export function createTemplateLoader(opts: TemplateLoaderOptions): TemplateLoade
 
   return {
     getTemplatesDir,
-    setTemplatesDir(d: string) { dir = d; },
+    setTemplatesDir(d: string) {
+      dir = d;
+    },
     loadTemplate(filename: string, vars: Record<string, string> = {}): string {
       let content = readFileSync(join(getTemplatesDir(), filename), 'utf-8');
       for (const [k, v] of Object.entries(vars)) {

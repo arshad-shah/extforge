@@ -10,7 +10,7 @@
 
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative } from 'node:path';
-import { isExtForgeError, type ExtForgeError } from '../errors/index.js';
+import { type ExtForgeError, isExtForgeError } from '../errors/index.js';
 
 export interface SerializedBuildError {
   code: string;
@@ -43,8 +43,11 @@ export function buildCodeFrame(
   contextLines: number = FRAME_CONTEXT_LINES,
 ): string | undefined {
   let source: string;
-  try { source = readFileSync(file, 'utf8'); }
-  catch { return undefined; }
+  try {
+    source = readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
+  }
 
   const lines = source.split(/\r?\n/);
   if (line < 1 || line > lines.length) return undefined;
@@ -60,7 +63,7 @@ export function buildCodeFrame(
     const marker = n === line ? '>' : ' ';
     out.push(`${marker} ${num} | ${text}`);
     if (n === line && column != null && column > 0) {
-      const pad = ' '.repeat(gutterWidth) + '   ' + ' '.repeat(Math.max(0, column - 1));
+      const pad = `${' '.repeat(gutterWidth)}   ${' '.repeat(Math.max(0, column - 1))}`;
       out.push(`${pad}^`);
     }
   }
@@ -83,16 +86,26 @@ export function serializeBuildError(err: unknown, projectRoot?: string): Seriali
     out.message = e.message;
     out.hint = e.hint;
     out.docsUrl = e.docsUrl;
-    if (e.file) out.file = projectRoot && isAbsolute(e.file) ? relative(projectRoot, e.file) : e.file;
+    if (e.file)
+      out.file = projectRoot && isAbsolute(e.file) ? relative(projectRoot, e.file) : e.file;
     if (e.line != null) out.line = e.line;
     if (e.column != null) out.column = e.column;
     if (e.stack) out.stack = e.stack;
-  } else if (err && typeof err === 'object' && Array.isArray((err as { errors?: unknown[] }).errors)) {
+  } else if (
+    err &&
+    typeof err === 'object' &&
+    Array.isArray((err as { errors?: unknown[] }).errors)
+  ) {
     // esbuild-style aggregate error from `BuildContext.rebuild()` — that
     // path doesn't flow through the builder's throwAsBuildError wrapper.
     // Pull the first entry's text + location so the overlay still gets a
     // useful file:line:col pointing at the broken source.
-    const esb = err as { errors: Array<{ text?: string; location?: { file?: string; line?: number; column?: number } | null }> };
+    const esb = err as {
+      errors: Array<{
+        text?: string;
+        location?: { file?: string; line?: number; column?: number } | null;
+      }>;
+    };
     const first = esb.errors[0];
     out.code = 'EXT_BUILD_FAILED';
     out.message = first?.text ?? 'Build failed';
@@ -112,9 +125,7 @@ export function serializeBuildError(err: unknown, projectRoot?: string): Seriali
 
   // Try to build a frame if we have a real file + line.
   if (out.file && out.line) {
-    const abs = projectRoot && !isAbsolute(out.file)
-      ? `${projectRoot}/${out.file}`
-      : out.file;
+    const abs = projectRoot && !isAbsolute(out.file) ? `${projectRoot}/${out.file}` : out.file;
     const frame = buildCodeFrame(abs, out.line, out.column);
     if (frame) out.frame = frame;
   }

@@ -1,9 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolve } from 'node:path/posix';
-import { discoverInjectedEntries, partitionEntriesForFormat, buildContentScriptMap } from '../src/core/builder/index.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  buildContentScriptMap,
+  discoverInjectedEntries,
+  partitionEntriesForFormat,
+} from '../src/core/builder/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 function makeTempSrc(): string {
@@ -18,8 +22,12 @@ const silentLog = createLogger({ scope: 'test', level: LogLevel.Silent });
 describe('discoverInjectedEntries', () => {
   let srcDir: string;
 
-  beforeEach(() => { srcDir = makeTempSrc(); });
-  afterEach(() => { rmSync(srcDir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    srcDir = makeTempSrc();
+  });
+  afterEach(() => {
+    rmSync(srcDir, { recursive: true, force: true });
+  });
 
   it('returns empty when neither src/injected.ts nor src/injected/ exists', () => {
     expect(discoverInjectedEntries(srcDir, silentLog)).toEqual({});
@@ -89,18 +97,18 @@ describe('discoverInjectedEntries', () => {
 describe('partitionEntriesForFormat', () => {
   it('routes content/index entry to IIFE bucket', () => {
     const allEntries = { 'background/index': '/p/bg.ts', 'content/index': '/p/content.ts' };
-    const injectedEntries = { 'injected': '/p/injected.ts' };
+    const injectedEntries = { injected: '/p/injected.ts' };
     const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
     expect(esmEntries).toEqual({ 'background/index': '/p/bg.ts' });
-    expect(iifeEntries).toEqual({ 'content/index': '/p/content.ts', 'injected': '/p/injected.ts' });
+    expect(iifeEntries).toEqual({ 'content/index': '/p/content.ts', injected: '/p/injected.ts' });
   });
 
   it('handles missing content/index gracefully', () => {
     const allEntries = { 'background/index': '/p/bg.ts', 'ui/popup/index': '/p/popup.ts' };
-    const injectedEntries = { 'injected': '/p/injected.ts' };
+    const injectedEntries = { injected: '/p/injected.ts' };
     const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
     expect(esmEntries).toEqual({ 'background/index': '/p/bg.ts', 'ui/popup/index': '/p/popup.ts' });
-    expect(iifeEntries).toEqual({ 'injected': '/p/injected.ts' });
+    expect(iifeEntries).toEqual({ injected: '/p/injected.ts' });
   });
 
   it('handles empty injected map', () => {
@@ -112,10 +120,13 @@ describe('partitionEntriesForFormat', () => {
 
   it('does not mutate the input maps', () => {
     const allEntries = { 'content/index': '/p/content.ts', 'background/index': '/p/bg.ts' };
-    const injectedEntries = { 'injected': '/p/injected.ts' };
+    const injectedEntries = { injected: '/p/injected.ts' };
     partitionEntriesForFormat(allEntries, injectedEntries);
-    expect(allEntries).toEqual({ 'content/index': '/p/content.ts', 'background/index': '/p/bg.ts' });
-    expect(injectedEntries).toEqual({ 'injected': '/p/injected.ts' });
+    expect(allEntries).toEqual({
+      'content/index': '/p/content.ts',
+      'background/index': '/p/bg.ts',
+    });
+    expect(injectedEntries).toEqual({ injected: '/p/injected.ts' });
   });
 });
 

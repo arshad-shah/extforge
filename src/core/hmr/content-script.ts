@@ -42,4 +42,6 @@ export function generateContentScriptHMRBootstrap(
  * dynamically-registered content script. User code calls
  * `__extforgeDispose__(() => cleanup())` to register teardown for HMR swaps.
  */
-export const CONTENT_SCRIPT_HMR_RUNTIME: string = loadTemplateRaw('content-script-runtime.ts.tpl').trim();
+export const CONTENT_SCRIPT_HMR_RUNTIME: string = loadTemplateRaw(
+  'content-script-runtime.ts.tpl',
+).trim();

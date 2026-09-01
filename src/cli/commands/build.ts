@@ -4,12 +4,12 @@ export const build = defineCommand({
   name: 'build',
   description: 'Build extension for production',
   args: {
-    browser:   { type: 'string', description: 'Single browser target' },
-    dev:       { type: 'boolean', description: 'Development build', default: false },
+    browser: { type: 'string', description: 'Single browser target' },
+    dev: { type: 'boolean', description: 'Development build', default: false },
     sourcemap: { type: 'boolean', description: 'Include source maps', default: false },
-    strict:    { type: 'boolean', description: 'Treat compat warnings as errors', default: false },
-    quiet:     { type: 'boolean', description: 'Suppress info-level output', default: false },
-    json:      { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
+    strict: { type: 'boolean', description: 'Treat compat warnings as errors', default: false },
+    quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
+    json: { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
   },
   async handler({ args }) {
     const { buildAll, build: buildOne } = await import('../../core/builder/index.js');
@@ -30,12 +30,25 @@ export const build = defineCommand({
     const browser = args.flags.browser as string | undefined;
 
     if (browser) {
-      if (!ALL_BROWSERS.includes(browser as any)) { log.error(`Invalid browser: ${browser}`); process.exit(1); }
-      const r = await buildOne(process.cwd(), config, { browser: browser as any, dev: isDev, sourcemap: sm, strictCompat }, log);
+      if (!ALL_BROWSERS.includes(browser as any)) {
+        log.error(`Invalid browser: ${browser}`);
+        process.exit(1);
+      }
+      const r = await buildOne(
+        process.cwd(),
+        config,
+        { browser: browser as any, dev: isDev, sourcemap: sm, strictCompat },
+        log,
+      );
       if (r.errors.length > 0) process.exit(1);
     } else {
-      const results = await buildAll(process.cwd(), config, { dev: isDev, sourcemap: sm, strictCompat }, log);
-      if (results.some(r => r.errors.length > 0)) process.exit(1);
+      const results = await buildAll(
+        process.cwd(),
+        config,
+        { dev: isDev, sourcemap: sm, strictCompat },
+        log,
+      );
+      if (results.some((r) => r.errors.length > 0)) process.exit(1);
     }
   },
 });

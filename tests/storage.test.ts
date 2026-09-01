@@ -1,13 +1,19 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Storage } from '../src/core/storage/index.js';
 
 // Minimal chrome.storage shim used by these tests. We override globalThis.chrome
 // per-test so each Storage instance sees a fresh, isolated mock.
 function makeChromeShim() {
   const stores: Record<string, Record<string, unknown>> = {
-    local: {}, sync: {}, session: {}, managed: {},
+    local: {},
+    sync: {},
+    session: {},
+    managed: {},
   };
-  type Listener = (changes: Record<string, { oldValue?: unknown; newValue?: unknown }>, area: string) => void;
+  type Listener = (
+    changes: Record<string, { oldValue?: unknown; newValue?: unknown }>,
+    area: string,
+  ) => void;
   const listeners = new Set<Listener>();
   const makeArea = (areaName: string) => ({
     get: vi.fn(async (k: string) => {
@@ -22,13 +28,17 @@ function makeChromeShim() {
         store[k] = v;
         changes[k] = { oldValue, newValue: v };
       }
-      listeners.forEach(l => l(changes, areaName));
+      listeners.forEach((l) => {
+        l(changes, areaName);
+      });
     }),
     remove: vi.fn(async (k: string) => {
       const store = stores[areaName]!;
       const oldValue = store[k];
       delete store[k];
-      listeners.forEach(l => l({ [k]: { oldValue, newValue: undefined } }, areaName));
+      listeners.forEach((l) => {
+        l({ [k]: { oldValue, newValue: undefined } }, areaName);
+      });
     }),
     clear: vi.fn(async () => {
       stores[areaName] = {};
@@ -124,7 +134,9 @@ describe('Storage (chrome.storage path)', () => {
     const u2 = s.watch({ k2: () => {} });
     const u3 = s.watch({ k3: () => {} });
     expect(addSpy).toHaveBeenCalledTimes(1);
-    u1(); u2(); u3();
+    u1();
+    u2();
+    u3();
     addSpy.mockRestore();
   });
 
@@ -152,11 +164,19 @@ describe('Storage (localStorage fallback)', () => {
     originalLocalStorage = globalThis.localStorage as unknown as Storage | undefined;
     (globalThis as { localStorage: unknown }).localStorage = {
       getItem: (k: string) => (k in store ? store[k]! : null),
-      setItem: (k: string, v: string) => { store[k] = v; },
-      removeItem: (k: string) => { delete store[k]; },
-      clear: () => { for (const k of Object.keys(store)) delete store[k]; },
+      setItem: (k: string, v: string) => {
+        store[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete store[k];
+      },
+      clear: () => {
+        for (const k of Object.keys(store)) delete store[k];
+      },
       key: (i: number) => Object.keys(store)[i] ?? null,
-      get length() { return Object.keys(store).length; },
+      get length() {
+        return Object.keys(store).length;
+      },
     };
   });
   afterEach(() => {
@@ -193,11 +213,12 @@ describe('Storage (localStorage fallback)', () => {
   it('throws StorageQuotaExceededError when localStorage.setItem rejects on quota', async () => {
     const { Storage: S, StorageQuotaExceededError } = await import('../src/core/storage/index.js');
     // Override setItem to throw a DOMException-shaped error like real browsers do.
-    (globalThis as { localStorage: { setItem: (...a: unknown[]) => void } }).localStorage.setItem = () => {
-      const err = new Error('Quota exceeded') as Error & { name: string };
-      err.name = 'QuotaExceededError';
-      throw err;
-    };
+    (globalThis as { localStorage: { setItem: (...a: unknown[]) => void } }).localStorage.setItem =
+      () => {
+        const err = new Error('Quota exceeded') as Error & { name: string };
+        err.name = 'QuotaExceededError';
+        throw err;
+      };
     const s = new S();
     await expect(s.set('big', 'x'.repeat(100))).rejects.toThrow(StorageQuotaExceededError);
   });

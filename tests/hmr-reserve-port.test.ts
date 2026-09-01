@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
 import { createServer, type Server } from 'node:net';
-import { createHMRServer } from '../src/core/hmr/index.js';
+import { describe, expect, it } from 'vitest';
 import { isExtForgeError } from '../src/core/errors/index.js';
-import { createLogger, LogLevel } from '../src/core/logger/index.js';
 import { MAX_PORT_RETRIES } from '../src/core/hmr/constants.js';
+import { createHMRServer } from '../src/core/hmr/index.js';
+import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 async function listenOn(port: number): Promise<Server> {
   return await new Promise((resolve, reject) => {
@@ -27,8 +27,11 @@ describe('reservePort (via createHMRServer.start)', () => {
     const blockers: Server[] = [];
     try {
       for (let i = 0; i < MAX_PORT_RETRIES; i++) {
-        try { blockers.push(await listenOn(probe + i)); }
-        catch { /* a port may have been taken by something else; skip */ }
+        try {
+          blockers.push(await listenOn(probe + i));
+        } catch {
+          /* a port may have been taken by something else; skip */
+        }
       }
       // If we couldn't fully occupy the range, the test is inconclusive but
       // shouldn't false-fail.
@@ -36,7 +39,9 @@ describe('reservePort (via createHMRServer.start)', () => {
 
       const server = createHMRServer({
         projectRoot: process.cwd(),
-        config: { manifest: { name: 'x', version: '0.0.1' } } as Parameters<typeof createHMRServer>[0]['config'],
+        config: { manifest: { name: 'x', version: '0.0.1' } } as Parameters<
+          typeof createHMRServer
+        >[0]['config'],
         browser: 'chrome',
         port: probe,
         host: '127.0.0.1',
@@ -44,14 +49,20 @@ describe('reservePort (via createHMRServer.start)', () => {
       });
 
       let caught: unknown;
-      try { await server.start(); }
-      catch (e) { caught = e; }
-      finally { try { await server.stop(); } catch {} }
+      try {
+        await server.start();
+      } catch (e) {
+        caught = e;
+      } finally {
+        try {
+          await server.stop();
+        } catch {}
+      }
 
       expect(isExtForgeError(caught)).toBe(true);
       if (isExtForgeError(caught)) expect(caught.code).toBe('EXT_HMR_PORT_IN_USE');
     } finally {
-      await Promise.all(blockers.map(s => new Promise<void>(r => s.close(() => r()))));
+      await Promise.all(blockers.map((s) => new Promise<void>((r) => s.close(() => r()))));
     }
   });
 });

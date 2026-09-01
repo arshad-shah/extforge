@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { validateProject, type ProjectValidationResult } from '../src/core/validator/index.js';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { validateProject } from '../src/core/validator/index.js';
 
 // Silent logger for tests
 const silentLogger = createLogger({ level: LogLevel.Silent });
@@ -18,22 +18,24 @@ describe('Project Validator', () => {
   });
 
   afterEach(() => {
-    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(testDir, { recursive: true, force: true });
+    } catch {}
   });
 
   describe('Given an empty directory', () => {
     it('should report missing required files', () => {
       const result = validateProject(testDir, silentLogger);
       expect(result.valid).toBe(false);
-      expect(result.issues.some(i => i.code === 'MISSING_PACKAGE_JSON')).toBe(true);
-      expect(result.issues.some(i => i.code === 'MISSING_TSCONFIG')).toBe(true);
-      expect(result.issues.some(i => i.code === 'MISSING_CONFIG')).toBe(true);
-      expect(result.issues.some(i => i.code === 'MISSING_SRC')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'MISSING_PACKAGE_JSON')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'MISSING_TSCONFIG')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'MISSING_CONFIG')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'MISSING_SRC')).toBe(true);
     });
 
     it('should include fix suggestions for each error', () => {
       const result = validateProject(testDir, silentLogger);
-      const errors = result.issues.filter(i => i.severity === 'error');
+      const errors = result.issues.filter((i) => i.severity === 'error');
       for (const err of errors) {
         expect(err.fix).toBeTruthy();
       }
@@ -52,7 +54,7 @@ describe('Project Validator', () => {
     it('should pass validation', () => {
       const result = validateProject(testDir, silentLogger);
       expect(result.valid).toBe(true);
-      expect(result.issues.filter(i => i.severity === 'error')).toHaveLength(0);
+      expect(result.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
     });
   });
 
@@ -67,7 +69,7 @@ describe('Project Validator', () => {
 
     it('should warn about no entrypoints', () => {
       const result = validateProject(testDir, silentLogger);
-      expect(result.issues.some(i => i.code === 'NO_ENTRYPOINTS')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'NO_ENTRYPOINTS')).toBe(true);
     });
   });
 
@@ -82,7 +84,7 @@ describe('Project Validator', () => {
 
     it('should warn about missing icons directory', () => {
       const result = validateProject(testDir, silentLogger);
-      expect(result.issues.some(i => i.code === 'MISSING_ICONS_DIR')).toBe(true);
+      expect(result.issues.some((i) => i.code === 'MISSING_ICONS_DIR')).toBe(true);
     });
   });
 
@@ -107,7 +109,7 @@ describe('Project Validator', () => {
         manifest: badManifest as Parameters<typeof validateProject>[2]['manifest'],
       });
       expect(result.valid).toBe(false);
-      const errorCodes = result.issues.filter(i => i.severity === 'error').map(i => i.code);
+      const errorCodes = result.issues.filter((i) => i.severity === 'error').map((i) => i.code);
       expect(errorCodes).toContain('MANIFEST_INVALID');
     });
   });
@@ -123,7 +125,7 @@ describe('Project Validator', () => {
 
     it('should emit info-level issue suggesting TypeScript', () => {
       const result = validateProject(testDir, silentLogger);
-      const jsIssues = result.issues.filter(i => i.code === 'JS_FILE_IN_SRC');
+      const jsIssues = result.issues.filter((i) => i.code === 'JS_FILE_IN_SRC');
       expect(jsIssues.length).toBeGreaterThan(0);
       expect(jsIssues[0].severity).toBe('info');
       expect(jsIssues[0].fix).toContain('.ts');

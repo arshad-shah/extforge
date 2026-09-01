@@ -3,7 +3,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 let _version: string | undefined;
@@ -14,8 +14,8 @@ export function getVersion(): string {
   const thisDir = dirname(fileURLToPath(import.meta.url));
   // Walk up from src/core/ or dist/core/ to find package.json
   const candidates = [
-    join(thisDir, '..', '..', 'package.json'),         // src/core/ → root
-    join(thisDir, '..', '..', '..', 'package.json'),   // dist/core/ → root
+    join(thisDir, '..', '..', 'package.json'), // src/core/ → root
+    join(thisDir, '..', '..', '..', 'package.json'), // dist/core/ → root
   ];
 
   for (const p of candidates) {
@@ -26,7 +26,9 @@ export function getVersion(): string {
         _version = '0.0.0';
       }
       return _version;
-    } catch { /* try next */ }
+    } catch {
+      /* try next */
+    }
   }
 
   _version = '0.0.0';

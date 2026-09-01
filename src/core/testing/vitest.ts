@@ -1,5 +1,5 @@
 import { beforeEach } from 'vitest';
-import { installChromeFakes, resetChromeFakes, type ChromeFakes } from './install.js';
+import { type ChromeFakes, installChromeFakes, resetChromeFakes } from './install.js';
 
 let fakes: ChromeFakes;
 if ((globalThis as any).chrome === undefined) {
@@ -11,11 +11,13 @@ if ((globalThis as any).chrome === undefined) {
   if (!fakes) {
     throw new Error(
       'globalThis.chrome is already defined but extforge fakes were not installed. ' +
-      'Either remove the existing chrome global or import extforge/testing/vitest first.'
+        'Either remove the existing chrome global or import extforge/testing/vitest first.',
     );
   }
 }
 
-beforeEach(() => { resetChromeFakes(fakes); });
+beforeEach(() => {
+  resetChromeFakes(fakes);
+});
 
 export { fakes };

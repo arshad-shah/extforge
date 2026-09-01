@@ -6,7 +6,7 @@
  * exceptions don't dump raw stack traces on users.
  */
 
-import { style, link } from '@arshad-shah/clif';
+import { link, style } from '@arshad-shah/clif';
 import { isExtForgeError } from '../core/errors/index.js';
 
 export interface FormattedError {
@@ -18,12 +18,24 @@ export interface FormattedError {
 }
 
 const KNOWN_ERROR_HINTS: Array<[RegExp, string]> = [
-  [/EADDRINUSE/, 'Another process is using this port. Try a different --port or stop the conflicting process.'],
-  [/ENOENT.*hmr-client\.js\.tpl/, 'ExtForge templates are missing from the install. Reinstall extforge: `pnpm i -D extforge` (or npm/yarn).'],
+  [
+    /EADDRINUSE/,
+    'Another process is using this port. Try a different --port or stop the conflicting process.',
+  ],
+  [
+    /ENOENT.*hmr-client\.js\.tpl/,
+    'ExtForge templates are missing from the install. Reinstall extforge: `pnpm i -D extforge` (or npm/yarn).',
+  ],
   [/ENOENT.*manifest/, 'No manifest config found. Add a `manifest` block to extforge.config.ts.'],
-  [/ENOENT.*extforge\.config/, 'No extforge.config.ts found in the current directory. Run `extforge init` to scaffold a project.'],
+  [
+    /ENOENT.*extforge\.config/,
+    'No extforge.config.ts found in the current directory. Run `extforge init` to scaffold a project.',
+  ],
   [/EACCES/, 'Permission denied. Check file permissions on the affected path.'],
-  [/Cannot find module 'esbuild'/, 'esbuild is a peer dependency. Install it: `pnpm i -D esbuild`.'],
+  [
+    /Cannot find module 'esbuild'/,
+    'esbuild is a peer dependency. Install it: `pnpm i -D esbuild`.',
+  ],
 ];
 
 export function formatError(err: unknown): FormattedError {
@@ -42,7 +54,12 @@ export function formatError(err: unknown): FormattedError {
   if (err instanceof Error) {
     const msg = err.message;
     const hint = KNOWN_ERROR_HINTS.find(([re]) => re.test(msg))?.[1];
-    return { title: err.name === 'Error' ? 'Command failed' : err.name, detail: msg, hint, cause: err };
+    return {
+      title: err.name === 'Error' ? 'Command failed' : err.name,
+      detail: msg,
+      hint,
+      cause: err,
+    };
   }
   return { title: 'Command failed', detail: String(err) };
 }
@@ -55,7 +72,6 @@ export function formatError(err: unknown): FormattedError {
  */
 export function printError(err: unknown): void {
   const f = formatError(err);
-  /* eslint-disable no-console */
   // Rendered with clif's `style`/`link` — it owns NO_COLOR / FORCE_COLOR / pipe
   // detection, and `link` emits an OSC 8 hyperlink in capable terminals while
   // degrading to `Docs → (url)` everywhere else, so the URL is never lost.
@@ -66,7 +82,7 @@ export function printError(err: unknown): void {
     console.error('');
     console.error(style.dim(`  Hint: ${f.hint}`));
   }
-  if (f.docsUrl) console.error('  ' + style.dim('Docs: ') + style.cyan(link('Docs →', f.docsUrl)));
+  if (f.docsUrl) console.error(`  ${style.dim('Docs: ')}${style.cyan(link('Docs →', f.docsUrl))}`);
   if (process.env.EXTFORGE_DEBUG && f.cause instanceof Error && f.cause.stack) {
     console.error('');
     console.error(style.dim(f.cause.stack));
@@ -75,7 +91,6 @@ export function printError(err: unknown): void {
     console.error(style.dim('  Run with EXTFORGE_DEBUG=1 to see the full stack trace.'));
   }
   console.error('');
-  /* eslint-enable no-console */
 }
 
 /**

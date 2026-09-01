@@ -1,22 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { createServer, type Server } from 'node:net';
+import type { ExtForgeConfig } from '../src/core/config.js';
 import {
-  createHMRServer,
   classifyChange,
+  createHMRServer,
   extractScriptIds,
   generateHMRClientCode,
 } from '../src/core/hmr/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
-import type { ExtForgeConfig } from '../src/core/config.js';
 
 const silent = createLogger({ level: LogLevel.Silent });
 
 const baseManifest = {
-  name: 'x', version: '0.0.1', description: '', manifestVersion: 3 as const,
+  name: 'x',
+  version: '0.0.1',
+  description: '',
+  manifestVersion: 3 as const,
   permissions: { required: [], optional: [], host: [] },
 };
 
@@ -86,8 +89,14 @@ describe('generateHMRClientCode', () => {
 describe('createHMRServer (start + stop)', () => {
   let root: string;
 
-  beforeEach(() => { root = makeProject(); });
-  afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    root = makeProject();
+  });
+  afterEach(() => {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('starts, accepts a WS client, and stops cleanly', async () => {
     const port = await freePort();
@@ -96,8 +105,12 @@ describe('createHMRServer (start + stop)', () => {
       manifest: { ...baseManifest, background: { entrypoint: 'background/index.js' } },
     };
     const server = createHMRServer({
-      projectRoot: root, config: cfg, browser: 'chrome',
-      port, host: '127.0.0.1', logger: silent,
+      projectRoot: root,
+      config: cfg,
+      browser: 'chrome',
+      port,
+      host: '127.0.0.1',
+      logger: silent,
     });
     try {
       await server.start();
@@ -139,8 +152,12 @@ describe('createHMRServer (start + stop)', () => {
         manifest: { ...baseManifest, background: { entrypoint: 'background/index.js' } },
       };
       const server = createHMRServer({
-        projectRoot: root, config: cfg, browser: 'chrome',
-        port, host: '127.0.0.1', logger: silent,
+        projectRoot: root,
+        config: cfg,
+        browser: 'chrome',
+        port,
+        host: '127.0.0.1',
+        logger: silent,
       });
       try {
         await server.start();

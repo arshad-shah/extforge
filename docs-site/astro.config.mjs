@@ -37,19 +37,36 @@ export default defineConfig({
             { label: 'Plugins', slug: 'guides/plugins' },
             { label: 'Testing', slug: 'guides/testing' },
             { label: 'Deployment', slug: 'guides/deployment' },
+            { label: 'Upgrading to v1', slug: 'guides/migration-v1' },
             { label: 'Supply chain', slug: 'guides/supply-chain' },
           ],
         },
         {
           label: 'Reference',
           items: [
+            { label: 'API stability', slug: 'reference/stability' },
             { label: 'CLI commands', slug: 'reference/cli/commands' },
             { label: 'CLI flags', slug: 'reference/cli/flags' },
-            { label: 'Configuration', autogenerate: { directory: 'reference/config' } },
-            { label: 'Runtime packages', autogenerate: { directory: 'reference/runtime' } },
-            { label: 'Plugin API', autogenerate: { directory: 'reference/plugins' } },
-            { label: 'Testing helpers', autogenerate: { directory: 'reference/testing' } },
-            { label: 'Errors', autogenerate: { directory: 'reference/errors' } },
+            {
+              label: 'Configuration',
+              items: [{ autogenerate: { directory: 'reference/config' } }],
+            },
+            {
+              label: 'Runtime packages',
+              items: [{ autogenerate: { directory: 'reference/runtime' } }],
+            },
+            {
+              label: 'Plugin API',
+              items: [{ autogenerate: { directory: 'reference/plugins' } }],
+            },
+            {
+              label: 'Testing helpers',
+              items: [{ autogenerate: { directory: 'reference/testing' } }],
+            },
+            {
+              label: 'Errors',
+              items: [{ autogenerate: { directory: 'reference/errors' } }],
+            },
           ],
         },
         { label: 'Brand', items: [{ label: 'Guidelines', slug: 'brand/guidelines' }] },

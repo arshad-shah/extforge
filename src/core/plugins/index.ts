@@ -1,14 +1,3 @@
-export { presetReact, type PresetReactOptions } from './preset-react.js';
-export { PluginRunner } from './runner.js';
-export type {
-  ExtForgePlugin,
-  ExtForgePluginV1,
-  ExtForgePluginLegacy,
-  PluginContext,
-  PluginHooks,
-  EntryDescriptor,
-  ManifestObject,
-} from './types.js';
 export type {
   CssOption,
   CssPreset,
@@ -16,3 +5,14 @@ export type {
   CssTransform,
   CssTransformContext,
 } from '../builder/css.js';
+export { type PresetReactOptions, presetReact } from './preset-react.js';
+export { PluginRunner } from './runner.js';
+export type {
+  EntryDescriptor,
+  ExtForgePlugin,
+  ExtForgePluginLegacy,
+  ExtForgePluginV1,
+  ManifestObject,
+  PluginContext,
+  PluginHooks,
+} from './types.js';

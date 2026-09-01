@@ -1,10 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync,
-} from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { writeZip } from '../src/cli/zip-writer.js';
 
 const hasUnzip = spawnSync('unzip', ['-v'], { stdio: 'pipe' }).status === 0;
@@ -16,11 +14,14 @@ describe('writeZip', () => {
     dir = mkdtempSync(join(tmpdir(), 'ef-zip-'));
   });
   afterEach(() => {
-    try { rmSync(dir, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
   });
 
   it('writes a non-empty file with the ZIP local-file-header signature', () => {
-    const src = join(dir, 'src'); mkdirSync(src);
+    const src = join(dir, 'src');
+    mkdirSync(src);
     writeFileSync(join(src, 'a.txt'), 'hello world');
     const out = join(dir, 'out.zip');
     writeZip(src, out);
@@ -31,7 +32,8 @@ describe('writeZip', () => {
   });
 
   it('produces a byte-for-byte identical archive across runs (deterministic)', () => {
-    const src = join(dir, 'src'); mkdirSync(src, { recursive: true });
+    const src = join(dir, 'src');
+    mkdirSync(src, { recursive: true });
     writeFileSync(join(src, 'a.txt'), 'first');
     writeFileSync(join(src, 'b.txt'), 'second');
     const out1 = join(dir, '1.zip');
@@ -45,10 +47,12 @@ describe('writeZip', () => {
   });
 
   it('skips .DS_Store and .git directories', () => {
-    const src = join(dir, 'src'); mkdirSync(src, { recursive: true });
+    const src = join(dir, 'src');
+    mkdirSync(src, { recursive: true });
     writeFileSync(join(src, 'keep.txt'), 'ok');
     writeFileSync(join(src, '.DS_Store'), 'junk');
-    mkdirSync(join(src, '.git')); writeFileSync(join(src, '.git/HEAD'), 'ref');
+    mkdirSync(join(src, '.git'));
+    writeFileSync(join(src, '.git/HEAD'), 'ref');
     const out = join(dir, 'out.zip');
     writeZip(src, out);
     // The central directory at the end of the zip names every entry —
@@ -60,7 +64,8 @@ describe('writeZip', () => {
   });
 
   it.runIf(hasUnzip)('round-trips through the system `unzip` correctly', () => {
-    const src = join(dir, 'src'); mkdirSync(src, { recursive: true });
+    const src = join(dir, 'src');
+    mkdirSync(src, { recursive: true });
     mkdirSync(join(src, 'nested'));
     writeFileSync(join(src, 'top.txt'), 'top-level');
     writeFileSync(join(src, 'nested/deep.txt'), 'deeper');

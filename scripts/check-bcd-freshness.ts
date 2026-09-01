@@ -13,8 +13,8 @@
  *   2 — snapshot is stale, run `pnpm compat:rebuild` and commit the diff
  */
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const STALE_AFTER_DAYS = 90;
 

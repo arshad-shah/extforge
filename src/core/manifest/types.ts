@@ -41,10 +41,13 @@ export interface ManifestConfig {
     resources: string[];
     matches: string[];
   }>;
-  commands?: Record<string, {
-    suggestedKey?: { default?: string; mac?: string };
-    description?: string;
-  }>;
+  commands?: Record<
+    string,
+    {
+      suggestedKey?: { default?: string; mac?: string };
+      description?: string;
+    }
+  >;
   firefoxId?: string;
   browserOverrides?: Partial<Record<Browser, Partial<ManifestConfig>>>;
 }

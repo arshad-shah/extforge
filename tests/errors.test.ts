@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { ERROR_DOCS } from '../src/core/errors/error-docs.js';
 import {
+  docsUrlFor,
+  ERROR_CODES,
   ExtForgeError,
   isExtForgeError,
-  ERROR_CODES,
-  docsUrlFor,
 } from '../src/core/errors/index.js';
-import { ERROR_DOCS } from '../src/core/errors/error-docs.js';
 
 describe('ExtForgeError', () => {
   it('captures code, file, line, hint, docsUrl', () => {

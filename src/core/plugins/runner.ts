@@ -1,19 +1,19 @@
-import { ExtForgeError } from '../errors/index.js';
-import { ERROR_CODES } from '../errors/codes.js';
-import type { Browser } from '../manifest/index.js';
-import type { BuildResult } from '../builder/index.js';
 import type { CssTransformContext } from '../builder/css.js';
-import type { HMRUpdate } from '../hmr/index.js';
+import type { BuildResult } from '../builder/index.js';
 import type { ExtForgeConfig } from '../config.js';
+import { ERROR_CODES } from '../errors/codes.js';
+import { ExtForgeError } from '../errors/index.js';
+import type { HMRUpdate } from '../hmr/index.js';
+import type { Browser } from '../manifest/index.js';
 import {
+  type EntryDescriptor,
   type ExtForgePlugin,
-  type ExtForgePluginV1,
   type ExtForgePluginLegacy,
+  type ExtForgePluginV1,
+  isV1Plugin,
+  type ManifestObject,
   type PluginContext,
   type PluginHooks,
-  type EntryDescriptor,
-  type ManifestObject,
-  isV1Plugin,
 } from './types.js';
 
 // `hooks`, `addEntry`, and `emitFile` are supplied by the runner itself when
@@ -23,9 +23,13 @@ type RunnerCtx = Omit<PluginContext, 'hooks' | 'addEntry' | 'emitFile'>;
 
 interface HookRegistry {
   configResolved: Array<(c: ExtForgeConfig) => void | Promise<void>>;
-  manifestTransform: Array<(m: ManifestObject, b: Browser) => ManifestObject | Promise<ManifestObject>>;
+  manifestTransform: Array<
+    (m: ManifestObject, b: Browser) => ManifestObject | Promise<ManifestObject>
+  >;
   buildStart: Array<(info: { browser: Browser; dev: boolean }) => void | Promise<void>>;
-  buildEntry: Array<(e: EntryDescriptor) => EntryDescriptor | void | Promise<EntryDescriptor | void>>;
+  buildEntry: Array<
+    (e: EntryDescriptor) => EntryDescriptor | void | Promise<EntryDescriptor | void>
+  >;
   buildEnd: Array<(r: BuildResult) => void | Promise<void>>;
   cssTransform: Array<(c: CssTransformContext) => string | void | Promise<string | void>>;
   devReload: Array<(e: HMRUpdate) => void | Promise<void>>;
@@ -38,7 +42,7 @@ function adaptLegacy(p: ExtForgePluginLegacy): ExtForgePluginV1 {
     async setup(ctx) {
       if (p.setup) await p.setup(ctx.config);
       if (p.buildStart) ctx.hooks.onBuildStart(() => p.buildStart!());
-      if (p.buildEnd)   ctx.hooks.onBuildEnd((r) => p.buildEnd!(r));
+      if (p.buildEnd) ctx.hooks.onBuildEnd((r) => p.buildEnd!(r));
     },
   };
 }
@@ -63,6 +67,13 @@ function wrap<F extends (...args: any[]) => any>(plugin: string, hook: string, f
   }) as F;
 }
 
+/**
+ * Drives registered plugins through the build lifecycle.
+ *
+ * @internal The engine that *calls* plugins, not API that plugin authors
+ * write against. Plugin authors use `ExtForgePluginV1` / `PluginContext`,
+ * which are stable. Not covered by the v1 semver contract.
+ */
 export class PluginRunner {
   private hooks: HookRegistry = {
     configResolved: [],
@@ -82,8 +93,11 @@ export class PluginRunner {
   private readonly addedEntries = new Map<string, EntryDescriptor>();
   private readonly emittedFiles = new Map<string, string | Uint8Array>();
 
-  constructor(plugins: ExtForgePlugin[], private ctx: RunnerCtx) {
-    this.plugins = plugins.map(p => isV1Plugin(p) ? p : adaptLegacy(p));
+  constructor(
+    plugins: ExtForgePlugin[],
+    private ctx: RunnerCtx,
+  ) {
+    this.plugins = plugins.map((p) => (isV1Plugin(p) ? p : adaptLegacy(p)));
   }
 
   /** Record a synthetic entry point. Last write wins per `entry.name`. */
@@ -109,13 +123,27 @@ export class PluginRunner {
   async setup(): Promise<void> {
     for (const p of this.plugins) {
       const pluginHooks: PluginHooks = {
-        onConfigResolved:    (fn) => { this.hooks.configResolved.push(wrap(p.name, 'onConfigResolved', fn)); },
-        onManifestTransform: (fn) => { this.hooks.manifestTransform.push(wrap(p.name, 'onManifestTransform', fn)); },
-        onBuildStart:        (fn) => { this.hooks.buildStart.push(wrap(p.name, 'onBuildStart', fn)); },
-        onBuildEntry:        (fn) => { this.hooks.buildEntry.push(wrap(p.name, 'onBuildEntry', fn)); },
-        onBuildEnd:          (fn) => { this.hooks.buildEnd.push(wrap(p.name, 'onBuildEnd', fn)); },
-        onCssTransform:      (fn) => { this.hooks.cssTransform.push(wrap(p.name, 'onCssTransform', fn)); },
-        onDevReload:         (fn) => { this.hooks.devReload.push(wrap(p.name, 'onDevReload', fn)); },
+        onConfigResolved: (fn) => {
+          this.hooks.configResolved.push(wrap(p.name, 'onConfigResolved', fn));
+        },
+        onManifestTransform: (fn) => {
+          this.hooks.manifestTransform.push(wrap(p.name, 'onManifestTransform', fn));
+        },
+        onBuildStart: (fn) => {
+          this.hooks.buildStart.push(wrap(p.name, 'onBuildStart', fn));
+        },
+        onBuildEntry: (fn) => {
+          this.hooks.buildEntry.push(wrap(p.name, 'onBuildEntry', fn));
+        },
+        onBuildEnd: (fn) => {
+          this.hooks.buildEnd.push(wrap(p.name, 'onBuildEnd', fn));
+        },
+        onCssTransform: (fn) => {
+          this.hooks.cssTransform.push(wrap(p.name, 'onCssTransform', fn));
+        },
+        onDevReload: (fn) => {
+          this.hooks.devReload.push(wrap(p.name, 'onDevReload', fn));
+        },
       };
       const ctx: PluginContext = {
         ...this.ctx,

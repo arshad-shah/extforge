@@ -24,7 +24,7 @@
  * Augmentation slot for user code. Routes register themselves here so caller
  * sites get full inference.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+// biome-ignore lint/suspicious/noEmptyInterface: augmentation slot — user code merges routes into it.
 export interface MessageMap {}
 
 type Route = keyof MessageMap & string;
@@ -111,10 +111,15 @@ function takeLastError(): string | undefined {
  */
 export async function sendMessage<R extends Route>(route: R, payload: Req<R>): Promise<Res<R>> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) {
-    throw new Error('extforge/messaging: chrome.runtime.sendMessage is not available in this context');
+    throw new Error(
+      'extforge/messaging: chrome.runtime.sendMessage is not available in this context',
+    );
   }
   const envelope: MessageEnvelope<R> = { __extforge: 'msg', route, payload };
-  let reply: { __extforge: 'ok'; result: Res<R> } | { __extforge: 'err'; error: string } | undefined;
+  let reply:
+    | { __extforge: 'ok'; result: Res<R> }
+    | { __extforge: 'err'; error: string }
+    | undefined;
   try {
     reply = (await chrome.runtime.sendMessage(envelope)) as typeof reply;
   } finally {
@@ -145,10 +150,15 @@ export async function sendMessageToTab<R extends Route>(
   payload: Req<R>,
 ): Promise<Res<R>> {
   if (typeof chrome === 'undefined' || !chrome.tabs?.sendMessage) {
-    throw new Error('extforge/messaging: chrome.tabs.sendMessage is not available (background context only)');
+    throw new Error(
+      'extforge/messaging: chrome.tabs.sendMessage is not available (background context only)',
+    );
   }
   const envelope: MessageEnvelope<R> = { __extforge: 'msg', route, payload };
-  let reply: { __extforge: 'ok'; result: Res<R> } | { __extforge: 'err'; error: string } | undefined;
+  let reply:
+    | { __extforge: 'ok'; result: Res<R> }
+    | { __extforge: 'err'; error: string }
+    | undefined;
   try {
     reply = (await chrome.tabs.sendMessage(tabId, envelope)) as typeof reply;
   } finally {
@@ -225,11 +235,19 @@ function wrapPort<TIn, TOut>(port: chrome.runtime.Port): PortChannel<TIn, TOut> 
     // console spam at the disconnect boundary.
     const reason = typeof chrome !== 'undefined' && chrome.runtime?.lastError?.message;
     for (const cb of disconnectListeners) {
-      try { cb(reason || undefined); } catch { /* swallow */ }
+      try {
+        cb(reason || undefined);
+      } catch {
+        /* swallow */
+      }
     }
     // Drop every message listener so the port reference can be GC'd.
     for (const l of messageListeners) {
-      try { port.onMessage.removeListener(l); } catch { /* ignore */ }
+      try {
+        port.onMessage.removeListener(l);
+      } catch {
+        /* ignore */
+      }
     }
     messageListeners.clear();
     disconnectListeners.clear();

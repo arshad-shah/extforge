@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 describe('extforge/testing/vitest preset', () => {
   afterAll(() => {

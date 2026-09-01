@@ -6,16 +6,16 @@
  * Logic only — no inlined template strings.
  */
 
-import { ask, type Prompt } from './prompter.js';
-import { style } from '@arshad-shah/clif';
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { createLogger, type Logger } from '../logger/index.js';
-import { PERMISSION_GROUPS, type Browser } from '../manifest/index.js';
-import { VERSIONS, DEFAULTS, PKG_SCRIPTS, BASE_DIRS, FEATURE_DIRS } from './constants.js';
-import { loadTemplate, loadTemplateRaw } from './template-loader.js';
-import { slugify } from '../util/slug.js';
+import { style } from '@arshad-shah/clif';
 import type { CssPreset } from '../builder/css.js';
+import { createLogger, type Logger } from '../logger/index.js';
+import { type Browser, PERMISSION_GROUPS } from '../manifest/index.js';
+import { slugify } from '../util/slug.js';
+import { BASE_DIRS, DEFAULTS, FEATURE_DIRS, PKG_SCRIPTS, VERSIONS } from './constants.js';
+import { ask, type Prompt } from './prompter.js';
+import { loadTemplate, loadTemplateRaw } from './template-loader.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -38,29 +38,45 @@ export interface ScaffoldAnswers {
 
 // ─── Interactive prompts ─────────────────────────────────────────────────────
 
-async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<ScaffoldAnswers | null> {
+async function gatherAnswers(
+  options: ScaffoldOptions,
+  log: Logger,
+): Promise<ScaffoldAnswers | null> {
   log.raw('');
-  log.raw('  ' + style.bold.magenta('extforge') + style.dim(' › ') + style.bold('create a new browser extension'));
+  log.raw(
+    '  ' +
+      style.bold.magenta('extforge') +
+      style.dim(' › ') +
+      style.bold('create a new browser extension'),
+  );
   log.raw(style.dim('  Answer a few questions to scaffold your project.\n'));
 
   const promptList: Prompt[] = [
     {
-      type: 'text', name: 'name', message: 'Extension name',
+      type: 'text',
+      name: 'name',
+      message: 'Extension name',
       initial: options.name ?? DEFAULTS.name,
       validate: (v: string) => {
         if (!v.trim()) return 'Name is required';
         if (v.length > 45) return 'Name must be 45 characters or less';
-        if (!/^[a-z0-9-]+$/i.test(v.trim().replace(/\s+/g, '-'))) return 'Letters, numbers, hyphens only';
+        if (!/^[a-z0-9-]+$/i.test(v.trim().replace(/\s+/g, '-')))
+          return 'Letters, numbers, hyphens only';
         return true;
       },
     },
     { type: 'text', name: 'description', message: 'Description', initial: DEFAULTS.description },
     {
-      type: 'text', name: 'version', message: 'Version', initial: DEFAULTS.version,
+      type: 'text',
+      name: 'version',
+      message: 'Version',
+      initial: DEFAULTS.version,
       validate: (v: string) => /^\d+\.\d+\.\d+$/.test(v) || 'Must be semver (e.g. 0.1.0)',
     },
     {
-      type: 'select', name: 'framework', message: 'UI framework',
+      type: 'select',
+      name: 'framework',
+      message: 'UI framework',
       choices: [
         { title: `${style.cyan('React')}      — Component-based with JSX/TSX`, value: 'react' },
         { title: `${style.yellow('Vanilla')}    — Plain TypeScript`, value: 'vanilla' },
@@ -68,7 +84,9 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
       initial: 0,
     },
     {
-      type: 'select', name: 'css', message: 'CSS framework',
+      type: 'select',
+      name: 'css',
+      message: 'CSS framework',
       choices: [
         { title: `${style.cyan('Tailwind CSS')} — Utility-first CSS`, value: 'tailwind' },
         { title: `${style.yellow('Vanilla CSS')}  — Plain CSS/PostCSS`, value: 'vanilla' },
@@ -77,43 +95,72 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
       initial: 0,
     },
     {
-      type: 'multiselect', name: 'browsers', message: 'Target browsers', min: 1,
+      type: 'multiselect',
+      name: 'browsers',
+      message: 'Target browsers',
+      min: 1,
       hint: '— Space to toggle, Enter to confirm',
       choices: [
-        { title: 'Chrome',  value: 'chrome',  selected: true },
+        { title: 'Chrome', value: 'chrome', selected: true },
         { title: 'Firefox', value: 'firefox', selected: true },
-        { title: 'Edge',    value: 'edge',    selected: false },
-        { title: 'Safari',  value: 'safari',  selected: false },
+        { title: 'Edge', value: 'edge', selected: false },
+        { title: 'Safari', value: 'safari', selected: false },
       ],
     },
     {
-      type: 'multiselect', name: 'features', message: 'Extension features',
+      type: 'multiselect',
+      name: 'features',
+      message: 'Extension features',
       hint: '— Space to toggle',
       choices: [
-        { title: `${style.cyan('Popup')}           — Toolbar popup`, value: 'popup', selected: true },
-        { title: `${style.green('Background')}      — Service worker`, value: 'background', selected: true },
-        { title: `${style.yellow('Content Script')}  — Inject into pages`, value: 'content', selected: false },
-        { title: `${style.magenta('Options Page')}    — Settings page`, value: 'options', selected: false },
-        { title: `${style.blue('Side Panel')}      — Browser side panel`, value: 'sidepanel', selected: false },
+        {
+          title: `${style.cyan('Popup')}           — Toolbar popup`,
+          value: 'popup',
+          selected: true,
+        },
+        {
+          title: `${style.green('Background')}      — Service worker`,
+          value: 'background',
+          selected: true,
+        },
+        {
+          title: `${style.yellow('Content Script')}  — Inject into pages`,
+          value: 'content',
+          selected: false,
+        },
+        {
+          title: `${style.magenta('Options Page')}    — Settings page`,
+          value: 'options',
+          selected: false,
+        },
+        {
+          title: `${style.blue('Side Panel')}      — Browser side panel`,
+          value: 'sidepanel',
+          selected: false,
+        },
       ],
     },
     {
-      type: 'multiselect', name: 'permissions', message: 'Permissions',
+      type: 'multiselect',
+      name: 'permissions',
+      message: 'Permissions',
       hint: '— Space to toggle',
       choices: Object.entries(PERMISSION_GROUPS).flatMap(([group, info]) =>
-        info.permissions.map(perm => ({
+        info.permissions.map((perm) => ({
           title: `${style.dim(`[${group}]`)} ${perm}`,
           value: perm,
           selected: DEFAULTS.permissions.includes(perm as never),
-        }))
+        })),
       ),
     },
   ];
 
   const response = await ask(promptList, {
-    onCancel: () => { log.raw(style.red('\n  Cancelled.\n')); },
+    onCancel: () => {
+      log.raw(style.red('\n  Cancelled.\n'));
+    },
   });
-  if (!response || !response['name']) return null;
+  if (!response?.name) return null;
   return response as unknown as ScaffoldAnswers;
 }
 
@@ -122,33 +169,39 @@ async function gatherAnswers(options: ScaffoldOptions, log: Logger): Promise<Sca
 function buildPackageJson(a: ScaffoldAnswers): string {
   const deps: Record<string, string> = {};
   const devDeps: Record<string, string> = {
-    extforge:     '^1.0.0',
-    typescript:   VERSIONS.typescript,
+    extforge: '^1.0.0',
+    typescript: VERSIONS.typescript,
     '@types/chrome': VERSIONS.chromTypes,
-    esbuild:      VERSIONS.esbuild,
-    vitest:       VERSIONS.vitest,
+    esbuild: VERSIONS.esbuild,
+    vitest: VERSIONS.vitest,
   };
 
   if (a.framework === 'react') {
-    deps['react'] = VERSIONS.react;
+    deps.react = VERSIONS.react;
     deps['react-dom'] = VERSIONS.reactDom;
     devDeps['@types/react'] = VERSIONS.reactTypes;
     devDeps['@types/react-dom'] = VERSIONS.reactDomTypes;
-    deps['zustand'] = VERSIONS.zustand;
+    deps.zustand = VERSIONS.zustand;
   }
   if (a.css === 'tailwind') {
-    devDeps['tailwindcss'] = VERSIONS.tailwindcss;
-    devDeps['postcss'] = VERSIONS.postcss;
-    devDeps['autoprefixer'] = VERSIONS.autoprefixer;
+    devDeps.tailwindcss = VERSIONS.tailwindcss;
+    devDeps.postcss = VERSIONS.postcss;
+    devDeps.autoprefixer = VERSIONS.autoprefixer;
   }
 
-  return JSON.stringify({
-    name: a.name, version: a.version, description: a.description,
-    type: 'module',
-    scripts: { ...PKG_SCRIPTS },
-    dependencies: deps,
-    devDependencies: devDeps,
-  }, null, 2);
+  return JSON.stringify(
+    {
+      name: a.name,
+      version: a.version,
+      description: a.description,
+      type: 'module',
+      scripts: { ...PKG_SCRIPTS },
+      dependencies: deps,
+      devDependencies: devDeps,
+    },
+    null,
+    2,
+  );
 }
 
 // ─── extforge.config.ts builder ──────────────────────────────────────────────
@@ -193,7 +246,7 @@ function buildExtForgeConfig(a: ScaffoldAnswers): string {
   return `import { defineConfig } from 'extforge';
 
 export default defineConfig({
-  browsers: [${a.browsers.map(b => `'${b}'`).join(', ')}],
+  browsers: [${a.browsers.map((b) => `'${b}'`).join(', ')}],
   framework: '${a.framework}',
   css: '${a.css}',
 
@@ -204,7 +257,7 @@ export default defineConfig({
     manifestVersion: 3,
 
     permissions: {
-      required: [${a.permissions.map(p => `'${p}'`).join(', ')}],
+      required: [${a.permissions.map((p) => `'${p}'`).join(', ')}],
       optional: [],
 ${hostLine}
     },
@@ -229,19 +282,30 @@ ${sections.join('\n')}
 // ─── tsconfig builder ────────────────────────────────────────────────────────
 
 function buildTSConfig(): string {
-  return JSON.stringify({
-    compilerOptions: {
-      target: 'ES2022', lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-      module: 'ESNext', moduleResolution: 'bundler', jsx: 'react-jsx',
-      strict: true, noEmit: true, esModuleInterop: true, skipLibCheck: true,
-      forceConsistentCasingInFileNames: true, resolveJsonModule: true,
-      isolatedModules: true,
-      paths: { '@/*': ['./src/*'] },
-      types: ['chrome'],
+  return JSON.stringify(
+    {
+      compilerOptions: {
+        target: 'ES2022',
+        lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+        module: 'ESNext',
+        moduleResolution: 'bundler',
+        jsx: 'react-jsx',
+        strict: true,
+        noEmit: true,
+        esModuleInterop: true,
+        skipLibCheck: true,
+        forceConsistentCasingInFileNames: true,
+        resolveJsonModule: true,
+        isolatedModules: true,
+        paths: { '@/*': ['./src/*'] },
+        types: ['chrome'],
+      },
+      include: ['src/**/*'],
+      exclude: ['node_modules', 'dist'],
     },
-    include: ['src/**/*'],
-    exclude: ['node_modules', 'dist'],
-  }, null, 2);
+    null,
+    2,
+  );
 }
 
 // ─── Main scaffold ──────────────────────────────────────────────────────────
@@ -263,7 +327,7 @@ export async function scaffold(
         features: [...DEFAULTS.features],
         permissions: [...DEFAULTS.permissions],
       }
-    : (await gatherAnswers(options, log)) as ScaffoldAnswers;
+    : ((await gatherAnswers(options, log)) as ScaffoldAnswers);
 
   if (!answers) return null;
 
@@ -306,42 +370,70 @@ export async function scaffold(
   writeFileSync(join(projectDir, 'vitest.config.ts'), loadTemplateRaw('vitest.config.ts.tpl'));
   writeFileSync(join(projectDir, '.gitignore'), loadTemplateRaw('gitignore.tpl'));
   writeFileSync(join(projectDir, 'README.md'), loadTemplate('README.md.tpl', vars));
-  writeFileSync(join(projectDir, 'tests/extension.test.ts'), loadTemplate('extension.test.ts.tpl', vars));
+  writeFileSync(
+    join(projectDir, 'tests/extension.test.ts'),
+    loadTemplate('extension.test.ts.tpl', vars),
+  );
   mkdirSync(join(projectDir, 'tests/e2e'), { recursive: true });
   writeFileSync(join(projectDir, 'tests/e2e/fixture.ts'), loadTemplateRaw('e2e/fixture.ts.tpl'));
-  writeFileSync(join(projectDir, 'tests/e2e/smoke.test.ts'), loadTemplateRaw('e2e/smoke.test.ts.tpl'));
+  writeFileSync(
+    join(projectDir, 'tests/e2e/smoke.test.ts'),
+    loadTemplateRaw('e2e/smoke.test.ts.tpl'),
+  );
   writeFileSync(join(projectDir, 'icons/icon.svg'), loadTemplateRaw('icon.svg.tpl'));
   // Tailwind projects get the `@tailwind` layer directives; vanilla/none get a
   // plain stylesheet (same design tokens, no Tailwind-specific syntax).
-  const globalsTemplate = answers.css === 'tailwind' ? 'globals.css.tpl' : 'globals.vanilla.css.tpl';
+  const globalsTemplate =
+    answers.css === 'tailwind' ? 'globals.css.tpl' : 'globals.vanilla.css.tpl';
   writeFileSync(join(projectDir, 'src/styles/globals.css'), loadTemplateRaw(globalsTemplate));
   writeFileSync(join(projectDir, 'src/styles/content.css'), loadTemplateRaw('content.css.tpl'));
 
   if (answers.css === 'tailwind') {
-    writeFileSync(join(projectDir, 'tailwind.config.js'), loadTemplateRaw('tailwind.config.js.tpl'));
+    writeFileSync(
+      join(projectDir, 'tailwind.config.js'),
+      loadTemplateRaw('tailwind.config.js.tpl'),
+    );
     writeFileSync(join(projectDir, 'postcss.config.js'), loadTemplateRaw('postcss.config.js.tpl'));
   }
 
   // Feature-specific source files
   if (answers.framework === 'react') {
     mkdirSync(join(projectDir, 'src/components'), { recursive: true });
-    writeFileSync(join(projectDir, 'src/components/ErrorBoundary.tsx'), loadTemplateRaw('error-boundary.tsx.tpl'));
+    writeFileSync(
+      join(projectDir, 'src/components/ErrorBoundary.tsx'),
+      loadTemplateRaw('error-boundary.tsx.tpl'),
+    );
   }
   if (answers.features.includes('popup')) {
-    writeFileSync(join(projectDir, 'src/ui/popup/index.html'), loadTemplate('popup.html.tpl', vars));
+    writeFileSync(
+      join(projectDir, 'src/ui/popup/index.html'),
+      loadTemplate('popup.html.tpl', vars),
+    );
     if (answers.framework === 'react')
-      writeFileSync(join(projectDir, 'src/ui/popup/index.tsx'), loadTemplate('popup.tsx.tpl', vars));
+      writeFileSync(
+        join(projectDir, 'src/ui/popup/index.tsx'),
+        loadTemplate('popup.tsx.tpl', vars),
+      );
     else if (answers.framework === 'vanilla')
       writeFileSync(join(projectDir, 'src/ui/popup/index.ts'), loadTemplate('popup.ts.tpl', vars));
   }
   if (answers.features.includes('background'))
-    writeFileSync(join(projectDir, 'src/background/index.ts'), loadTemplateRaw('background.ts.tpl'));
+    writeFileSync(
+      join(projectDir, 'src/background/index.ts'),
+      loadTemplateRaw('background.ts.tpl'),
+    );
   if (answers.features.includes('content'))
     writeFileSync(join(projectDir, 'src/content/index.ts'), loadTemplateRaw('content.ts.tpl'));
   if (answers.features.includes('options'))
-    writeFileSync(join(projectDir, 'src/ui/options/index.html'), loadTemplate('popup.html.tpl', { NAME: answers.name + ' - Options' }));
+    writeFileSync(
+      join(projectDir, 'src/ui/options/index.html'),
+      loadTemplate('popup.html.tpl', { NAME: `${answers.name} - Options` }),
+    );
   if (answers.features.includes('sidepanel'))
-    writeFileSync(join(projectDir, 'src/ui/sidepanel/index.html'), loadTemplate('popup.html.tpl', { NAME: answers.name + ' - Side Panel' }));
+    writeFileSync(
+      join(projectDir, 'src/ui/sidepanel/index.html'),
+      loadTemplate('popup.html.tpl', { NAME: `${answers.name} - Side Panel` }),
+    );
 
   log.timeEnd('scaffold', 'Scaffolded project');
 
@@ -353,7 +445,9 @@ export async function scaffold(
   log.raw(`    ${style.cyan('npm install')}`);
   log.raw(`    ${style.cyan('npm run dev')}`);
   log.raw('');
-  log.raw(style.dim(`  Then load the extension from ${style.cyan('dist/chrome/')} in your browser.`));
+  log.raw(
+    style.dim(`  Then load the extension from ${style.cyan('dist/chrome/')} in your browser.`),
+  );
   log.raw('');
 
   return projectDir;

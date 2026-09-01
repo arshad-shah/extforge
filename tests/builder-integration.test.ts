@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { build, buildAll } from '../src/core/builder/index.js';
 import type { ExtForgeConfig } from '../src/core/config.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
@@ -11,8 +11,7 @@ const silent = createLogger({ level: LogLevel.Silent });
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'extforge-bi-'));
   mkdirSync(join(root, 'src/background'), { recursive: true });
-  writeFileSync(join(root, 'src/background/index.ts'),
-    'export const start = () => 1;\n');
+  writeFileSync(join(root, 'src/background/index.ts'), 'export const start = () => 1;\n');
   // validateProject (used by buildAll) requires these files at the root.
   writeFileSync(join(root, 'package.json'), '{}');
   writeFileSync(join(root, 'tsconfig.json'), '{}');
@@ -31,8 +30,14 @@ const baseManifest = {
 describe('builder.build', () => {
   let root: string;
 
-  beforeEach(() => { root = makeProject(); });
-  afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    root = makeProject();
+  });
+  afterEach(() => {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('emits a manifest.json under dist/<browser>/ with the configured name', async () => {
     const cfg: ExtForgeConfig = {
@@ -57,10 +62,14 @@ describe('builder.build', () => {
 
   it('copies HTML when src/ui/popup/index.html exists', async () => {
     mkdirSync(join(root, 'src/ui/popup'), { recursive: true });
-    writeFileSync(join(root, 'src/ui/popup/index.html'),
-      '<!doctype html><html><body><div id="root"></div><script type="module" src="./index.js"></script></body></html>');
-    writeFileSync(join(root, 'src/ui/popup/index.ts'),
-      'document.querySelector("#root")!.textContent = "hi";');
+    writeFileSync(
+      join(root, 'src/ui/popup/index.html'),
+      '<!doctype html><html><body><div id="root"></div><script type="module" src="./index.js"></script></body></html>',
+    );
+    writeFileSync(
+      join(root, 'src/ui/popup/index.ts'),
+      'document.querySelector("#root")!.textContent = "hi";',
+    );
     const cfg: ExtForgeConfig = {
       browsers: ['chrome'],
       manifest: { ...baseManifest, action: { defaultPopup: 'ui/popup/index.html' } },
@@ -85,7 +94,12 @@ describe('builder.build', () => {
       browsers: ['chrome'],
       manifest: { ...baseManifest, background: { entrypoint: 'background/index.js' } },
     };
-    await build(root, cfg, { browser: 'chrome', dev: true, hmrPort: 35729, hmrHost: 'localhost' }, silent);
+    await build(
+      root,
+      cfg,
+      { browser: 'chrome', dev: true, hmrPort: 35729, hmrHost: 'localhost' },
+      silent,
+    );
     const bundled = readFileSync(join(root, 'dist/chrome/background/index.js'), 'utf8');
     // The HMR client connects via WebSocket to the configured port.
     expect(bundled).toContain('35729');
@@ -105,13 +119,18 @@ describe('builder.build', () => {
 
 describe('builder.build content scripts and CSUI', () => {
   let root: string;
-  beforeEach(() => { root = makeProject(); });
-  afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    root = makeProject();
+  });
+  afterEach(() => {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('emits a content-script IIFE bundle', async () => {
     mkdirSync(join(root, 'src/content'), { recursive: true });
-    writeFileSync(join(root, 'src/content/index.ts'),
-      'console.log("content script");');
+    writeFileSync(join(root, 'src/content/index.ts'), 'console.log("content script");');
     const cfg: ExtForgeConfig = {
       browsers: ['chrome'],
       manifest: {
@@ -135,16 +154,23 @@ describe('builder.build content scripts and CSUI', () => {
     // Real projects import defineCSUI from extforge/csui; for this test we
     // stub the package locally so esbuild can resolve it.
     mkdirSync(join(root, 'node_modules/extforge'), { recursive: true });
-    writeFileSync(join(root, 'node_modules/extforge/package.json'), JSON.stringify({
-      name: 'extforge',
-      type: 'module',
-      exports: { './csui': './csui.js' },
-    }));
-    writeFileSync(join(root, 'node_modules/extforge/csui.js'),
-      'export function defineCSUI(options, render) { return { options, render }; }\n');
-    writeFileSync(join(root, 'src/contents/widget.csui.tsx'),
+    writeFileSync(
+      join(root, 'node_modules/extforge/package.json'),
+      JSON.stringify({
+        name: 'extforge',
+        type: 'module',
+        exports: { './csui': './csui.js' },
+      }),
+    );
+    writeFileSync(
+      join(root, 'node_modules/extforge/csui.js'),
+      'export function defineCSUI(options, render) { return { options, render }; }\n',
+    );
+    writeFileSync(
+      join(root, 'src/contents/widget.csui.tsx'),
       "import { defineCSUI } from 'extforge/csui';\n" +
-      "export default defineCSUI({ matches: ['*://*/*'] }, () => {});\n");
+        "export default defineCSUI({ matches: ['*://*/*'] }, () => {});\n",
+    );
     const cfg: ExtForgeConfig = {
       browsers: ['chrome'],
       manifest: { ...baseManifest, background: { entrypoint: 'background/index.js' } },
@@ -152,10 +178,12 @@ describe('builder.build content scripts and CSUI', () => {
     await build(root, cfg, { browser: 'chrome', dev: false }, silent);
     const manifest = JSON.parse(readFileSync(join(root, 'dist/chrome/manifest.json'), 'utf8'));
     expect(manifest.content_scripts).toBeDefined();
-    expect(manifest.content_scripts).toContainEqual(expect.objectContaining({
-      matches: ['*://*/*'],
-      js: ['contents/widget.js'],
-    }));
+    expect(manifest.content_scripts).toContainEqual(
+      expect.objectContaining({
+        matches: ['*://*/*'],
+        js: ['contents/widget.js'],
+      }),
+    );
   });
 
   it('honors sourcemap=true on a production build', async () => {
@@ -172,8 +200,14 @@ describe('builder.build content scripts and CSUI', () => {
 describe('builder.buildAll', () => {
   let root: string;
 
-  beforeEach(() => { root = makeProject(); });
-  afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    root = makeProject();
+  });
+  afterEach(() => {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('builds every browser in config.browsers in sequence', async () => {
     const cfg: ExtForgeConfig = {

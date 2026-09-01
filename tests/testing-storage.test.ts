@@ -1,9 +1,11 @@
 // tests/testing-storage.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createStorageFake, type StorageFake } from '../src/core/testing/fakes/storage.js';
 
 let s: StorageFake;
-beforeEach(() => { s = createStorageFake(); });
+beforeEach(() => {
+  s = createStorageFake();
+});
 
 describe('storage fake', () => {
   it('local.set then local.get returns the value', async () => {

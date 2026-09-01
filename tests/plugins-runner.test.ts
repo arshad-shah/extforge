@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { PluginRunner } from '../src/core/plugins/runner.js';
-import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { describe, expect, it } from 'vitest';
 import { isExtForgeError } from '../src/core/errors/index.js';
-import type { ExtForgePluginV1, EntryDescriptor } from '../src/core/plugins/types.js';
+import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { PluginRunner } from '../src/core/plugins/runner.js';
+import type { EntryDescriptor, ExtForgePluginV1 } from '../src/core/plugins/types.js';
 
 const baseCtx = {
   config: { browsers: ['chrome'] } as any,
@@ -15,8 +15,20 @@ const baseCtx = {
 describe('PluginRunner', () => {
   it('calls every plugin setup once in registration order', async () => {
     const order: string[] = [];
-    const a: ExtForgePluginV1 = { name: 'a', apiVersion: 1, setup: () => { order.push('a'); } };
-    const b: ExtForgePluginV1 = { name: 'b', apiVersion: 1, setup: () => { order.push('b'); } };
+    const a: ExtForgePluginV1 = {
+      name: 'a',
+      apiVersion: 1,
+      setup: () => {
+        order.push('a');
+      },
+    };
+    const b: ExtForgePluginV1 = {
+      name: 'b',
+      apiVersion: 1,
+      setup: () => {
+        order.push('b');
+      },
+    };
     const r = new PluginRunner([a, b], baseCtx);
     await r.setup();
     expect(order).toEqual(['a', 'b']);
@@ -24,12 +36,18 @@ describe('PluginRunner', () => {
 
   it('reduce-chains onManifestTransform across plugins', async () => {
     const a: ExtForgePluginV1 = {
-      name: 'a', apiVersion: 1,
-      setup({ hooks }) { hooks.onManifestTransform((m) => ({ ...m, fromA: true })); },
+      name: 'a',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onManifestTransform((m) => ({ ...m, fromA: true }));
+      },
     };
     const b: ExtForgePluginV1 = {
-      name: 'b', apiVersion: 1,
-      setup({ hooks }) { hooks.onManifestTransform((m) => ({ ...m, fromB: true })); },
+      name: 'b',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onManifestTransform((m) => ({ ...m, fromB: true }));
+      },
     };
     const r = new PluginRunner([a, b], baseCtx);
     await r.setup();
@@ -43,11 +61,15 @@ describe('PluginRunner', () => {
     // `next.permissions` etc. Treat anything that isn't a plain object as
     // "no change requested".
     const breaks: ExtForgePluginV1 = {
-      name: 'breaks', apiVersion: 1,
-      setup({ hooks }) { hooks.onManifestTransform(() => null as unknown as Record<string, unknown>); },
+      name: 'breaks',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onManifestTransform(() => null as unknown as Record<string, unknown>);
+      },
     };
     const reads: ExtForgePluginV1 = {
-      name: 'reads', apiVersion: 1,
+      name: 'reads',
+      apiVersion: 1,
       setup({ hooks }) {
         hooks.onManifestTransform((m) => {
           if (!m || typeof m !== 'object') throw new Error('manifest is not an object');
@@ -63,14 +85,21 @@ describe('PluginRunner', () => {
 
   it('reduce-chains onBuildEntry; void return preserves prior value', async () => {
     const a: ExtForgePluginV1 = {
-      name: 'a', apiVersion: 1,
+      name: 'a',
+      apiVersion: 1,
       setup({ hooks }) {
-        hooks.onBuildEntry((e) => ({ ...e, esbuildOptions: { ...(e.esbuildOptions ?? {}), jsx: 'automatic' } }));
+        hooks.onBuildEntry((e) => ({
+          ...e,
+          esbuildOptions: { ...(e.esbuildOptions ?? {}), jsx: 'automatic' },
+        }));
       },
     };
     const b: ExtForgePluginV1 = {
-      name: 'b', apiVersion: 1,
-      setup({ hooks }) { hooks.onBuildEntry(() => undefined); },
+      name: 'b',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onBuildEntry(() => undefined);
+      },
     };
     const r = new PluginRunner([a, b], baseCtx);
     await r.setup();
@@ -81,12 +110,19 @@ describe('PluginRunner', () => {
 
   it('throws ExtForgeError(EXT_PLUGIN_FAILED) when a plugin throws in setup', async () => {
     const a: ExtForgePluginV1 = {
-      name: 'boom', apiVersion: 1,
-      setup() { throw new Error('boom'); },
+      name: 'boom',
+      apiVersion: 1,
+      setup() {
+        throw new Error('boom');
+      },
     };
     const r = new PluginRunner([a], baseCtx);
     let caught: unknown;
-    try { await r.setup(); } catch (e) { caught = e; }
+    try {
+      await r.setup();
+    } catch (e) {
+      caught = e;
+    }
     expect(isExtForgeError(caught)).toBe(true);
     if (isExtForgeError(caught)) {
       expect(caught.code).toBe('EXT_PLUGIN_FAILED');
@@ -96,13 +132,22 @@ describe('PluginRunner', () => {
 
   it('attaches plugin name and hook name to thrown errors during fire*', async () => {
     const a: ExtForgePluginV1 = {
-      name: 'transform-bomb', apiVersion: 1,
-      setup({ hooks }) { hooks.onManifestTransform(() => { throw new Error('kapow'); }); },
+      name: 'transform-bomb',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onManifestTransform(() => {
+          throw new Error('kapow');
+        });
+      },
     };
     const r = new PluginRunner([a], baseCtx);
     await r.setup();
     let caught: unknown;
-    try { await r.fireManifestTransform({}, 'chrome'); } catch (e) { caught = e; }
+    try {
+      await r.fireManifestTransform({}, 'chrome');
+    } catch (e) {
+      caught = e;
+    }
     expect(isExtForgeError(caught)).toBe(true);
     if (isExtForgeError(caught)) {
       expect(caught.message).toContain('transform-bomb');

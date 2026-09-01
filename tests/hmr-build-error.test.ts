@@ -1,25 +1,25 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { buildCodeFrame, serializeBuildError } from '../src/core/hmr/build-error.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ExtForgeError } from '../src/core/errors/index.js';
+import { buildCodeFrame, serializeBuildError } from '../src/core/hmr/build-error.js';
 
 describe('buildCodeFrame', () => {
   let dir: string;
 
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'ef-frame-')); });
-  afterEach(() => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ef-frame-'));
+  });
+  afterEach(() => {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('renders surrounding context with a `>` marker on the failing line', () => {
     const f = join(dir, 'a.ts');
-    writeFileSync(f, [
-      'line 1',
-      'line 2',
-      'line 3 (broken)',
-      'line 4',
-      'line 5',
-    ].join('\n'));
+    writeFileSync(f, ['line 1', 'line 2', 'line 3 (broken)', 'line 4', 'line 5'].join('\n'));
     const frame = buildCodeFrame(f, 3);
     expect(frame).toBeDefined();
     expect(frame!.split('\n').some((l) => l.startsWith('> 3 |'))).toBe(true);
@@ -58,8 +58,14 @@ describe('buildCodeFrame', () => {
 describe('serializeBuildError', () => {
   let dir: string;
 
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'ef-serr-')); });
-  afterEach(() => { try { rmSync(dir, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'ef-serr-'));
+  });
+  afterEach(() => {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('extracts ExtForgeError fields verbatim', () => {
     const err = new ExtForgeError({

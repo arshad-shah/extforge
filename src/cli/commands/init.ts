@@ -9,7 +9,7 @@ export const init = defineCommand({
   ],
   args: {
     defaults: { type: 'boolean', description: 'Skip prompts, use defaults', default: false },
-    dir:      { type: 'string', description: 'Target directory' },
+    dir: { type: 'string', description: 'Target directory' },
   },
   async handler({ args }) {
     const { scaffold } = await import('../../core/scaffold/index.js');

@@ -1,7 +1,14 @@
-import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path/posix';
+import { describe, expect, it } from 'vitest';
 import { build } from '../src/core/builder/index.js';
 import { loadExtForgeConfig } from '../src/core/config.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
@@ -48,7 +55,12 @@ describe('plugin integration', () => {
     const config = await loadExtForgeConfig(root);
     expect((config as any).__pluginRunner).toBeDefined();
 
-    const result = await build(root, config, { browser: 'chrome', dev: false }, createLogger({ level: LogLevel.Silent }));
+    const result = await build(
+      root,
+      config,
+      { browser: 'chrome', dev: false },
+      createLogger({ level: LogLevel.Silent }),
+    );
     expect(result.errors).toHaveLength(0);
 
     // The bundled output lives at dist/chrome/ui/popup/index.js
@@ -96,7 +108,12 @@ describe('plugin integration', () => {
        };`,
     );
     const config = await loadExtForgeConfig(root);
-    await build(root, config, { browser: 'chrome', dev: false }, createLogger({ level: LogLevel.Silent }));
+    await build(
+      root,
+      config,
+      { browser: 'chrome', dev: false },
+      createLogger({ level: LogLevel.Silent }),
+    );
     const manifestPath = join(root, 'dist/chrome/manifest.json');
     expect(existsSync(manifestPath)).toBe(true);
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));

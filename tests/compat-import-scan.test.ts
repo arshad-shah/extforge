@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { build } from '../src/core/builder/index.js';
 import { isExtForgeError } from '../src/core/errors/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
@@ -25,11 +25,15 @@ describe('compat scan covers imported modules', () => {
     try {
       await build(
         root,
-        { browsers: ['safari'], manifest: { name: 'x', version: '0.0.1' } } as Parameters<typeof build>[1],
+        { browsers: ['safari'], manifest: { name: 'x', version: '0.0.1' } } as Parameters<
+          typeof build
+        >[1],
         { browser: 'safari', dev: false, strictCompat: true },
         createLogger({ level: LogLevel.Silent }),
       );
-    } catch (e) { caught = e; }
+    } catch (e) {
+      caught = e;
+    }
 
     expect(isExtForgeError(caught)).toBe(true);
     if (isExtForgeError(caught)) {

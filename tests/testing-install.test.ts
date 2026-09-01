@@ -1,8 +1,10 @@
 // tests/testing-install.test.ts
-import { describe, it, expect, afterEach } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { installChromeFakes, resetChromeFakes } from '../src/core/testing/install.js';
 
-afterEach(() => { delete (globalThis as any).chrome; });
+afterEach(() => {
+  delete (globalThis as any).chrome;
+});
 
 describe('installChromeFakes', () => {
   it('attaches chrome to globalThis with all namespaces', () => {

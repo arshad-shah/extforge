@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { extForgeConfigSchema } from '../src/core/config/schema.js';
+import { describe, expect, it } from 'vitest';
 import { formatZodError } from '../src/core/config/format-errors.js';
+import { extForgeConfigSchema } from '../src/core/config/schema.js';
 
 describe('extForgeConfigSchema', () => {
   it('accepts a minimal config', () => {
@@ -12,7 +12,7 @@ describe('extForgeConfigSchema', () => {
     const r = extForgeConfigSchema.safeParse({ browsers: ['brave'] });
     expect(r.success).toBe(false);
     if (!r.success) {
-      const issue = r.error.issues.find(i => i.path.join('.') === 'browsers.0');
+      const issue = r.error.issues.find((i) => i.path.join('.') === 'browsers.0');
       expect(issue).toBeDefined();
     }
   });
@@ -38,12 +38,16 @@ describe('extForgeConfigSchema', () => {
   });
 
   it('accepts a custom css processor with a transform', () => {
-    const r = extForgeConfigSchema.safeParse({ css: { name: 'upper', transform: (c: { code: string }) => c.code } });
+    const r = extForgeConfigSchema.safeParse({
+      css: { name: 'upper', transform: (c: { code: string }) => c.code },
+    });
     expect(r.success).toBe(true);
   });
 
   it('accepts a custom css processor with a command', () => {
-    const r = extForgeConfigSchema.safeParse({ css: { name: 'sass', command: 'sass', args: ['{input}', '{output}'] } });
+    const r = extForgeConfigSchema.safeParse({
+      css: { name: 'sass', command: 'sass', args: ['{input}', '{output}'] },
+    });
     expect(r.success).toBe(true);
   });
 

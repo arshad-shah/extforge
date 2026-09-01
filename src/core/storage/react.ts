@@ -5,7 +5,7 @@
  * Plasmo parity: matches `useStorage(key, defaultValue)` from `@plasmohq/storage`.
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Storage, type StorageOptions } from './index.js';
 
 export interface UseStorageReturn<T> {
@@ -44,6 +44,8 @@ export function useStorage<T>(
   const [isLoading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `defaultValue` is
+  // deliberately excluded — changing it must not re-fetch storage.
   useEffect(() => {
     mountedRef.current = true;
     void (async () => {
@@ -64,10 +66,7 @@ export function useStorage<T>(
       mountedRef.current = false;
       unwatch();
     };
-    // We deliberately don't include `defaultValue` in deps — changing it
-    // shouldn't re-fetch storage. Callers rarely change it. (react-hooks
-    // plugin not installed; this is a comment-only intent declaration.)
-  }, [key, storage]);
+  }, [key, storage, defaultValue]);
 
   const setValue = useCallback(
     async (next: T) => {
@@ -78,13 +77,10 @@ export function useStorage<T>(
     [key, storage],
   );
 
-  const remove = useCallback(
-    async () => {
-      await storage.remove(key);
-      if (mountedRef.current) setLocal(defaultValue);
-    },
-    [key, storage, defaultValue],
-  );
+  const remove = useCallback(async () => {
+    await storage.remove(key);
+    if (mountedRef.current) setLocal(defaultValue);
+  }, [key, storage, defaultValue]);
 
   return { value, setValue, remove, isLoading };
 }

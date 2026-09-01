@@ -11,7 +11,7 @@
  *   listener shape the rest of the HMR module expects.
  */
 
-import { watch, statSync, readdirSync, existsSync, type FSWatcher as NodeFSWatcher } from 'node:fs';
+import { existsSync, type FSWatcher as NodeFSWatcher, readdirSync, statSync, watch } from 'node:fs';
 import { join } from 'node:path';
 
 export type WatchEventType = 'change' | 'add' | 'unlink';
@@ -85,13 +85,19 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
     while (stack.length && seen < 10_000) {
       const d = stack.pop()!;
       let entries: import('node:fs').Dirent[];
-      try { entries = readdirSync(d, { withFileTypes: true }); }
-      catch { continue; }
+      try {
+        entries = readdirSync(d, { withFileTypes: true });
+      } catch {
+        continue;
+      }
       for (const ent of entries) {
         const full = join(d, ent.name);
         const rel = full.slice(rootDir.length + 1).replace(/\\/g, '/');
         if (matchesIgnored(rel, ignorePatterns)) continue;
-        if (ent.isDirectory()) { stack.push(full); continue; }
+        if (ent.isDirectory()) {
+          stack.push(full);
+          continue;
+        }
         if (ent.isFile()) {
           existence.set(full, true);
           seen++;
@@ -105,7 +111,7 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
     // the dev server logs at a higher level.
   });
 
-  nodeWatcher.on('change', (eventType, filename) => {
+  nodeWatcher.on('change', (_eventType, filename) => {
     if (filename === null) return;
     const rel = String(filename);
     if (rel.length === 0) return;
@@ -122,7 +128,12 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
   function detect(abs: string): WatchEventType {
     const had = existence.get(abs) ?? false;
     let nowExists = false;
-    try { statSync(abs); nowExists = true; } catch { /* missing */ }
+    try {
+      statSync(abs);
+      nowExists = true;
+    } catch {
+      /* missing */
+    }
     existence.set(abs, nowExists);
     if (!had && nowExists) return 'add';
     if (had && !nowExists) return 'unlink';
@@ -131,14 +142,22 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
 
   function fire(kind: WatchEventType, file: string): void {
     for (const h of handlers[kind]) {
-      try { h(file); } catch { /* swallow listener errors */ }
+      try {
+        h(file);
+      } catch {
+        /* swallow listener errors */
+      }
     }
   }
 
   function makeNoop(): Watcher {
     const api: Watcher = {
-      on() { return api; },
-      async close() { /* no-op */ },
+      on() {
+        return api;
+      },
+      async close() {
+        /* no-op */
+      },
     };
     return api;
   }
@@ -149,7 +168,11 @@ export function createWatcher(path: string, options: WatcherOptions = {}): Watch
       return api;
     },
     async close() {
-      try { nodeWatcher?.close(); } catch { /* ignore */ }
+      try {
+        nodeWatcher?.close();
+      } catch {
+        /* ignore */
+      }
       nodeWatcher = null;
       for (const set of Object.values(handlers)) set.clear();
     },
@@ -176,7 +199,9 @@ async function waitForStable(
     try {
       const s = statSync(abs);
       cur = { size: s.size, mtimeMs: s.mtimeMs };
-    } catch { /* missing */ }
+    } catch {
+      /* missing */
+    }
 
     if (!cur) {
       // File gone — treat as unlink immediately.
@@ -197,7 +222,7 @@ async function waitForStable(
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**

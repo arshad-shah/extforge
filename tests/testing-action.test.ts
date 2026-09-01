@@ -1,9 +1,11 @@
 // tests/testing-action.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
-import { createActionFake, type ActionFake } from '../src/core/testing/fakes/action.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { type ActionFake, createActionFake } from '../src/core/testing/fakes/action.js';
 
 let a: ActionFake;
-beforeEach(() => { a = createActionFake(); });
+beforeEach(() => {
+  a = createActionFake();
+});
 
 describe('action fake', () => {
   it('setBadgeText then getBadgeText round-trip for a specific tabId', async () => {

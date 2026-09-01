@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { HMR_PROTOCOL_VERSION } from '../src/core/hmr/constants.js';
 
 describe('HMR protocol', () => {

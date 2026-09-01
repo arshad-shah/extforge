@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  generateContentScriptHMRBootstrap,
   CONTENT_SCRIPT_HMR_RUNTIME,
+  generateContentScriptHMRBootstrap,
 } from '../src/core/hmr/content-script.js';
 
 describe('generateContentScriptHMRBootstrap', () => {

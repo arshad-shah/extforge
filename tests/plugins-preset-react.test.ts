@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
+import { createLogger, LogLevel } from '../src/core/logger/index.js';
 import { presetReact } from '../src/core/plugins/preset-react.js';
 import { PluginRunner } from '../src/core/plugins/runner.js';
-import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 const baseCtx = {
   config: {} as any,
@@ -20,7 +20,10 @@ describe('presetReact', () => {
   });
 
   it('respects custom jsxImportSource and classic runtime', async () => {
-    const r = new PluginRunner([presetReact({ jsxImportSource: 'preact', jsxRuntime: 'classic' })], baseCtx);
+    const r = new PluginRunner(
+      [presetReact({ jsxImportSource: 'preact', jsxRuntime: 'classic' })],
+      baseCtx,
+    );
     await r.setup();
     const out = await r.fireBuildEntry({ name: 'x', file: '/p/src/x.tsx', format: 'esm' });
     expect(out.esbuildOptions).toMatchObject({ jsx: 'transform', jsxImportSource: 'preact' });

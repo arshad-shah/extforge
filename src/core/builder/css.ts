@@ -45,9 +45,7 @@ export interface CssTransformContext {
  * processed CSS. Returning `undefined` (or nothing) means "no change" and
  * leaves the previous output untouched.
  */
-export type CssTransform = (
-  ctx: CssTransformContext,
-) => string | void | Promise<string | void>;
+export type CssTransform = (ctx: CssTransformContext) => string | void | Promise<string | void>;
 
 /**
  * A custom CSS processor for `config.css`. Provide a programmatic

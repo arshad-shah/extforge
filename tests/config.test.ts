@@ -1,5 +1,10 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { DEFAULT_CONFIG, defineConfig, loadExtForgeConfig, type ExtForgeConfig } from '../src/core/config.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_CONFIG,
+  defineConfig,
+  type ExtForgeConfig,
+  loadExtForgeConfig,
+} from '../src/core/config.js';
 
 describe('Config System', () => {
   describe('Given the default config', () => {
@@ -34,23 +39,27 @@ describe('Config System', () => {
 
   describe('Given loadExtForgeConfig with invalid config', () => {
     afterEach(() => {
-      delete process.env['EXTFORGE_STRICT_CONFIG'];
+      delete process.env.EXTFORGE_STRICT_CONFIG;
     });
 
     it('throws on invalid browsers by default (strict-by-default since v1)', async () => {
       await expect(
-        loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
+        loadExtForgeConfig(process.cwd(), {
+          browsers: ['brave'] as unknown as ExtForgeConfig['browsers'],
+        }),
       ).rejects.toThrow('extforge.config is invalid');
     });
 
     it('warns but does NOT throw when EXTFORGE_STRICT_CONFIG=0 (opt-out)', async () => {
-      process.env['EXTFORGE_STRICT_CONFIG'] = '0';
+      process.env.EXTFORGE_STRICT_CONFIG = '0';
       // Logger writes warnings to stderr via process.stderr.write. Spy on it
       // to verify the warning surfaces, regardless of which console.* path
       // was used internally.
       const writeSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
       await expect(
-        loadExtForgeConfig(process.cwd(), { browsers: ['brave'] as unknown as ExtForgeConfig['browsers'] }),
+        loadExtForgeConfig(process.cwd(), {
+          browsers: ['brave'] as unknown as ExtForgeConfig['browsers'],
+        }),
       ).resolves.toBeDefined();
       const all = writeSpy.mock.calls.map((c) => String(c[0])).join('');
       expect(all).toContain('extforge.config is invalid');

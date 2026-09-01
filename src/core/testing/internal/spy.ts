@@ -15,6 +15,8 @@ export function spy<F extends (...args: any[]) => any>(impl: F): Spy<F> {
     return impl(...args);
   }) as Spy<F>;
   fn.calls = calls;
-  fn.reset = () => { calls.length = 0; };
+  fn.reset = () => {
+    calls.length = 0;
+  };
   return fn;
 }

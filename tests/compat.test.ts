@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { checkSourceCompat } from '../src/core/compat/index.js';
 
 const SAFE_SOURCE = `
@@ -14,17 +14,29 @@ const SUPPRESSED = `
 
 describe('checkSourceCompat', () => {
   it('finds nothing for supported APIs', () => {
-    const issues = checkSourceCompat({ source: SAFE_SOURCE, file: 'a.ts', browsers: ['chrome', 'safari'] });
+    const issues = checkSourceCompat({
+      source: SAFE_SOURCE,
+      file: 'a.ts',
+      browsers: ['chrome', 'safari'],
+    });
     expect(issues).toHaveLength(0);
   });
   it('flags Safari-unsupported APIs', () => {
-    const issues = checkSourceCompat({ source: SAFARI_BAD, file: 'a.ts', browsers: ['chrome', 'safari'] });
+    const issues = checkSourceCompat({
+      source: SAFARI_BAD,
+      file: 'a.ts',
+      browsers: ['chrome', 'safari'],
+    });
     expect(issues.length).toBeGreaterThan(0);
     expect(issues[0]!.api).toMatch(/tabGroups/);
     expect(issues[0]!.unsupported).toContain('safari');
   });
   it('respects // extforge-ignore-compat suppressions with a reason', () => {
-    const issues = checkSourceCompat({ source: SUPPRESSED, file: 'a.ts', browsers: ['chrome', 'safari'] });
+    const issues = checkSourceCompat({
+      source: SUPPRESSED,
+      file: 'a.ts',
+      browsers: ['chrome', 'safari'],
+    });
     expect(issues).toHaveLength(0);
   });
   it('flags optional-chained chrome.* access too', () => {

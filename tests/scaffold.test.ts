@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, readFileSync, rmSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { scaffold } from '../src/core/scaffold/index.js';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { scaffold } from '../src/core/scaffold/index.js';
 
 const silentLogger = createLogger({ level: LogLevel.Silent });
 
@@ -19,17 +19,22 @@ describe('Scaffold Engine', () => {
   });
 
   afterEach(() => {
-    try { rmSync(testDir, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(testDir, { recursive: true, force: true });
+    } catch {}
   });
 
   describe('Given vanilla framework', () => {
     it('writes index.ts (not .tsx) for popup', async () => {
       const projectDir = join(testDir, 'vanilla-ext');
-      await scaffold({
-        defaults: true,
-        name: 'vanilla-ext',
-        targetDir: projectDir,
-      }, silentLogger);
+      await scaffold(
+        {
+          defaults: true,
+          name: 'vanilla-ext',
+          targetDir: projectDir,
+        },
+        silentLogger,
+      );
       // Default permissions/features include popup; vanilla template = .ts.
       // We can't pass framework via defaults — go through gatherAnswers instead.
       // Simpler verification: just confirm the React default produced index.tsx
@@ -43,11 +48,14 @@ describe('Scaffold Engine', () => {
       const projectDir = join(testDir, 'collision');
       mkdirSync(projectDir, { recursive: true });
       writeFileSync(join(projectDir, 'sentinel.txt'), 'pre-existing');
-      const result = await scaffold({
-        defaults: true,
-        name: 'collision',
-        targetDir: projectDir,
-      }, silentLogger);
+      const result = await scaffold(
+        {
+          defaults: true,
+          name: 'collision',
+          targetDir: projectDir,
+        },
+        silentLogger,
+      );
       expect(result).toBeNull();
       // Sentinel must survive — scaffold MUST NOT touch the directory.
       expect(readFileSync(join(projectDir, 'sentinel.txt'), 'utf8')).toBe('pre-existing');
@@ -57,15 +65,20 @@ describe('Scaffold Engine', () => {
   describe('Given a name with whitespace', () => {
     it('normalizes the stored name to a valid npm/manifest identifier', async () => {
       const projectDir = join(testDir, 'should-be-renamed');
-      const result = await scaffold({
-        defaults: true,
-        name: 'My Cool Ext',
-        targetDir: projectDir,
-      }, silentLogger);
+      const result = await scaffold(
+        {
+          defaults: true,
+          name: 'My Cool Ext',
+          targetDir: projectDir,
+        },
+        silentLogger,
+      );
       expect(result).toBe(projectDir);
       // package.json name must satisfy npm name rules: no whitespace, no
       // unsafe characters. Sanitization replaces inner whitespace with `-`.
-      const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8')) as { name: string };
+      const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8')) as {
+        name: string;
+      };
       expect(pkg.name).not.toMatch(/\s/);
       expect(pkg.name).toMatch(/^[a-z0-9._-]+$/);
     });
@@ -75,11 +88,14 @@ describe('Scaffold Engine', () => {
     let result: string | null;
 
     beforeEach(async () => {
-      result = await scaffold({
-        defaults: true,
-        name: 'test-ext',
-        targetDir: projectDir,
-      }, silentLogger);
+      result = await scaffold(
+        {
+          defaults: true,
+          name: 'test-ext',
+          targetDir: projectDir,
+        },
+        silentLogger,
+      );
     });
 
     it('should create the project directory', () => {
@@ -114,9 +130,9 @@ describe('Scaffold Engine', () => {
 
       it('should create extforge.config.ts', () => {
         const config = readFileSync(join(projectDir, 'extforge.config.ts'), 'utf-8');
-        expect(config).toContain("defineConfig");
+        expect(config).toContain('defineConfig');
         expect(config).toContain("'test-ext'");
-        expect(config).toContain("manifestVersion: 3");
+        expect(config).toContain('manifestVersion: 3');
       });
 
       it('should create tsconfig.json', () => {

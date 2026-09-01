@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { PluginRunner } from '../src/core/plugins/runner.js';
+import { describe, expect, it } from 'vitest';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { PluginRunner } from '../src/core/plugins/runner.js';
 import type { ExtForgePluginLegacy } from '../src/core/plugins/types.js';
 
 const baseCtx = {
@@ -16,7 +16,9 @@ describe('legacy plugin shim', () => {
     let seen: any;
     const legacy: ExtForgePluginLegacy = {
       name: 'old',
-      setup(config) { seen = config; },
+      setup(config) {
+        seen = config;
+      },
     };
     const r = new PluginRunner([legacy], baseCtx);
     await r.setup();
@@ -27,13 +29,22 @@ describe('legacy plugin shim', () => {
     const calls: string[] = [];
     const legacy: ExtForgePluginLegacy = {
       name: 'old',
-      buildStart() { calls.push('start'); },
-      buildEnd() { calls.push('end'); },
+      buildStart() {
+        calls.push('start');
+      },
+      buildEnd() {
+        calls.push('end');
+      },
     };
     const r = new PluginRunner([legacy], baseCtx);
     await r.setup();
     await r.fireBuildStart({ browser: 'chrome', dev: false });
-    await r.fireBuildEnd({ errors: [], warnings: [], outDir: '/p/dist/chrome', browser: 'chrome' } as any);
+    await r.fireBuildEnd({
+      errors: [],
+      warnings: [],
+      outDir: '/p/dist/chrome',
+      browser: 'chrome',
+    } as any);
     expect(calls).toEqual(['start', 'end']);
   });
 });

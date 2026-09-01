@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  shouldClientReload,
-  nextBackoffDelay,
-  isCompatibleEnvelope,
   formatReloadLog,
+  isCompatibleEnvelope,
+  nextBackoffDelay,
+  shouldClientReload,
 } from '../src/core/hmr/client-logic.js';
 
 describe('shouldClientReload', () => {
@@ -58,8 +58,9 @@ describe('formatReloadLog', () => {
     expect(line).toBe('[hmr] reloaded a.css — css hot swap — 12ms (1 client)');
   });
   it('pluralizes correctly', () => {
-    expect(formatReloadLog({ type: 'js', files: ['a.js', 'b.js'], durationMs: 38 }, 3))
-      .toContain('3 clients');
+    expect(formatReloadLog({ type: 'js', files: ['a.js', 'b.js'], durationMs: 38 }, 3)).toContain(
+      '3 clients',
+    );
   });
   it('uses raw type as fallback for unknown reasons', () => {
     const line = formatReloadLog({ type: 'unknown-future' as any, files: ['x'], durationMs: 1 }, 1);

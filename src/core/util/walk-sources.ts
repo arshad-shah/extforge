@@ -35,8 +35,11 @@ export function walkSources(root: string, opts: WalkSourcesOptions = {}): string
   while (stack.length && out.length < limit) {
     const dir = stack.pop()!;
     let entries: import('node:fs').Dirent[];
-    try { entries = readdirSync(dir, { withFileTypes: true }); }
-    catch { continue; }
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
     for (const ent of entries) {
       if (out.length >= limit) break;
       const full = join(dir, ent.name);

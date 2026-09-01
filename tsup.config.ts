@@ -40,7 +40,6 @@ export default defineConfig({
     for (const [src, dest] of dirs) {
       if (existsSync(src)) {
         cpSync(src, dest, { recursive: true });
-        // eslint-disable-next-line no-console
         console.log(`[tsup] Copied templates → ${dest}`);
       }
     }
