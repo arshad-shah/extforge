@@ -1,0 +1,127 @@
+---
+title: Upgrading to v1
+description: What changes between ExtForge 0.x and 1.0, and what you need to do about it.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+The short version: **if you are on `0.6.x`, upgrading to `1.0.0` is a version
+bump and nothing else.** No config field was renamed, no export was removed, no
+CLI flag changed.
+
+```sh
+pnpm add extforge@1
+```
+
+What v1 actually adds is a promise: the surface listed in
+[API stability](/reference/stability/) is frozen for the life of v1. Until now
+you were building on a moving target, even when it happened not to move.
+
+<Aside type="tip" title="Check before you upgrade">
+Run `extforge doctor` after upgrading. It validates your config, your Node
+version, your icons, and your manifest permissions in one pass.
+</Aside>
+
+---
+
+## Coming from 0.5.x or earlier
+
+Two things changed during the 0.x line that you may still need to act on.
+Neither is new in 1.0 — they landed in `0.6.0` — but if you skipped that
+release, they land on you now.
+
+### Node 22.12 is the floor
+
+`0.6.0` raised the minimum from Node 20 to **Node 22.12**. Node 20 left Active
+LTS, and ExtForge's own runtime dependencies require 22.12+.
+
+```sh
+node --version   # must be >= 22.12.0
+```
+
+If you pin Node in CI, bump it there too. `extforge doctor` fails with
+`EXT_NODE_VERSION` if you are below the floor.
+
+### Logger number formatting shifted
+
+`formatDuration` and `formatFileSize` delegate to `@arshad-shah/clif`, which
+rounds differently:
+
+| Input | Before `0.6.0` | Now |
+| --- | --- | --- |
+| 0.5 ms | `500μs` | `0.5ms` |
+| 1.5 s | `1.50s` | `1.5s` |
+| 1 MB | `1.00 MB` | `1.0 MB` |
+
+This only matters if you assert on ExtForge's log output in your own tests.
+The functions' signatures and types are unchanged.
+
+---
+
+## Coming from 0.3.x or earlier
+
+Everything above applies, plus:
+
+- **The CLI runs on `@arshad-shah/clif`.** Flags, commands and exit codes are
+  unchanged; the help output and error formatting look different.
+- **`extforge init` takes a positional name** — `extforge init my-ext` works
+  and shows up in `--help`. The interactive prompt still runs when you omit it.
+- **HMR speaks protocol v3** for popup/options/sidepanel-only JS changes, with
+  automatic v2 fallback for anything that cannot be hot-applied. This is
+  internal and needs nothing from you, but it is why UI edits now preserve
+  component state.
+
+---
+
+## Styling: no longer just Tailwind or vanilla
+
+The `css` config field accepts a custom processor, so any toolchain — Sass,
+Lightning CSS, UnoCSS, a PostCSS pipeline — can drive the build:
+
+```ts
+// extforge.config.ts
+import { defineConfig } from 'extforge';
+import * as sass from 'sass';
+
+export default defineConfig({
+  css: {
+    name: 'sass',
+    transform: ({ code, file }) =>
+      sass.compileString(code, { loadPaths: ['src/styles'] }).css,
+  },
+});
+```
+
+The old values still work exactly as before — `css: 'tailwind'`, `css: 'vanilla'`
+and `css: 'none'` are unchanged. See [Styling](/guides/styling/) for the full
+surface, including the `onCssTransform` plugin hook.
+
+---
+
+## What is *not* frozen
+
+Two surfaces stay free to move in minor releases. If you depend on either, pin
+an exact version:
+
+- **`extforge/testing` and `extforge/testing/vitest`** — the Chrome API fakes.
+- **The HMR wire protocol** and `globalThis.__EXTFORGE_HMR__`.
+
+`globalThis.__EXTFORGE_HMR_QUIET__` *is* stable — set it to `true` to silence
+HMR console output.
+
+See [API stability](/reference/stability/) for the full tier list.
+
+---
+
+## Codemods
+
+There is nothing to codemod: no config field or export was renamed between
+`0.6.x` and `1.0.0`. `extforge upgrade` validates your config against the
+current schema and tells you if anything is stale:
+
+```sh
+extforge upgrade
+```
+
+If a future release does deprecate a field, `upgrade` is where the codemod
+will land.

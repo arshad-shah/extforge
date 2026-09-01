@@ -1,0 +1,183 @@
+---
+title: API stability
+description: What ExtForge commits to keeping backwards-compatible under semver at v1, and what stays free to change.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+v1 is a stability contract. This page is the contract: it lists every part of
+ExtForge's surface and says which tier it sits in. If something is not listed
+here, treat it as internal.
+
+## Tiers
+
+| Tier | Meaning | Breaking change requires |
+| --- | --- | --- |
+| **Stable** | Frozen for the life of v1. | A major release. |
+| **Experimental** | Shipped and supported, but still settling. | A minor release, called out in the changelog. |
+| **Internal** | Implementation detail. Exported only because the CLI needs it across module boundaries. | Nothing — may change in any release. |
+
+Internal symbols carry an `@internal` JSDoc tag at their definition, so your
+editor tells you before you depend on one.
+
+<Aside type="caution" title="Experimental means experimental">
+Experimental surfaces can change in a **minor** release. Pin an exact version
+if you build on them, and read the changelog before upgrading.
+</Aside>
+
+---
+
+## Package entry points
+
+| Subpath | Tier | Notes |
+| --- | --- | --- |
+| `extforge` | Stable | Core builder + config. See the per-symbol table below. |
+| `extforge/logger` | Stable | |
+| `extforge/plugins` | Stable | The `apiVersion: 1` plugin contract. See [Plugin API](/reference/plugins/api/). |
+| `extforge/storage` | Stable | |
+| `extforge/storage/react` | Stable | |
+| `extforge/messaging` | Stable | |
+| `extforge/csui` | Stable | |
+| `extforge/env` | Stable | |
+| `extforge/testing` | **Experimental** | Chrome API fakes. See below. |
+| `extforge/testing/vitest` | **Experimental** | Vitest preset. See below. |
+
+### Why `extforge/testing` is experimental
+
+The Chrome API fakes mirror a surface that MV3 itself keeps extending, so the
+fakes have to keep moving with it. Freezing them at v1 would mean either
+shipping an incomplete mock forever or cutting a major release every time
+Chrome adds an API.
+
+Test helpers are also the lowest-blast-radius thing to change: a fake that
+gains a method breaks nobody, and a fake that changes shape breaks a test
+suite, not a shipped extension. Keeping them experimental buys room to
+finish the surface without holding the rest of v1 hostage.
+
+Everything else in the package is stable.
+
+### `extforge` — per-symbol tiers
+
+Stable:
+
+- **Config** — `defineConfig`, `loadExtForgeConfig`, `DEFAULT_CONFIG`,
+  and the `ExtForgeConfig` / `ExtForgePlugin` types.
+- **Builder** — `build`, `buildAll`, and the `BuildOptions` / `BuildResult` types.
+- **CSS pipeline** — `CSS_PRESETS`, `isCssPreset`, `resolveCssProcessor`, and the
+  `CssOption` / `CssPreset` / `CssProcessor` / `CssTransform` /
+  `CssTransformContext` types.
+- **Manifest** — `generateManifest`, `validateManifestConfig`, `ALL_BROWSERS`,
+  `AVAILABLE_PERMISSIONS`, `PERMISSION_GROUPS`, and the `Browser` /
+  `ManifestConfig` / `ManifestPermission` / `Permission` / `ValidationResult` types.
+- **Logger** — `createLogger`, `getLogger`, `setRootLogger`, `Logger`, `LogLevel`,
+  `formatDuration`, `formatFileSize`, `formatPath`, and the `LogEntry` /
+  `LoggerOptions` / `LogTransport` types.
+- **Scaffold / validate / version** — `scaffold`, `validateProject`, `getVersion`,
+  and their types.
+- **HMR server** — `createHMRServer` and the `HMRServer` / `HMRServerOptions` /
+  `HMRUpdate` / `HMRUpdateType` types.
+
+Internal (exported, but not under the contract):
+
+- `createBuildContext` — build-engine plumbing behind `build()`.
+- `classifyChange`, `generateHMRClientCode` — HMR internals that move with the
+  wire protocol.
+- `writeManifest`, `applyInjectedDefaults` — build-pipeline steps.
+- `PluginRunner` (from `extforge/plugins`) — the engine that *calls* plugins.
+  Plugin authors write against `ExtForgePluginV1` and `PluginContext`, which
+  are stable.
+
+---
+
+## CLI
+
+Every command and flag below is **stable**. Adding a command or an optional
+flag is a minor release; renaming or removing one is a major.
+
+| Command | Flags |
+| --- | --- |
+| `extforge init [name]` | `--defaults`, `--dir <path>` |
+| `extforge dev` | `--browser`, `--port`, `--host`, `--quiet`, `--verbose`, `--json`, `--once` |
+| `extforge build` | `--browser`, `--dev`, `--sourcemap`, `--strict`, `--quiet`, `--json` |
+| `extforge validate` | `--quiet`, `--json` |
+| `extforge doctor` | `--json`, `--quiet` |
+| `extforge package` | `--browser` |
+| `extforge upgrade` | — |
+| `extforge icons` | — |
+
+`--help` and `--version` are handled at every level.
+
+The `--json` output *shape* is stable for `build`, `dev`, `validate` and
+`doctor`: fields may be added, but existing fields keep their names and types.
+
+<Aside type="note" title="Nested subcommands">
+The parser deliberately supports one level of subcommand only. This is a
+design decision, not a gap — see `src/cli/parser.ts`.
+</Aside>
+
+---
+
+## Configuration
+
+The `extforge.config.{ts,js,mjs,cjs,json}` schema is **stable**. Every field
+below keeps its name and type through v1:
+
+| Field | Type |
+| --- | --- |
+| `root` | `string` |
+| `browsers` | `('chrome' \| 'firefox' \| 'edge' \| 'safari')[]` |
+| `manifest` | manifest object |
+| `build.outDir` / `build.srcDir` | `string` |
+| `build.sourcemap` | `boolean` |
+| `build.esbuild` | esbuild options record |
+| `dev.port` / `dev.debounce` | `number` |
+| `dev.host` | `string` |
+| `dev.open` / `dev.strictCompat` | `boolean` |
+| `framework` | `'react' \| 'vanilla'` |
+| `css` | preset name or custom processor — see [Styling](/guides/styling/) |
+| `plugins` | plugin array |
+
+The schema is permissive about unknown keys, so a config written for a later
+minor still loads on an earlier one.
+
+---
+
+## Runtime globals
+
+| Global | Tier | Purpose |
+| --- | --- | --- |
+| `globalThis.__EXTFORGE_HMR_QUIET__` | Stable | Set to `true` to silence HMR console output. |
+| `globalThis.__EXTFORGE_HMR__` | **Internal** | The binding target the dev-mode transform emits against. Moves with the HMR protocol. |
+
+---
+
+## HMR wire protocol
+
+The protocol between the dev server and the injected client is **internal**.
+It is versioned (`v2`, `v3`) and negotiated at runtime, so both halves always
+ship together from the same package version. Do not write a client against it.
+
+What *is* stable is the observable behaviour: a source change results in the
+narrowest correct update, and anything that cannot be hot-applied falls back
+to a full extension reload.
+
+---
+
+## Node support
+
+ExtForge requires **Node >= 22.12**, and supports Node releases while they are
+in Active LTS or Maintenance LTS. Dropping a Node major that has reached
+end-of-life is a **minor** release, not a major — an unsupported runtime is a
+security matter, and holding the floor down until the next major would mean
+shipping against an unpatched Node.
+
+CI runs the test suite on every supported major.
+
+---
+
+## What a version bump means
+
+- **Major** — a breaking change to any Stable item above.
+- **Minor** — new exports, new commands, new optional config fields, new
+  browser targets, changes to Experimental surfaces, dropping an EOL Node major.
+- **Patch** — bug fixes, internal refactors, docs.

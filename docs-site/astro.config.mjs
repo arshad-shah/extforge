@@ -37,12 +37,14 @@ export default defineConfig({
             { label: 'Plugins', slug: 'guides/plugins' },
             { label: 'Testing', slug: 'guides/testing' },
             { label: 'Deployment', slug: 'guides/deployment' },
+            { label: 'Upgrading to v1', slug: 'guides/migration-v1' },
             { label: 'Supply chain', slug: 'guides/supply-chain' },
           ],
         },
         {
           label: 'Reference',
           items: [
+            { label: 'API stability', slug: 'reference/stability' },
             { label: 'CLI commands', slug: 'reference/cli/commands' },
             { label: 'CLI flags', slug: 'reference/cli/flags' },
             {

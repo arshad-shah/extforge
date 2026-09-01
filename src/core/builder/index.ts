@@ -743,6 +743,13 @@ export async function buildAll(
   return results;
 }
 
+/**
+ * Assemble the internal build context (entry discovery, esbuild options,
+ * plugin runner) that `build()` drives.
+ *
+ * @internal Build-engine plumbing. Not covered by the v1 semver contract —
+ * use `build()` / `buildAll()` instead.
+ */
 export async function createBuildContext(
   root: string,
   config: ExtForgeConfig,

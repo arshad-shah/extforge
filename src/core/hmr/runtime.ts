@@ -24,7 +24,8 @@
 
 /**
  * Centralized in-browser logger. All HMR runtime output goes through here so
- * users can silence it with `globalThis.__EXTFORGE_HMR_QUIET__ = true` and
+ * users can silence it with `globalThis.__EXTFORGE_HMR_QUIET__ = true` (a
+ * documented, public opt-out covered by the v1 semver contract) and
  * we have a single place to format / mute / route messages. Mirrors the
  * server-side Logger's intent: nothing in this module ever calls `console.*`
  * directly outside `runtimeLog`.
@@ -176,6 +177,11 @@ export function createHMRRuntime(): HMRRuntime {
 /**
  * Singleton attached to the global so multiple injected modules share state.
  * Accessed by transformed user code via `globalThis.__EXTFORGE_HMR__`.
+ *
+ * @internal `globalThis.__EXTFORGE_HMR__` is the binding target the dev-mode
+ * transform emits against, not a user-facing API. Its shape moves with the
+ * HMR protocol and is not covered by the v1 semver contract. The one HMR
+ * global that *is* public is `__EXTFORGE_HMR_QUIET__` (see `runtimeLog`).
  */
 export function ensureGlobalRuntime(): HMRRuntime {
   const g = globalThis as { __EXTFORGE_HMR__?: HMRRuntime };

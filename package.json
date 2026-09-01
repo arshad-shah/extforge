@@ -62,6 +62,7 @@
     "lint": "biome check src scripts tests",
     "format": "biome check --write src scripts tests",
     "typecheck": "tsc --noEmit",
+    "check:cross-browser": "tsx scripts/check-cross-browser.ts",
     "compat:rebuild": "tsx src/core/compat/build-data.ts",
     "compat:check-freshness": "tsx scripts/check-bcd-freshness.ts",
     "changeset": "changeset",

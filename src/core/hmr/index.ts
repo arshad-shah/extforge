@@ -122,6 +122,12 @@ export interface HMRServer {
 
 // ─── Change classifier (uses constants) ──────────────────────────────────────
 
+/**
+ * Map a changed file path onto the HMR update kind it should trigger.
+ *
+ * @internal HMR server implementation detail; the classification rules move
+ * with the protocol and are not covered by the v1 semver contract.
+ */
 export function classifyChange(filePath: string): HMRUpdateType {
   const ext = extname(filePath);
   const normalized = filePath.replace(/\\/g, '/');
@@ -157,6 +163,12 @@ export function extractScriptIds(
 
 // ─── Client code generator (reads from .tpl file) ────────────────────────────
 
+/**
+ * Render the HMR client bootstrap injected into dev builds.
+ *
+ * @internal Emits code against the current HMR wire protocol; both move
+ * together and neither is covered by the v1 semver contract.
+ */
 export function generateHMRClientCode(port: number, host: string = 'localhost'): string {
   return loadTemplate('hmr-client.js.tpl', {
     HMR_HOST: host,

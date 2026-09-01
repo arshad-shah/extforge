@@ -67,6 +67,13 @@ function wrap<F extends (...args: any[]) => any>(plugin: string, hook: string, f
   }) as F;
 }
 
+/**
+ * Drives registered plugins through the build lifecycle.
+ *
+ * @internal The engine that *calls* plugins, not API that plugin authors
+ * write against. Plugin authors use `ExtForgePluginV1` / `PluginContext`,
+ * which are stable. Not covered by the v1 semver contract.
+ */
 export class PluginRunner {
   private hooks: HookRegistry = {
     configResolved: [],

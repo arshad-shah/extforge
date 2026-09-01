@@ -224,6 +224,12 @@ export function applyInjectedDefaults(
 
 // ─── Writer ──────────────────────────────────────────────────────────────────
 
+/**
+ * Serialize a generated manifest to `<outDir>/manifest.json`.
+ *
+ * @internal Build-pipeline step. Call `generateManifest()` and write the
+ * result yourself if you need this from outside the CLI.
+ */
 export function writeManifest(
   config: ManifestConfig,
   browser: Browser,
