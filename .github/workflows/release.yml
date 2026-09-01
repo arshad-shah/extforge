@@ -18,11 +18,17 @@
 #   environment-scoped, not repo-wide.
 # - npm trusted publishing (OIDC) is configured on npmjs.com against this
 #   repo + workflow + environment. The `id-token: write` permission below
-#   is what lets the OIDC token mint happen.
-# - `if: github.repository == 'arshad-shah/extforge'` prevents forks from
-#   publishing.
+#   is what lets the OIDC token mint happen. No npm token is involved:
+#   changesets/action v2 no longer writes an `.npmrc` from `NPM_TOKEN`, and
+#   the published tarballs carry SLSA provenance, which only OIDC can
+#   produce.
 # - `NPM_CONFIG_PROVENANCE: true` attaches an SLSA provenance attestation
 #   to every published tarball.
+# - Release commits and tags are pushed through the GitHub API (the v2
+#   default), so they are signed with GitHub's GPG key and need no git
+#   credentials — which is why `persist-credentials: false` below is safe.
+# - `if: github.repository == 'arshad-shah/extforge'` prevents forks from
+#   publishing.
 name: Release
 
 on:
@@ -76,13 +82,11 @@ jobs:
 
       - name: Create release PR or publish to npm
         id: changesets
-        uses: changesets/action@d94a5c301145045a0960133674e003b265942a22  # v1.8.0
+        uses: changesets/action@8488615a623b1b9c987934bb89eae8af6a946ac1  # v2.1.1
         with:
-          version: pnpm exec changeset version
-          publish: pnpm exec changeset publish
-          commit: 'chore(release): version packages'
-          title: 'chore(release): version packages'
+          version-script: pnpm exec changeset version
+          publish-script: pnpm exec changeset publish
+          commit-message: 'chore(release): version packages'
+          pr-title: 'chore(release): version packages'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: 'true'
