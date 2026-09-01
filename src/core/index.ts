@@ -17,6 +17,10 @@ export type { Browser, ManifestConfig, ManifestPermission, Permission, Validatio
 export { build, buildAll, createBuildContext } from './builder/index.js';
 export type { BuildOptions, BuildResult } from './builder/index.js';
 
+// CSS pipeline
+export { CSS_PRESETS, isCssPreset, resolveCssProcessor } from './builder/css.js';
+export type { CssOption, CssPreset, CssProcessor, CssTransform, CssTransformContext } from './builder/css.js';
+
 // HMR
 export { createHMRServer, generateHMRClientCode, classifyChange } from './hmr/index.js';
 export type { HMRServer, HMRServerOptions, HMRUpdate, HMRUpdateType } from './hmr/index.js';

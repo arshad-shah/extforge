@@ -2,6 +2,7 @@ import { ExtForgeError } from '../errors/index.js';
 import { ERROR_CODES } from '../errors/codes.js';
 import type { Browser } from '../manifest/index.js';
 import type { BuildResult } from '../builder/index.js';
+import type { CssTransformContext } from '../builder/css.js';
 import type { HMRUpdate } from '../hmr/index.js';
 import type { ExtForgeConfig } from '../config.js';
 import {
@@ -26,6 +27,7 @@ interface HookRegistry {
   buildStart: Array<(info: { browser: Browser; dev: boolean }) => void | Promise<void>>;
   buildEntry: Array<(e: EntryDescriptor) => EntryDescriptor | void | Promise<EntryDescriptor | void>>;
   buildEnd: Array<(r: BuildResult) => void | Promise<void>>;
+  cssTransform: Array<(c: CssTransformContext) => string | void | Promise<string | void>>;
   devReload: Array<(e: HMRUpdate) => void | Promise<void>>;
 }
 
@@ -68,6 +70,7 @@ export class PluginRunner {
     buildStart: [],
     buildEntry: [],
     buildEnd: [],
+    cssTransform: [],
     devReload: [],
   };
 
@@ -111,6 +114,7 @@ export class PluginRunner {
         onBuildStart:        (fn) => { this.hooks.buildStart.push(wrap(p.name, 'onBuildStart', fn)); },
         onBuildEntry:        (fn) => { this.hooks.buildEntry.push(wrap(p.name, 'onBuildEntry', fn)); },
         onBuildEnd:          (fn) => { this.hooks.buildEnd.push(wrap(p.name, 'onBuildEnd', fn)); },
+        onCssTransform:      (fn) => { this.hooks.cssTransform.push(wrap(p.name, 'onCssTransform', fn)); },
         onDevReload:         (fn) => { this.hooks.devReload.push(wrap(p.name, 'onDevReload', fn)); },
       };
       const ctx: PluginContext = {
@@ -159,6 +163,21 @@ export class PluginRunner {
 
   async fireBuildEnd(result: BuildResult): Promise<void> {
     for (const fn of this.hooks.buildEnd) await fn(result);
+  }
+
+  /**
+   * Chain every registered `onCssTransform` hook over a stylesheet. Each hook
+   * receives the previous step's output as `ctx.code`; a hook returning a
+   * non-string (no change) leaves the prior CSS in place. Returns the final
+   * CSS string.
+   */
+  async fireCssTransform(ctx: CssTransformContext): Promise<string> {
+    let code = ctx.code;
+    for (const fn of this.hooks.cssTransform) {
+      const next = await fn({ ...ctx, code });
+      if (typeof next === 'string') code = next;
+    }
+    return code;
   }
 
   async fireDevReload(event: HMRUpdate): Promise<void> {

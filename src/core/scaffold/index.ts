@@ -15,6 +15,7 @@ import { PERMISSION_GROUPS, type Browser } from '../manifest/index.js';
 import { VERSIONS, DEFAULTS, PKG_SCRIPTS, BASE_DIRS, FEATURE_DIRS } from './constants.js';
 import { loadTemplate, loadTemplateRaw } from './template-loader.js';
 import { slugify } from '../util/slug.js';
+import type { CssPreset } from '../builder/css.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,7 +30,7 @@ export interface ScaffoldAnswers {
   description: string;
   version: string;
   framework: 'react' | 'vanilla';
-  css: 'tailwind' | 'vanilla' | 'none';
+  css: CssPreset;
   browsers: Browser[];
   features: string[];
   permissions: string[];
@@ -310,7 +311,10 @@ export async function scaffold(
   writeFileSync(join(projectDir, 'tests/e2e/fixture.ts'), loadTemplateRaw('e2e/fixture.ts.tpl'));
   writeFileSync(join(projectDir, 'tests/e2e/smoke.test.ts'), loadTemplateRaw('e2e/smoke.test.ts.tpl'));
   writeFileSync(join(projectDir, 'icons/icon.svg'), loadTemplateRaw('icon.svg.tpl'));
-  writeFileSync(join(projectDir, 'src/styles/globals.css'), loadTemplateRaw('globals.css.tpl'));
+  // Tailwind projects get the `@tailwind` layer directives; vanilla/none get a
+  // plain stylesheet (same design tokens, no Tailwind-specific syntax).
+  const globalsTemplate = answers.css === 'tailwind' ? 'globals.css.tpl' : 'globals.vanilla.css.tpl';
+  writeFileSync(join(projectDir, 'src/styles/globals.css'), loadTemplateRaw(globalsTemplate));
   writeFileSync(join(projectDir, 'src/styles/content.css'), loadTemplateRaw('content.css.tpl'));
 
   if (answers.css === 'tailwind') {

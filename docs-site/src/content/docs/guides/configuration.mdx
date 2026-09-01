@@ -46,10 +46,24 @@ See [preset-react](/reference/plugins/preset-react/) for the options you can pas
 
 ## `css`
 
-**Type:** `'tailwind' | 'vanilla' | 'none'`  
+**Type:** `'tailwind' | 'vanilla' | 'none' | CssProcessor`  
 **Default:** `'tailwind'`
 
-`css: 'tailwind'` scaffolds a `postcss.config.js` and `tailwind.config.js` and assumes Tailwind is installed. It does not inject a Tailwind plugin itself — PostCSS handles that at esbuild's CSS entry point. Set `'vanilla'` to opt out of any preset but keep the CSS pipeline. Set `'none'` to disable CSS processing entirely.
+The CSS strategy applied to `src/styles/globals.css` and `src/styles/content.css`:
+
+- **`'tailwind'`** — compiles each stylesheet with the Tailwind CLI (minified in production). `extforge init` also scaffolds `tailwind.config.js` and `postcss.config.js`. Falls back to a plain copy if the CLI isn't installed.
+- **`'vanilla'`** — copies the stylesheets through untouched (plain CSS).
+- **`'none'`** — same copy-through behaviour; use it when you handle CSS yourself.
+- **A custom `CssProcessor` object** — bring any toolchain (Sass, Lightning CSS, UnoCSS, a PostCSS pipeline…) via an inline `transform` function or a CLI `command`.
+
+```ts
+// Inline transform
+export default defineConfig({
+  css: { name: 'my-minifier', transform: ({ code, dev }) => dev ? code : minify(code) },
+});
+```
+
+For the full set of options — custom processors, CLI commands, and the `onCssTransform` plugin hook — see the [Styling guide](/guides/styling/).
 
 ---
 

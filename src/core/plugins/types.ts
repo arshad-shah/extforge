@@ -2,6 +2,7 @@ import type { ExtForgeConfig } from '../config.js';
 import type { Browser } from '../manifest/index.js';
 import type { Logger } from '../logger/index.js';
 import type { BuildResult } from '../builder/index.js';
+import type { CssTransformContext } from '../builder/css.js';
 import type { HMRUpdate } from '../hmr/index.js';
 
 /** An untyped manifest object passed through plugin transform hooks. */
@@ -33,6 +34,13 @@ export interface PluginHooks {
   onBuildEntry(fn: (entry: EntryDescriptor) => EntryDescriptor | void | Promise<EntryDescriptor | void>): void;
   /** Called after all entries for a browser have been bundled. */
   onBuildEnd(fn: (result: BuildResult) => void | Promise<void>): void;
+  /**
+   * Called for each emitted stylesheet after the base CSS processor runs,
+   * allowing plugins to transform CSS (Sass, Lightning CSS, autoprefixing,
+   * a design-system pass…). Hooks chain: each receives the previous step's
+   * output as `ctx.code`. Return the transformed CSS, or nothing to skip.
+   */
+  onCssTransform(fn: (ctx: CssTransformContext) => string | void | Promise<string | void>): void;
   /** Called in dev mode each time the HMR server dispatches a reload event. */
   onDevReload(fn: (event: HMRUpdate) => void | Promise<void>): void;
 }

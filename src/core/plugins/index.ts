@@ -9,3 +9,10 @@ export type {
   EntryDescriptor,
   ManifestObject,
 } from './types.js';
+export type {
+  CssOption,
+  CssPreset,
+  CssProcessor,
+  CssTransform,
+  CssTransformContext,
+} from '../builder/css.js';
