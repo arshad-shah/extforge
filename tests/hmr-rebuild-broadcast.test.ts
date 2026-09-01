@@ -1,17 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
-import { createServer } from 'node:net';
+import type { ExtForgeConfig } from '../src/core/config.js';
 import { createHMRServer } from '../src/core/hmr/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
-import type { ExtForgeConfig } from '../src/core/config.js';
 
 const silent = createLogger({ level: LogLevel.Silent });
 
 const baseManifest = {
-  name: 'x', version: '0.0.1', description: '', manifestVersion: 3 as const,
+  name: 'x',
+  version: '0.0.1',
+  description: '',
+  manifestVersion: 3 as const,
   permissions: { required: [], optional: [], host: [] },
 };
 
@@ -38,8 +41,14 @@ function makeProject(): string {
 describe('createHMRServer rebuild broadcasts', () => {
   let root: string;
 
-  beforeEach(() => { root = makeProject(); });
-  afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
+  beforeEach(() => {
+    root = makeProject();
+  });
+  afterEach(() => {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
 
   it('broadcasts a `build-ok` envelope after recovering from a build failure', async () => {
     // build-ok only fires when there's an overlay to dismiss — i.e. when
@@ -51,8 +60,12 @@ describe('createHMRServer rebuild broadcasts', () => {
       manifest: { ...baseManifest, background: { entrypoint: 'background/index.js' } },
     };
     const server = createHMRServer({
-      projectRoot: root, config: cfg, browser: 'chrome',
-      port, host: '127.0.0.1', logger: silent,
+      projectRoot: root,
+      config: cfg,
+      browser: 'chrome',
+      port,
+      host: '127.0.0.1',
+      logger: silent,
     });
     const received: Array<{ type: string }> = [];
     let sock: WebSocket | undefined;
@@ -64,7 +77,9 @@ describe('createHMRServer rebuild broadcasts', () => {
         sock!.once('error', reject);
       });
       sock.on('message', (data) => {
-        try { received.push(JSON.parse(data.toString())); } catch {}
+        try {
+          received.push(JSON.parse(data.toString()));
+        } catch {}
       });
       // Break the source first → triggers build-error.
       writeFileSync(join(root, 'src/background/index.ts'), 'export const x = ;\n');
@@ -78,7 +93,9 @@ describe('createHMRServer rebuild broadcasts', () => {
       }
       expect(received.some((m) => m.type === 'build-ok')).toBe(true);
     } finally {
-      try { sock?.close(); } catch {}
+      try {
+        sock?.close();
+      } catch {}
       await server.stop();
     }
   }, 30_000);
@@ -90,8 +107,12 @@ describe('createHMRServer rebuild broadcasts', () => {
       manifest: { ...baseManifest, background: { entrypoint: 'background/index.js' } },
     };
     const server = createHMRServer({
-      projectRoot: root, config: cfg, browser: 'chrome',
-      port, host: '127.0.0.1', logger: silent,
+      projectRoot: root,
+      config: cfg,
+      browser: 'chrome',
+      port,
+      host: '127.0.0.1',
+      logger: silent,
     });
 
     const received: Array<{ type: string; error?: { message: string; code: string } }> = [];
@@ -104,7 +125,9 @@ describe('createHMRServer rebuild broadcasts', () => {
         sock!.once('error', reject);
       });
       sock.on('message', (data) => {
-        try { received.push(JSON.parse(data.toString())); } catch {}
+        try {
+          received.push(JSON.parse(data.toString()));
+        } catch {}
       });
       // Break the source file. The watcher debounces ~150 ms; give it time.
       writeFileSync(join(root, 'src/background/index.ts'), 'export const x = ;\n');
@@ -116,7 +139,9 @@ describe('createHMRServer rebuild broadcasts', () => {
       expect(errEnvelope).toBeDefined();
       expect(errEnvelope!.error?.code).toBe('EXT_BUILD_FAILED');
     } finally {
-      try { sock?.close(); } catch {}
+      try {
+        sock?.close();
+      } catch {}
       await server.stop();
     }
   }, 30_000);

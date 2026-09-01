@@ -1,24 +1,28 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  resolveCssProcessor,
-  isCssPreset,
-  processStylesheet,
   CSS_PRESETS,
   type CssProcessor,
   type CssTransformContext,
+  isCssPreset,
+  processStylesheet,
+  resolveCssProcessor,
 } from '../src/core/builder/css.js';
-import { PluginRunner } from '../src/core/plugins/runner.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { PluginRunner } from '../src/core/plugins/runner.js';
 import type { ExtForgePluginV1 } from '../src/core/plugins/types.js';
 
 const log = createLogger({ level: LogLevel.Silent });
 
 let dir: string;
-beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'extforge-css-')); });
-afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), 'extforge-css-'));
+});
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
 
 function write(rel: string, contents: string): string {
   const p = join(dir, rel);
@@ -28,7 +32,14 @@ function write(rel: string, contents: string): string {
 }
 
 async function run(processor: CssProcessor, input: string, output: string): Promise<string> {
-  await processStylesheet(input, output, processor, undefined, { root: dir, srcDir: dir, dev: true }, log);
+  await processStylesheet(
+    input,
+    output,
+    processor,
+    undefined,
+    { root: dir, srcDir: dir, dev: true },
+    log,
+  );
   return existsSync(output) ? readFileSync(output, 'utf8') : '';
 }
 
@@ -73,7 +84,14 @@ describe('processStylesheet — built-in presets', () => {
 
   it('is a no-op when the input file does not exist', async () => {
     const output = join(dir, 'out/missing.css');
-    await processStylesheet(join(dir, 'nope.css'), output, { name: 'none' }, undefined, { root: dir, srcDir: dir, dev: true }, log);
+    await processStylesheet(
+      join(dir, 'nope.css'),
+      output,
+      { name: 'none' },
+      undefined,
+      { root: dir, srcDir: dir, dev: true },
+      log,
+    );
     expect(existsSync(output)).toBe(false);
   });
 });
@@ -101,7 +119,10 @@ describe('processStylesheet — custom processors', () => {
     let seen: CssTransformContext | undefined;
     const processor: CssProcessor = {
       name: 'spy',
-      transform: (ctx) => { seen = ctx; return ctx.code; },
+      transform: (ctx) => {
+        seen = ctx;
+        return ctx.code;
+      },
     };
     await run(processor, input, join(dir, 'out/styles.css'));
     expect(seen).toMatchObject({ code: 'x', file: input, dev: true, root: dir });
@@ -142,19 +163,42 @@ describe('onCssTransform plugin chain', () => {
     emitFile: () => {},
   };
   const ctx: CssTransformContext = {
-    code: '.a{}', file: '/p/src/a.css', outFile: '/p/dist/a.css', root: '/p', srcDir: '/p/src', dev: false,
+    code: '.a{}',
+    file: '/p/src/a.css',
+    outFile: '/p/dist/a.css',
+    root: '/p',
+    srcDir: '/p/src',
+    dev: false,
   };
 
   it('chains every hook, feeding the previous output forward', async () => {
-    const a: ExtForgePluginV1 = { name: 'a', apiVersion: 1, setup({ hooks }) { hooks.onCssTransform((c) => c.code + '/*a*/'); } };
-    const b: ExtForgePluginV1 = { name: 'b', apiVersion: 1, setup({ hooks }) { hooks.onCssTransform((c) => c.code + '/*b*/'); } };
+    const a: ExtForgePluginV1 = {
+      name: 'a',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onCssTransform((c) => `${c.code}/*a*/`);
+      },
+    };
+    const b: ExtForgePluginV1 = {
+      name: 'b',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onCssTransform((c) => `${c.code}/*b*/`);
+      },
+    };
     const r = new PluginRunner([a, b], baseCtx);
     await r.setup();
     expect(await r.fireCssTransform(ctx)).toBe('.a{}/*a*//*b*/');
   });
 
   it('treats a non-string return as "no change"', async () => {
-    const a: ExtForgePluginV1 = { name: 'a', apiVersion: 1, setup({ hooks }) { hooks.onCssTransform(() => undefined); } };
+    const a: ExtForgePluginV1 = {
+      name: 'a',
+      apiVersion: 1,
+      setup({ hooks }) {
+        hooks.onCssTransform(() => undefined);
+      },
+    };
     const r = new PluginRunner([a], baseCtx);
     await r.setup();
     expect(await r.fireCssTransform(ctx)).toBe('.a{}');

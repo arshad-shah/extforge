@@ -6,9 +6,13 @@
  */
 
 export const REQUIRED_FILES = [
-  { path: 'package.json',       code: 'MISSING_PACKAGE_JSON', fix: 'Run `npm init` or `extforge init`' },
-  { path: 'tsconfig.json',      code: 'MISSING_TSCONFIG',     fix: 'Run `extforge init` to generate one' },
-  { path: 'extforge.config.ts', code: 'MISSING_CONFIG',       fix: 'Create extforge.config.ts — run `extforge init`' },
+  { path: 'package.json', code: 'MISSING_PACKAGE_JSON', fix: 'Run `npm init` or `extforge init`' },
+  { path: 'tsconfig.json', code: 'MISSING_TSCONFIG', fix: 'Run `extforge init` to generate one' },
+  {
+    path: 'extforge.config.ts',
+    code: 'MISSING_CONFIG',
+    fix: 'Create extforge.config.ts — run `extforge init`',
+  },
 ] as const;
 
 export const REQUIRED_DIRS = [

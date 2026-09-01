@@ -1,5 +1,5 @@
 // src/core/testing/fakes/action.ts
-import { spy, type Spy } from '../internal/spy.js';
+import { type Spy, spy } from '../internal/spy.js';
 
 export interface ActionFake {
   readonly chrome: {
@@ -22,15 +22,18 @@ export function createActionFake(): ActionFake {
     return badges.get(tabId ?? 'global') ?? '';
   });
   const setIcon = spy(async (_d: Record<string, unknown>) => undefined);
-  const enable  = spy(async (_tabId?: number) => undefined);
+  const enable = spy(async (_tabId?: number) => undefined);
   const disable = spy(async (_tabId?: number) => undefined);
 
   return {
     chrome: { setBadgeText, getBadgeText, setIcon, enable, disable },
     reset() {
       badges.clear();
-      setBadgeText.reset(); getBadgeText.reset(); setIcon.reset();
-      enable.reset(); disable.reset();
+      setBadgeText.reset();
+      getBadgeText.reset();
+      setIcon.reset();
+      enable.reset();
+      disable.reset();
     },
   };
 }

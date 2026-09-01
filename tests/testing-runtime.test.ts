@@ -1,9 +1,11 @@
 // tests/testing-runtime.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createRuntimeFake, type RuntimeFake } from '../src/core/testing/fakes/runtime.js';
 
 let r: RuntimeFake;
-beforeEach(() => { r = createRuntimeFake(); });
+beforeEach(() => {
+  r = createRuntimeFake();
+});
 
 describe('runtime fake', () => {
   it('onInstalled listeners fire on fireOnInstalled', () => {
@@ -15,7 +17,9 @@ describe('runtime fake', () => {
 
   it('onStartup listeners fire on fireOnStartup', () => {
     let n = 0;
-    r.chrome.onStartup.addListener(() => { n++; });
+    r.chrome.onStartup.addListener(() => {
+      n++;
+    });
     r.fireOnStartup();
     r.fireOnStartup();
     expect(n).toBe(2);

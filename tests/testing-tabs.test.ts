@@ -1,9 +1,11 @@
 // tests/testing-tabs.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createTabsFake, type TabsFake } from '../src/core/testing/fakes/tabs.js';
 
 let t: TabsFake;
-beforeEach(() => { t = createTabsFake(); });
+beforeEach(() => {
+  t = createTabsFake();
+});
 
 describe('tabs fake', () => {
   it('__seed + query returns all seeded tabs', async () => {

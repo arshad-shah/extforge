@@ -9,15 +9,14 @@
 
 import { defineCommand } from '@arshad-shah/clif';
 import { getVersion } from '../core/version.js';
-
-import { init } from './commands/init.js';
-import { dev } from './commands/dev.js';
 import { build } from './commands/build.js';
-import { validate } from './commands/validate.js';
+import { dev } from './commands/dev.js';
 import { doctor } from './commands/doctor.js';
-import { upgrade } from './commands/upgrade.js';
-import { pkg } from './commands/package.js';
 import { icons } from './commands/icons.js';
+import { init } from './commands/init.js';
+import { pkg } from './commands/package.js';
+import { upgrade } from './commands/upgrade.js';
+import { validate } from './commands/validate.js';
 
 /** Root ExtForge command. `--help` / `--version` are handled by clif. */
 export const main = defineCommand({

@@ -4,7 +4,7 @@ export const doctor = defineCommand({
   name: 'doctor',
   description: 'Diagnose project & environment',
   args: {
-    json:  { type: 'boolean', description: 'Emit JSON', default: false },
+    json: { type: 'boolean', description: 'Emit JSON', default: false },
     quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
   },
   async handler({ args }) {
@@ -21,21 +21,34 @@ export const doctor = defineCommand({
     const { createLogger, LogLevel } = await import('../../core/logger/index.js');
 
     const checks = [
-      nodeVersionCheck, configValidCheck, iconsPresentCheck, portFreeCheck,
-      distGitignoredCheck, permissionsKnownCheck, browserOverridesCheck,
-      scriptsPresentCheck, compatCheck,
+      nodeVersionCheck,
+      configValidCheck,
+      iconsPresentCheck,
+      portFreeCheck,
+      distGitignoredCheck,
+      permissionsKnownCheck,
+      browserOverridesCheck,
+      scriptsPresentCheck,
+      compatCheck,
     ];
     const report = await runDoctor(checks, { cwd: process.cwd() });
 
     if (args.flags.json) {
-      process.stdout.write(JSON.stringify({ v: 1, ...report }, null, 2) + '\n');
+      process.stdout.write(`${JSON.stringify({ v: 1, ...report }, null, 2)}\n`);
       process.exit(report.exitCode);
     }
-    const log = createLogger({ scope: 'doctor', level: args.flags.quiet ? LogLevel.Warn : LogLevel.Info });
+    const log = createLogger({
+      scope: 'doctor',
+      level: args.flags.quiet ? LogLevel.Warn : LogLevel.Info,
+    });
     for (const r of report.results) {
-      const fn = r.status === 'pass' ? log.success.bind(log)
-              : r.status === 'warn' ? log.warn.bind(log)
-              : r.status === 'fail' ? log.error.bind(log)
+      const fn =
+        r.status === 'pass'
+          ? log.success.bind(log)
+          : r.status === 'warn'
+            ? log.warn.bind(log)
+            : r.status === 'fail'
+              ? log.error.bind(log)
               : log.info.bind(log);
       fn(`${r.name}: ${r.message}`);
       if (r.hint) log.info(`  hint: ${r.hint}`);

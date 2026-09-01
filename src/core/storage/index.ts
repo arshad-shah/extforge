@@ -83,7 +83,8 @@ export class Storage {
   // listener — N hooks watching the same Storage instance shouldn't register
   // N listeners against the chrome API.
   private chromeListenerRegistered = false;
-  private chromeListener: ((changes: Record<string, ChromeChange>, area: string) => void) | null = null;
+  private chromeListener: ((changes: Record<string, ChromeChange>, area: string) => void) | null =
+    null;
   private readonly watchSubs = new Set<WatchHandlers>();
 
   constructor(options: StorageOptions = {}) {
@@ -96,27 +97,31 @@ export class Storage {
     return this.namespace ? `${this.namespace}:${key}` : key;
   }
 
-  private useChrome(): boolean {
+  private hasChromeStorage(): boolean {
     return this.preferChrome && chromeStorageAvailable(this.area);
   }
 
   async get<T = unknown>(key: string): Promise<T | undefined> {
     const k = this.namespaced(key);
-    if (this.useChrome()) {
+    if (this.hasChromeStorage()) {
       const result = await getArea(this.area).get(k);
       return (result as Record<string, unknown>)[k] as T | undefined;
     }
     if (localStorageAvailable()) {
       const raw = globalThis.localStorage.getItem(k);
       if (raw === null) return undefined;
-      try { return JSON.parse(raw) as T; } catch { return raw as unknown as T; }
+      try {
+        return JSON.parse(raw) as T;
+      } catch {
+        return raw as unknown as T;
+      }
     }
     return undefined;
   }
 
   async set<T = unknown>(key: string, value: T): Promise<void> {
     const k = this.namespaced(key);
-    if (this.useChrome()) {
+    if (this.hasChromeStorage()) {
       await getArea(this.area).set({ [k]: value });
       return;
     }
@@ -140,29 +145,41 @@ export class Storage {
         }
         throw err;
       }
-      this.fallbackEvents.dispatchEvent(new CustomEvent('change', {
-        detail: { key: k, newValue: value, oldValue: oldRaw !== null ? safeJSON(oldRaw) : undefined },
-      }));
+      this.fallbackEvents.dispatchEvent(
+        new CustomEvent('change', {
+          detail: {
+            key: k,
+            newValue: value,
+            oldValue: oldRaw !== null ? safeJSON(oldRaw) : undefined,
+          },
+        }),
+      );
     }
   }
 
   async remove(key: string): Promise<void> {
     const k = this.namespaced(key);
-    if (this.useChrome()) {
+    if (this.hasChromeStorage()) {
       await getArea(this.area).remove(k);
       return;
     }
     if (localStorageAvailable()) {
       const oldRaw = globalThis.localStorage.getItem(k);
       globalThis.localStorage.removeItem(k);
-      this.fallbackEvents.dispatchEvent(new CustomEvent('change', {
-        detail: { key: k, newValue: undefined, oldValue: oldRaw !== null ? safeJSON(oldRaw) : undefined },
-      }));
+      this.fallbackEvents.dispatchEvent(
+        new CustomEvent('change', {
+          detail: {
+            key: k,
+            newValue: undefined,
+            oldValue: oldRaw !== null ? safeJSON(oldRaw) : undefined,
+          },
+        }),
+      );
     }
   }
 
   async clear(): Promise<void> {
-    if (this.useChrome()) {
+    if (this.hasChromeStorage()) {
       await getArea(this.area).clear();
       return;
     }
@@ -173,7 +190,7 @@ export class Storage {
         const toDelete: string[] = [];
         for (let i = 0; i < globalThis.localStorage.length; i++) {
           const key = globalThis.localStorage.key(i);
-          if (key && key.startsWith(prefix)) toDelete.push(key);
+          if (key?.startsWith(prefix)) toDelete.push(key);
         }
         for (const key of toDelete) globalThis.localStorage.removeItem(key);
       } else {
@@ -188,7 +205,7 @@ export class Storage {
    * change in this area.
    */
   watch(handlers: WatchHandlers): Unwatch {
-    if (this.useChrome()) {
+    if (this.hasChromeStorage()) {
       // Subscribe this handlers map to the shared multiplexer. The single
       // chrome.storage.onChanged listener is attached lazily on the first
       // watch() call and removed when the last one unwatches.
@@ -197,9 +214,10 @@ export class Storage {
         this.chromeListener = (changes, area): void => {
           if (area !== this.area) return;
           for (const [fullKey, change] of Object.entries(changes)) {
-            const userKey = this.namespace && fullKey.startsWith(`${this.namespace}:`)
-              ? fullKey.slice(this.namespace.length + 1)
-              : fullKey;
+            const userKey =
+              this.namespace && fullKey.startsWith(`${this.namespace}:`)
+                ? fullKey.slice(this.namespace.length + 1)
+                : fullKey;
             // Iterate the live set so handlers added/removed mid-broadcast
             // are picked up (or skipped) consistently.
             for (const subHandlers of this.watchSubs) {
@@ -224,10 +242,15 @@ export class Storage {
     // would require listening to the `storage` window event too; keep that
     // out of scope until requested.
     const ev = (e: Event): void => {
-      const detail = (e as CustomEvent).detail as { key: string; newValue: unknown; oldValue: unknown };
-      const userKey = this.namespace && detail.key.startsWith(`${this.namespace}:`)
-        ? detail.key.slice(this.namespace.length + 1)
-        : detail.key;
+      const detail = (e as CustomEvent).detail as {
+        key: string;
+        newValue: unknown;
+        oldValue: unknown;
+      };
+      const userKey =
+        this.namespace && detail.key.startsWith(`${this.namespace}:`)
+          ? detail.key.slice(this.namespace.length + 1)
+          : detail.key;
       const handler = handlers[userKey] ?? handlers['*'];
       if (handler) handler(detail.newValue, detail.oldValue);
     };
@@ -237,5 +260,9 @@ export class Storage {
 }
 
 function safeJSON(raw: string): unknown {
-  try { return JSON.parse(raw); } catch { return raw; }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }

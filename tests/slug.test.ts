@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { slugify } from '../src/core/util/slug.js';
 
 describe('slugify', () => {
@@ -35,7 +35,7 @@ describe('slugify', () => {
     // No regex backtracking. The CodeQL polynomial-regex finding that
     // motivated this helper would have made the previous regex chain
     // slow on long dash runs; this should be linear and finish instantly.
-    const huge = '-'.repeat(100_000) + 'tail';
+    const huge = `${'-'.repeat(100_000)}tail`;
     const t0 = Date.now();
     expect(slugify(huge)).toBe('tail');
     expect(Date.now() - t0).toBeLessThan(500);

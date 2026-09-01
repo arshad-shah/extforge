@@ -12,7 +12,7 @@
  *     throwing, so `extforge init` works without `--defaults`.
  */
 
-import { text, select, multiselect, PromptError } from '@arshad-shah/clif/prompts';
+import { multiselect, PromptError, select, text } from '@arshad-shah/clif/prompts';
 
 export interface TextPrompt {
   type: 'text';
@@ -67,9 +67,15 @@ export async function ask(
   for (const p of prompts) {
     try {
       switch (p.type) {
-        case 'text':        out[p.name] = await runText(p);        break;
-        case 'select':      out[p.name] = await runSelect(p);      break;
-        case 'multiselect': out[p.name] = await runMultiselect(p); break;
+        case 'text':
+          out[p.name] = await runText(p);
+          break;
+        case 'select':
+          out[p.name] = await runSelect(p);
+          break;
+        case 'multiselect':
+          out[p.name] = await runMultiselect(p);
+          break;
       }
     } catch (err) {
       if (isCancellation(err)) {

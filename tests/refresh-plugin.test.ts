@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import * as esbuild from 'esbuild';
-import { refreshPlugin, __resetSwcCache } from '../src/core/hmr/swc/refresh-plugin.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { __resetSwcCache, refreshPlugin } from '../src/core/hmr/swc/refresh-plugin.js';
 
 describe('refreshPlugin', () => {
   let dir: string;
@@ -41,8 +41,11 @@ describe('refreshPlugin', () => {
   it('runs the SWC transform on .tsx when enabled (or no-ops gracefully if @swc/core is missing)', async () => {
     const plugin = refreshPlugin({ enabled: true });
     const file = join(dir, 'App.tsx');
-    writeFileSync(file, `import { useState } from 'react';
-export function App(){ const [n,setN] = useState(0); return <button onClick={()=>setN(n+1)}>{n}</button>; }`);
+    writeFileSync(
+      file,
+      `import { useState } from 'react';
+export function App(){ const [n,setN] = useState(0); return <button onClick={()=>setN(n+1)}>{n}</button>; }`,
+    );
     const result = await esbuild.build({
       entryPoints: [file],
       bundle: false,
@@ -100,7 +103,9 @@ export function App(){ const [n,setN] = useState(0); return <button onClick={()=
         plugins: [plugin],
         logLevel: 'silent',
       });
-    } catch { /* esbuild also rejects — fine */ }
+    } catch {
+      /* esbuild also rejects — fine */
+    }
   });
 
   it('keeps $RefreshReg$/$RefreshSig$ defined across consecutive module loads', () => {

@@ -5,12 +5,12 @@ export const dev = defineCommand({
   description: 'Start development server with HMR',
   args: {
     browser: { type: 'string', description: 'Target browser', default: 'chrome' },
-    port:    { type: 'string', description: 'HMR WebSocket port', default: '35729' },
-    host:    { type: 'string', description: 'HMR host', default: 'localhost' },
-    quiet:   { type: 'boolean', description: 'Suppress info-level output', default: false },
+    port: { type: 'string', description: 'HMR WebSocket port', default: '35729' },
+    host: { type: 'string', description: 'HMR host', default: 'localhost' },
+    quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
     verbose: { type: 'boolean', description: 'Verbose HMR output', default: false },
-    json:    { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
-    once:    { type: 'boolean', description: 'Run a single build then exit', default: false },
+    json: { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
+    once: { type: 'boolean', description: 'Run a single build then exit', default: false },
   },
   async handler({ args }) {
     const { loadExtForgeConfig } = await import('../../core/config.js');
@@ -19,9 +19,11 @@ export const dev = defineCommand({
 
     const log = createLogger({
       scope: 'extforge',
-      level: args.flags.verbose ? LogLevel.Trace
-           : args.flags.quiet   ? LogLevel.Warn
-           :                      LogLevel.Debug,
+      level: args.flags.verbose
+        ? LogLevel.Trace
+        : args.flags.quiet
+          ? LogLevel.Warn
+          : LogLevel.Debug,
       transports: args.flags.json ? [jsonTransport()] : undefined,
       silentHumanOutput: args.flags.json,
     });
@@ -43,15 +45,26 @@ export const dev = defineCommand({
     const { validateProject } = await import('../../core/validator/index.js');
 
     const validation = validateProject(root, log.child('validate'), { manifest: config.manifest });
-    if (!validation.valid) { log.error('Fix project errors first'); process.exit(1); }
+    if (!validation.valid) {
+      log.error('Fix project errors first');
+      process.exit(1);
+    }
 
     const server = createHMRServer({
-      projectRoot: root, config, browser: browser as any,
-      port: parseInt(args.flags.port, 10), host: args.flags.host, logger: log,
+      projectRoot: root,
+      config,
+      browser: browser as any,
+      port: parseInt(args.flags.port, 10),
+      host: args.flags.host,
+      logger: log,
     });
     await server.start();
 
-    const shutdown = async () => { log.info('Shutting down...'); await server.stop(); process.exit(0); };
+    const shutdown = async () => {
+      log.info('Shutting down...');
+      await server.stop();
+      process.exit(0);
+    };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
   },

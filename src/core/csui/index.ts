@@ -73,10 +73,7 @@ export interface CSUIOptions {
    * - A function: a custom subscriber. Called with a remount callback;
    *   must return an unsubscribe function.
    */
-  remountOn?:
-    | 'navigation'
-    | 'mutation'
-    | ((remount: () => void) => () => void);
+  remountOn?: 'navigation' | 'mutation' | ((remount: () => void) => () => void);
 }
 
 export interface CSUIDescriptor<TRender = (root: Element) => void | (() => void)> {
@@ -118,7 +115,7 @@ export function defineCSUI(options: CSUIOptions, render: Renderer): CSUIDescript
         // Surface the underlying error so the user can actually debug.
         // We don't have access to the runtime logger here; fall back to
         // console (this file is a content-script runtime, not a Node module).
-        // eslint-disable-next-line no-console
+        // biome-ignore lint/suspicious/noConsole: content-script runtime; no Logger available here.
         console.warn('[extforge:csui] auto-mount failed', err);
       });
     });
@@ -148,7 +145,11 @@ function subscribeRemount(
 ): () => void {
   if (!trigger) return () => {};
   if (typeof trigger === 'function') {
-    try { return trigger(remount); } catch { return () => {}; }
+    try {
+      return trigger(remount);
+    } catch {
+      return () => {};
+    }
   }
   if (trigger === 'navigation') {
     // Patch history methods + listen to popstate. Coalesce rapid calls
@@ -159,16 +160,23 @@ function subscribeRemount(
     const fire = (): void => {
       if (scheduled) return;
       scheduled = true;
-      queueMicrotask(() => { scheduled = false; remount(); });
+      queueMicrotask(() => {
+        scheduled = false;
+        remount();
+      });
     };
     const origPush = history.pushState;
     const origReplace = history.replaceState;
-    history.pushState = function (...args: Parameters<typeof origPush>): ReturnType<typeof origPush> {
+    history.pushState = function (
+      ...args: Parameters<typeof origPush>
+    ): ReturnType<typeof origPush> {
       const r = origPush.apply(this, args);
       fire();
       return r;
     };
-    history.replaceState = function (...args: Parameters<typeof origReplace>): ReturnType<typeof origReplace> {
+    history.replaceState = function (
+      ...args: Parameters<typeof origReplace>
+    ): ReturnType<typeof origReplace> {
       const r = origReplace.apply(this, args);
       fire();
       return r;
@@ -205,8 +213,16 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
   // Existing mount with the same id? Tear it down first.
   const prev = ACTIVE.get(id);
   if (prev) {
-    try { prev.unwatchRemount?.(); } catch { /* swallow */ }
-    try { prev.cleanup?.(); } catch { /* swallow */ }
+    try {
+      prev.unwatchRemount?.();
+    } catch {
+      /* swallow */
+    }
+    try {
+      prev.cleanup?.();
+    } catch {
+      /* swallow */
+    }
     prev.host.remove();
     ACTIVE.delete(id);
   }
@@ -254,7 +270,7 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
   }
 
   const inner = document.createElement('div');
-  inner.dataset['extforgeCsuiRoot'] = '';
+  inner.dataset.extforgeCsuiRoot = '';
   renderRoot.appendChild(inner);
 
   const result = await descriptor.render(inner);
@@ -262,20 +278,25 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
 
   // Wire the SPA/mutation trigger AFTER the mount succeeds so the
   // remount callback doesn't fire during the initial render.
-  const unwatchRemount = subscribeRemount(
-    opts.remountOn,
-    mountPoint,
-    host,
-    () => { void mountCSUI(descriptor); },
-  );
+  const unwatchRemount = subscribeRemount(opts.remountOn, mountPoint, host, () => {
+    void mountCSUI(descriptor);
+  });
 
   ACTIVE.set(id, { host, cleanup, unwatchRemount });
 
   return () => {
     const cur = ACTIVE.get(id);
     if (!cur) return;
-    try { cur.unwatchRemount?.(); } catch { /* swallow */ }
-    try { cur.cleanup?.(); } catch { /* swallow */ }
+    try {
+      cur.unwatchRemount?.();
+    } catch {
+      /* swallow */
+    }
+    try {
+      cur.cleanup?.();
+    } catch {
+      /* swallow */
+    }
     cur.host.remove();
     ACTIVE.delete(id);
   };
@@ -284,9 +305,21 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
 /** @internal — clears all active mounts. Used by tests. */
 export function __resetCSUI(): void {
   for (const { host, cleanup, unwatchRemount } of ACTIVE.values()) {
-    try { unwatchRemount?.(); } catch { /* ignore */ }
-    try { cleanup?.(); } catch { /* ignore */ }
-    try { host.remove(); } catch { /* ignore */ }
+    try {
+      unwatchRemount?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      cleanup?.();
+    } catch {
+      /* ignore */
+    }
+    try {
+      host.remove();
+    } catch {
+      /* ignore */
+    }
   }
   ACTIVE.clear();
 }

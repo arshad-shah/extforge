@@ -13,7 +13,7 @@ The repo is a pnpm workspace. Node `>=22.12` and pnpm `10.x` are required
 ```bash
 pnpm install
 pnpm typecheck                          # tsc --noEmit
-pnpm lint                               # eslint flat config
+pnpm lint                               # biome check (lint + format)
 pnpm test                               # vitest run (happy-dom)
 pnpm build                              # tsup -> dist/
 

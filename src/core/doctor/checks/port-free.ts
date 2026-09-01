@@ -1,6 +1,6 @@
-import type { Check } from '../index.js';
 import { createServer } from 'node:net';
 import { loadExtForgeConfig } from '../../config.js';
+import type { Check } from '../index.js';
 
 async function isFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -20,10 +20,17 @@ export const portFreeCheck: Check = {
       const cfg = await loadExtForgeConfig(cwd);
       const configured = cfg.dev?.port;
       if (typeof configured === 'number' && Number.isFinite(configured)) port = configured;
-    } catch { /* fall back to the default port */ }
+    } catch {
+      /* fall back to the default port */
+    }
     const free = await isFree(port);
     return free
       ? { name: 'port-free', status: 'pass', message: `HMR port ${port} is free` }
-      : { name: 'port-free', status: 'warn', message: `HMR port ${port} is in use`, hint: 'Pass --port to extforge dev.' };
+      : {
+          name: 'port-free',
+          status: 'warn',
+          message: `HMR port ${port} is in use`,
+          hint: 'Pass --port to extforge dev.',
+        };
   },
 };

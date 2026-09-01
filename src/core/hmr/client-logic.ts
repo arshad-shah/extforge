@@ -31,12 +31,12 @@ export function isCompatibleEnvelope(update: ClientUpdate): boolean {
 }
 
 const REASON_LABEL: Record<string, string> = {
-  css:                'css hot swap',
-  js:                 'js',
-  'full-reload':      'full-reload',
-  manifest:           'manifest',
-  assets:             'assets',
-  'protocol-mismatch':'protocol-mismatch',
+  css: 'css hot swap',
+  js: 'js',
+  'full-reload': 'full-reload',
+  manifest: 'manifest',
+  assets: 'assets',
+  'protocol-mismatch': 'protocol-mismatch',
 };
 
 export function formatReloadLog(

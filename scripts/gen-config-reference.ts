@@ -1,5 +1,5 @@
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
-import { resolve, dirname } from 'node:path/posix';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path/posix';
 import { fileURLToPath } from 'node:url';
 import { extForgeConfigSchema } from '../src/core/config/schema.js';
 import { SCHEMA_DOCS } from '../src/core/config/schema-docs.js';
@@ -10,7 +10,12 @@ const outDir = resolve(__dirname, '../docs-site/src/content/docs/reference/confi
 if (existsSync(outDir)) rmSync(outDir, { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
-interface Field { path: string; type: string; doc?: string; defaultValue?: string }
+interface Field {
+  path: string;
+  type: string;
+  doc?: string;
+  defaultValue?: string;
+}
 
 // Frontmatter values may contain colons, brackets, or backticks (e.g. the
 // `css` description). JSON-encoding produces a double-quoted scalar that YAML
@@ -25,24 +30,41 @@ function yaml(value: string): string {
 function describeZod(node: any): string {
   const d = node?._def ?? {};
   switch (d.type) {
-    case 'optional': return describeZod(d.innerType);
-    case 'enum':     return Object.values(d.entries ?? {}).map((v) => `'${v}'`).join(' \\| ');
-    case 'string':   return 'string';
-    case 'number':   return 'number';
-    case 'boolean':  return 'boolean';
-    case 'array':    return `Array<${describeZod(d.element)}>`;
-    case 'record':   return `Record<string, ${describeZod(d.valueType)}>`;
-    case 'union':    return (d.options ?? []).map((o: any) => describeZod(o)).join(' \\| ');
-    case 'pipe':     return describeZod(d.in ?? d.out);
-    case 'object':   return 'object';
-    case 'unknown':  return 'unknown';
-    default:         return d.type ?? 'unknown';
+    case 'optional':
+      return describeZod(d.innerType);
+    case 'enum':
+      return Object.values(d.entries ?? {})
+        .map((v) => `'${v}'`)
+        .join(' \\| ');
+    case 'string':
+      return 'string';
+    case 'number':
+      return 'number';
+    case 'boolean':
+      return 'boolean';
+    case 'array':
+      return `Array<${describeZod(d.element)}>`;
+    case 'record':
+      return `Record<string, ${describeZod(d.valueType)}>`;
+    case 'union':
+      return (d.options ?? []).map((o: any) => describeZod(o)).join(' \\| ');
+    case 'pipe':
+      return describeZod(d.in ?? d.out);
+    case 'object':
+      return 'object';
+    case 'unknown':
+      return 'unknown';
+    default:
+      return d.type ?? 'unknown';
   }
 }
 
 function walk(schema: any, prefix: string, out: Field[]): void {
   const d = schema?._def ?? {};
-  if (d.type === 'optional') return walk(d.innerType, prefix, out);
+  if (d.type === 'optional') {
+    walk(d.innerType, prefix, out);
+    return;
+  }
   if (d.type === 'object') {
     const shape = d.shape ?? {};
     for (const [key, sub] of Object.entries(shape)) {
@@ -57,7 +79,9 @@ const fields: Field[] = [];
 walk(extForgeConfigSchema, '', fields);
 
 if (fields.length === 0) {
-  console.error('gen-config-reference: ZERO fields found — Zod API mismatch. Inspect extForgeConfigSchema._def:');
+  console.error(
+    'gen-config-reference: ZERO fields found — Zod API mismatch. Inspect extForgeConfigSchema._def:',
+  );
   console.error(JSON.stringify(Object.keys((extForgeConfigSchema as any)._def), null, 2));
   process.exit(1);
 }
@@ -68,11 +92,11 @@ for (const f of fields) {
   f.defaultValue = doc?.defaultValue;
 }
 
-const topLevels = new Set(fields.filter(f => !f.path.includes('.')).map(f => f.path));
+const topLevels = new Set(fields.filter((f) => !f.path.includes('.')).map((f) => f.path));
 
 for (const top of topLevels) {
-  const own = fields.find(f => f.path === top)!;
-  const children = fields.filter(f => f.path.startsWith(`${top}.`));
+  const own = fields.find((f) => f.path === top)!;
+  const children = fields.filter((f) => f.path.startsWith(`${top}.`));
   const lines: string[] = [
     `---`,
     `title: ${top}`,
@@ -90,16 +114,20 @@ for (const top of topLevels) {
     lines.push(`| Path | Type | Default | Description |`);
     lines.push(`|---|---|---|---|`);
     for (const c of children) {
-      lines.push(`| \`${c.path}\` | \`${c.type}\` | ${c.defaultValue ? `\`${c.defaultValue}\`` : '—'} | ${c.doc ?? ''} |`);
+      lines.push(
+        `| \`${c.path}\` | \`${c.type}\` | ${c.defaultValue ? `\`${c.defaultValue}\`` : '—'} | ${c.doc ?? ''} |`,
+      );
     }
   }
-  writeFileSync(resolve(outDir, `${top}.mdx`), lines.join('\n') + '\n');
+  writeFileSync(resolve(outDir, `${top}.mdx`), `${lines.join('\n')}\n`);
 }
 
-const indexRows = [...topLevels].map(t => {
-  const f = fields.find(x => x.path === t)!;
-  return `| [\`${t}\`](/reference/config/${t}/) | \`${f.type}\` | ${f.doc ?? ''} |`;
-}).join('\n');
+const indexRows = [...topLevels]
+  .map((t) => {
+    const f = fields.find((x) => x.path === t)!;
+    return `| [\`${t}\`](/reference/config/${t}/) | \`${f.type}\` | ${f.doc ?? ''} |`;
+  })
+  .join('\n');
 
 const indexMd = `---
 title: Configuration reference

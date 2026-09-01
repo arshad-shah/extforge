@@ -5,7 +5,7 @@ export const validate = defineCommand({
   description: 'Validate project structure and config',
   args: {
     quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
-    json:  { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
+    json: { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
   },
   async handler({ args }) {
     const { validateProject } = await import('../../core/validator/index.js');

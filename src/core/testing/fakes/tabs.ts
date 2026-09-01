@@ -1,7 +1,11 @@
 // src/core/testing/fakes/tabs.ts
-import { spy, type Spy } from '../internal/spy.js';
+import { type Spy, spy } from '../internal/spy.js';
 
-export interface TabRecord { id: number; url: string; active: boolean; }
+export interface TabRecord {
+  id: number;
+  url: string;
+  active: boolean;
+}
 
 export interface TabsFake {
   readonly chrome: {
@@ -41,12 +45,15 @@ export function createTabsFake(): TabsFake {
     chrome: { query, sendMessage, create, reload },
     /** Replaces the seeded tab list. Repeated calls overwrite, not append. */
     __seed(seed) {
-      tabs = seed.map(t => ({ id: t.id, url: t.url, active: t.active ?? false }));
+      tabs = seed.map((t) => ({ id: t.id, url: t.url, active: t.active ?? false }));
     },
     reset() {
       tabs = [];
       nextId = 1000;
-      query.reset(); sendMessage.reset(); create.reset(); reload.reset();
+      query.reset();
+      sendMessage.reset();
+      create.reset();
+      reload.reset();
     },
   };
 }

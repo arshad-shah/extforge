@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadConfigModule, resolveConfigFile } from '../src/core/config/loader.js';
 import { ExtForgeError } from '../src/core/errors/index.js';
 
@@ -14,8 +14,12 @@ import { ExtForgeError } from '../src/core/errors/index.js';
 describe('loadConfigModule', () => {
   let dir: string;
 
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cfg-loader-')); });
-  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'cfg-loader-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
 
   it('loads a TypeScript config (default export)', async () => {
     const file = join(dir, 'foo.config.ts');
@@ -54,7 +58,11 @@ describe('loadConfigModule', () => {
     const file = join(dir, 'foo.config.ts');
     writeFileSync(file, `export const x = ;`);
     let caught: unknown;
-    try { await loadConfigModule(file, dir); } catch (err) { caught = err; }
+    try {
+      await loadConfigModule(file, dir);
+    } catch (err) {
+      caught = err;
+    }
     expect(caught).toBeInstanceOf(ExtForgeError);
     expect((caught as ExtForgeError).code).toBe('EXT_CONFIG_INVALID');
   });
@@ -75,8 +83,12 @@ describe('loadConfigModule', () => {
 
 describe('resolveConfigFile', () => {
   let dir: string;
-  beforeEach(() => { dir = mkdtempSync(join(tmpdir(), 'cfg-resolve-')); });
-  afterEach(() => { rmSync(dir, { recursive: true, force: true }); });
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'cfg-resolve-'));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
 
   it('returns undefined when no config file exists', () => {
     expect(resolveConfigFile(dir, 'foo')).toBeUndefined();

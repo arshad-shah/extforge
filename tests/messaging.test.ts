@@ -1,22 +1,26 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  __resetMessaging,
   defineHandler,
   sendMessage,
   setupMessaging,
-  __resetMessaging,
 } from '../src/core/messaging/index.js';
 
 // Module augmentation for test routes — lives at file scope so type inference
 // kicks in for the tests below.
 declare module '../src/core/messaging/index.js' {
   interface MessageMap {
-    'echo': { req: { value: string }; res: { value: string } };
-    'add':  { req: { a: number; b: number }; res: { sum: number } };
-    'fail': { req: void; res: never };
+    echo: { req: { value: string }; res: { value: string } };
+    add: { req: { a: number; b: number }; res: { sum: number } };
+    fail: { req: void; res: never };
   }
 }
 
-type Listener = (msg: unknown, sender: unknown, sendResponse: (r: unknown) => void) => boolean | void;
+type Listener = (
+  msg: unknown,
+  sender: unknown,
+  sendResponse: (r: unknown) => void,
+) => boolean | void;
 
 interface ChromeMock {
   runtime: {
@@ -30,7 +34,9 @@ function makeChromeMock(): { mock: ChromeMock; deliver: (msg: unknown) => Promis
   const mock: ChromeMock = {
     runtime: {
       onMessage: {
-        addListener: (l) => { listener = l; },
+        addListener: (l) => {
+          listener = l;
+        },
       },
       // sendMessage drives the listener directly so the round-trip is in-process.
       sendMessage: async (msg: unknown) => {
@@ -77,11 +83,15 @@ describe('extforge/messaging', () => {
 
   it('throws when no handler is registered for the route', async () => {
     setupMessaging();
-    await expect(sendMessage('echo', { value: 'x' })).rejects.toThrow(/No handler for route 'echo'/);
+    await expect(sendMessage('echo', { value: 'x' })).rejects.toThrow(
+      /No handler for route 'echo'/,
+    );
   });
 
   it('surfaces handler errors as rejections at the caller', async () => {
-    defineHandler('fail', async () => { throw new Error('kaboom'); });
+    defineHandler('fail', async () => {
+      throw new Error('kaboom');
+    });
     setupMessaging();
     await expect(sendMessage('fail', undefined as never)).rejects.toThrow(/kaboom/);
   });
@@ -131,7 +141,10 @@ describe('extforge/messaging', () => {
     // Foreign message is dropped. The mock will hang waiting for a response,
     // so we set up a handler that responds and verify it isn't called.
     let called = false;
-    defineHandler('echo', async () => { called = true; return { value: '' }; });
+    defineHandler('echo', async () => {
+      called = true;
+      return { value: '' };
+    });
     // Send a message that doesn't have `__extforge: 'msg'`. We don't await
     // (the listener returns false, so the channel closes immediately and
     // sendResponse is never called).
@@ -171,7 +184,9 @@ describe('extforge/messaging Ports', () => {
     let lastError: { message: string } | undefined;
     const port = {
       postMessage: () => {},
-      disconnect: () => { disconnected.value = true; },
+      disconnect: () => {
+        disconnected.value = true;
+      },
       onMessage: {
         addListener: (cb: (m: unknown) => void) => messages.push(cb),
         removeListener: (cb: (m: unknown) => void) => {
@@ -187,7 +202,9 @@ describe('extforge/messaging Ports', () => {
       chrome: {
         runtime: {
           connect: () => port,
-          get lastError(): { message: string } | undefined { return lastError; },
+          get lastError(): { message: string } | undefined {
+            return lastError;
+          },
           onConnect: { addListener: () => {} },
         },
       },
@@ -252,44 +269,56 @@ describe('extforge/messaging Ports', () => {
     (globalThis as { chrome: unknown }).chrome = {
       runtime: {
         onConnect: {
-          addListener: (cb: (p: unknown) => void) => { listeners.push(cb); },
+          addListener: (cb: (p: unknown) => void) => {
+            listeners.push(cb);
+          },
         },
       },
     };
     const { onPort } = await import('../src/core/messaging/index.js');
     let connected = 0;
-    onPort('mine', () => { connected++; });
-    // Wrong-named port: ignored.
-    for (const l of listeners) l({
-      name: 'extforge:other',
-      sender: {},
-      onMessage: { addListener: () => {}, removeListener: () => {} },
-      onDisconnect: { addListener: () => {} },
-      postMessage: () => {},
-      disconnect: () => {},
+    onPort('mine', () => {
+      connected++;
     });
+    // Wrong-named port: ignored.
+    for (const l of listeners)
+      l({
+        name: 'extforge:other',
+        sender: {},
+        onMessage: { addListener: () => {}, removeListener: () => {} },
+        onDisconnect: { addListener: () => {} },
+        postMessage: () => {},
+        disconnect: () => {},
+      });
     expect(connected).toBe(0);
     // Right name: fires.
-    for (const l of listeners) l({
-      name: 'extforge:mine',
-      sender: {},
-      onMessage: { addListener: () => {}, removeListener: () => {} },
-      onDisconnect: { addListener: () => {} },
-      postMessage: () => {},
-      disconnect: () => {},
-    });
+    for (const l of listeners)
+      l({
+        name: 'extforge:mine',
+        sender: {},
+        onMessage: { addListener: () => {}, removeListener: () => {} },
+        onDisconnect: { addListener: () => {} },
+        postMessage: () => {},
+        disconnect: () => {},
+      });
     expect(connected).toBe(1);
   });
 
   it('sendMessage rejects with a clear error when the chrome API is missing', async () => {
     delete (globalThis as { chrome?: unknown }).chrome;
     const { sendMessage } = await import('../src/core/messaging/index.js');
-    await expect(sendMessage('echo' as never, { value: 'x' } as never)).rejects.toThrow(/sendMessage is not available/);
+    await expect(sendMessage('echo' as never, { value: 'x' } as never)).rejects.toThrow(
+      /sendMessage is not available/,
+    );
   });
 
   it('sendMessageToTab rejects with a clear error when chrome.tabs is missing', async () => {
-    (globalThis as { chrome?: unknown }).chrome = { runtime: { sendMessage: async () => undefined } };
+    (globalThis as { chrome?: unknown }).chrome = {
+      runtime: { sendMessage: async () => undefined },
+    };
     const { sendMessageToTab } = await import('../src/core/messaging/index.js');
-    await expect(sendMessageToTab(0, 'echo' as never, { value: 'x' } as never)).rejects.toThrow(/chrome.tabs.sendMessage/);
+    await expect(sendMessageToTab(0, 'echo' as never, { value: 'x' } as never)).rejects.toThrow(
+      /chrome.tabs.sendMessage/,
+    );
   });
 });

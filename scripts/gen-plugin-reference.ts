@@ -1,7 +1,7 @@
-import { Project } from 'ts-morph';
-import { writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
-import { resolve, dirname } from 'node:path/posix';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path/posix';
 import { fileURLToPath } from 'node:url';
+import { Project } from 'ts-morph';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = resolve(__dirname, '../docs-site/src/content/docs/reference/plugins');
@@ -13,20 +13,32 @@ const project = new Project({
   tsConfigFilePath: resolve(__dirname, '../tsconfig.json'),
   skipAddingFilesFromTsConfig: true,
 });
-const typesFile  = project.addSourceFileAtPath(resolve(__dirname, '../src/core/plugins/types.ts'));
-const presetFile = project.addSourceFileAtPath(resolve(__dirname, '../src/core/plugins/preset-react.ts'));
+const typesFile = project.addSourceFileAtPath(resolve(__dirname, '../src/core/plugins/types.ts'));
+const presetFile = project.addSourceFileAtPath(
+  resolve(__dirname, '../src/core/plugins/preset-react.ts'),
+);
 
-function escapeType(s: string): string { return s.replace(/\|/g, '\\|'); }
-function escapeDoc(s: string): string { return s.replace(/\{/g, '\\{').replace(/\}/g, '\\}'); }
+function escapeType(s: string): string {
+  return s.replace(/\|/g, '\\|');
+}
+function escapeDoc(s: string): string {
+  return s.replace(/\{/g, '\\{').replace(/\}/g, '\\}');
+}
 
 function renderInterface(decl: any): string {
   const name = decl.getName();
-  const docs = decl.getJsDocs().map((d: any) => d.getDescription().trim()).join('\n\n');
+  const docs = decl
+    .getJsDocs()
+    .map((d: any) => d.getDescription().trim())
+    .join('\n\n');
 
   const propRows = decl.getProperties().map((p: any) => {
     const pname = p.getName();
     const ptype = p.getType().getText(p);
-    const pdoc = p.getJsDocs().map((d: any) => d.getDescription().trim()).join(' ');
+    const pdoc = p
+      .getJsDocs()
+      .map((d: any) => d.getDescription().trim())
+      .join(' ');
     const opt = p.hasQuestionToken() ? '?' : '';
     return `| \`${pname}${opt}\` | \`${escapeType(ptype)}\` | ${escapeDoc(pdoc)} |`;
   });
@@ -35,15 +47,21 @@ function renderInterface(decl: any): string {
   // separately so PluginHooks/PluginContext members render in the table.
   const methodRows = (decl.getMethods?.() ?? []).map((m: any) => {
     const mname = m.getName();
-    const params = m.getParameters().map((p: any) => {
-      const pname = p.getName();
-      const ptype = p.getType().getText(p);
-      const opt = p.hasQuestionToken() ? '?' : '';
-      return `${pname}${opt}: ${ptype}`;
-    }).join(', ');
+    const params = m
+      .getParameters()
+      .map((p: any) => {
+        const pname = p.getName();
+        const ptype = p.getType().getText(p);
+        const opt = p.hasQuestionToken() ? '?' : '';
+        return `${pname}${opt}: ${ptype}`;
+      })
+      .join(', ');
     const ret = m.getReturnType().getText(m);
     const sig = `(${params}) => ${ret}`;
-    const mdoc = m.getJsDocs().map((d: any) => d.getDescription().trim()).join(' ');
+    const mdoc = m
+      .getJsDocs()
+      .map((d: any) => d.getDescription().trim())
+      .join(' ');
     return `| \`${mname}\` | \`${escapeType(sig)}\` | ${escapeDoc(mdoc)} |`;
   });
 

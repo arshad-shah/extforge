@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
 import type { CommandDef } from '@arshad-shah/clif';
+import { describe, expect, it } from 'vitest';
 import { main } from '../src/cli/commands.js';
 
 /**
@@ -24,9 +24,16 @@ describe('extforge CLI command tree', () => {
 
   it('exposes exactly the documented commands', () => {
     const names = (main.commands ?? []).map((c) => c.name).sort();
-    expect(names).toEqual(
-      ['build', 'dev', 'doctor', 'icons', 'init', 'package', 'upgrade', 'validate'],
-    );
+    expect(names).toEqual([
+      'build',
+      'dev',
+      'doctor',
+      'icons',
+      'init',
+      'package',
+      'upgrade',
+      'validate',
+    ]);
   });
 
   it('every command has a description and a handler', () => {

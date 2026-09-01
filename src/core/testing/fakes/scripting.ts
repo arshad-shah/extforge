@@ -1,5 +1,5 @@
 // src/core/testing/fakes/scripting.ts
-import { spy, type Spy } from '../internal/spy.js';
+import { type Spy, spy } from '../internal/spy.js';
 
 export interface ExecuteScriptInjection {
   target: { tabId: number };
@@ -11,7 +11,9 @@ export interface ExecuteScriptInjection {
 
 export interface ScriptingFake {
   readonly chrome: {
-    executeScript: Spy<(injection: ExecuteScriptInjection) => Promise<Array<{ result?: unknown; frameId?: number }>>>;
+    executeScript: Spy<
+      (injection: ExecuteScriptInjection) => Promise<Array<{ result?: unknown; frameId?: number }>>
+    >;
   };
   /** Override the result executeScript returns next time. */
   __nextResult(value: unknown): void;
@@ -28,7 +30,12 @@ export function createScriptingFake(): ScriptingFake {
 
   return {
     chrome: { executeScript },
-    __nextResult(value) { queue.push(value); },
-    reset() { queue.length = 0; executeScript.reset(); },
+    __nextResult(value) {
+      queue.push(value);
+    },
+    reset() {
+      queue.length = 0;
+      executeScript.reset();
+    },
   };
 }

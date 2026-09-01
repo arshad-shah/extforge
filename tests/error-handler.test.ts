@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { ExtForgeError } from '../src/core/errors/index.js';
+import { describe, expect, it } from 'vitest';
 import { formatError } from '../src/cli/error-handler.js';
+import { ExtForgeError } from '../src/core/errors/index.js';
 
 describe('formatError', () => {
   it('formats ExtForgeError with code, file:line, hint, docsUrl', () => {

@@ -1,10 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { Readable, Writable } from 'node:stream';
-import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { scaffold } from '../src/core/scaffold/index.js';
+import { Readable, Writable } from 'node:stream';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import { scaffold } from '../src/core/scaffold/index.js';
 
 const silent = createLogger({ level: LogLevel.Silent });
 
@@ -23,7 +23,11 @@ function makeFakeStdin(): FakeStdin {
 }
 
 function makeFakeStdout(): Writable {
-  return new Writable({ write(_c, _e, cb) { cb(); } });
+  return new Writable({
+    write(_c, _e, cb) {
+      cb();
+    },
+  });
 }
 
 describe('scaffold gatherAnswers (interactive)', () => {
@@ -42,7 +46,9 @@ describe('scaffold gatherAnswers (interactive)', () => {
   afterEach(() => {
     Object.defineProperty(process, 'stdin', { value: origStdin, configurable: true });
     Object.defineProperty(process, 'stdout', { value: origStdout, configurable: true });
-    try { rmSync(dir, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {}
   });
 
   it('walks through the interactive flow and scaffolds the chosen feature set', async () => {
@@ -53,10 +59,13 @@ describe('scaffold gatherAnswers (interactive)', () => {
     // To keep this simple: set isTTY=false so every prompt resolves to its
     // initial value. That covers the gatherAnswers path entirely.
     fakeIn.isTTY = false;
-    const result = await scaffold({
-      name: 'my-ext',
-      targetDir: projectDir,
-    }, silent);
+    const result = await scaffold(
+      {
+        name: 'my-ext',
+        targetDir: projectDir,
+      },
+      silent,
+    );
     expect(result).toBe(projectDir);
     // Default initial values: framework=react (index 0), css=tailwind (index 0),
     // browsers={chrome,firefox}, features={popup,background}.

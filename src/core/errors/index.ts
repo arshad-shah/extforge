@@ -1,5 +1,6 @@
-import { type ErrorCode, docsUrlFor } from './codes.js';
-export { ERROR_CODES, type ErrorCode, docsUrlFor } from './codes.js';
+import { docsUrlFor, type ErrorCode } from './codes.js';
+
+export { docsUrlFor, ERROR_CODES, type ErrorCode } from './codes.js';
 
 export interface ExtForgeErrorInit {
   code: ErrorCode;

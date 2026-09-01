@@ -1,9 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadExtForgeConfig } from '../src/core/config.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { build } from '../src/core/builder/index.js';
+import { loadExtForgeConfig } from '../src/core/config.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 const silent = createLogger({ level: LogLevel.Silent });
@@ -25,7 +33,11 @@ describe('PluginContext.addEntry / emitFile', () => {
     writeFileSync(join(root, 'package.json'), '{}');
     writeFileSync(join(root, 'tsconfig.json'), '{}');
   });
-  afterEach(() => { try { rmSync(root, { recursive: true, force: true }); } catch {} });
+  afterEach(() => {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch {}
+  });
 
   function writeConfig(): void {
     writeFileSync(

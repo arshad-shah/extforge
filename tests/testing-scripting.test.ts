@@ -1,9 +1,11 @@
 // tests/testing-scripting.test.ts
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createScriptingFake, type ScriptingFake } from '../src/core/testing/fakes/scripting.js';
 
 let s: ScriptingFake;
-beforeEach(() => { s = createScriptingFake(); });
+beforeEach(() => {
+  s = createScriptingFake();
+});
 
 describe('scripting fake', () => {
   it('executeScript records calls', async () => {

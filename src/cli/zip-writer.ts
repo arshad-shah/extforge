@@ -12,7 +12,7 @@
  * beyond the bare minimum the stores need.
  */
 
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 
@@ -59,8 +59,11 @@ function walkFiles(root: string): string[] {
   while (stack.length) {
     const d = stack.pop()!;
     let entries: import('node:fs').Dirent[];
-    try { entries = readdirSync(d, { withFileTypes: true }); }
-    catch { continue; }
+    try {
+      entries = readdirSync(d, { withFileTypes: true });
+    } catch {
+      continue;
+    }
     for (const e of entries) {
       // Match what the system `zip -r .` excludes by default. Extension
       // stores reject archives containing .DS_Store and reviewers flag

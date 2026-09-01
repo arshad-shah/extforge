@@ -1,6 +1,6 @@
-import type { Check } from '../index.js';
-import { loadExtForgeConfig } from '../../config.js';
 import { extForgeConfigSchema } from '../../config/schema.js';
+import { loadExtForgeConfig } from '../../config.js';
+import type { Check } from '../index.js';
 
 export const configValidCheck: Check = {
   name: 'config-valid',

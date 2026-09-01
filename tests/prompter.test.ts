@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { multiselect, PromptError, select, text } from '@arshad-shah/clif/prompts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ask } from '../src/core/scaffold/prompter.js';
-import { text, select, multiselect, PromptError } from '@arshad-shah/clif/prompts';
 
 /**
  * The prompter is a thin adapter over `@arshad-shah/clif/prompts` — clif owns
@@ -65,14 +65,23 @@ describe('prompter (clif adapter)', () => {
 
       const result = await ask([
         {
-          type: 'select', name: 'pick', message: 'choose', initial: 1,
-          choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }],
+          type: 'select',
+          name: 'pick',
+          message: 'choose',
+          initial: 1,
+          choices: [
+            { title: 'A', value: 'a' },
+            { title: 'B', value: 'b' },
+          ],
         },
       ]);
 
       expect(mockSelect).toHaveBeenCalledWith({
         message: 'choose',
-        options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }],
+        options: [
+          { label: 'A', value: 'a' },
+          { label: 'B', value: 'b' },
+        ],
         default: 'b',
       });
       expect(result).toEqual({ pick: 'b' });
@@ -83,7 +92,10 @@ describe('prompter (clif adapter)', () => {
 
       const result = await ask([
         {
-          type: 'multiselect', name: 'picks', message: 'choose', min: 1,
+          type: 'multiselect',
+          name: 'picks',
+          message: 'choose',
+          min: 1,
           choices: [
             { title: 'A', value: 'a', selected: true },
             { title: 'B', value: 'b' },
@@ -121,7 +133,14 @@ describe('prompter (clif adapter)', () => {
       const onCancel = vi.fn();
 
       const result = await ask(
-        [{ type: 'select', name: 'pick', message: 'choose', choices: [{ title: 'A', value: 'a' }] }],
+        [
+          {
+            type: 'select',
+            name: 'pick',
+            message: 'choose',
+            choices: [{ title: 'A', value: 'a' }],
+          },
+        ],
         { onCancel },
       );
 
@@ -131,9 +150,7 @@ describe('prompter (clif adapter)', () => {
 
     it('rethrows unexpected errors', async () => {
       mockText.mockRejectedValue(new Error('boom'));
-      await expect(
-        ask([{ type: 'text', name: 'n', message: 'x' }]),
-      ).rejects.toThrow('boom');
+      await expect(ask([{ type: 'text', name: 'n', message: 'x' }])).rejects.toThrow('boom');
     });
   });
 
@@ -147,23 +164,35 @@ describe('prompter (clif adapter)', () => {
     });
 
     it('select prompts resolve to the initial-index choice', async () => {
-      const result = await ask([{
-        type: 'select', name: 'pick', message: 'choose', initial: 1,
-        choices: [{ title: 'A', value: 'a' }, { title: 'B', value: 'b' }],
-      }]);
+      const result = await ask([
+        {
+          type: 'select',
+          name: 'pick',
+          message: 'choose',
+          initial: 1,
+          choices: [
+            { title: 'A', value: 'a' },
+            { title: 'B', value: 'b' },
+          ],
+        },
+      ]);
       expect(result).toEqual({ pick: 'b' });
       expect(mockSelect).not.toHaveBeenCalled();
     });
 
     it('multiselect prompts resolve to the pre-selected items', async () => {
-      const result = await ask([{
-        type: 'multiselect', name: 'picks', message: 'choose',
-        choices: [
-          { title: 'A', value: 'a', selected: true },
-          { title: 'B', value: 'b' },
-          { title: 'C', value: 'c', selected: true },
-        ],
-      }]);
+      const result = await ask([
+        {
+          type: 'multiselect',
+          name: 'picks',
+          message: 'choose',
+          choices: [
+            { title: 'A', value: 'a', selected: true },
+            { title: 'B', value: 'b' },
+            { title: 'C', value: 'c', selected: true },
+          ],
+        },
+      ]);
       expect(result).toEqual({ picks: ['a', 'c'] });
       expect(mockMultiselect).not.toHaveBeenCalled();
     });

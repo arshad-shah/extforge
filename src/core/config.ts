@@ -2,18 +2,19 @@
  * ExtForge Configuration
  */
 
-import { loadConfig, objectSource, configFileSource } from '@arshad-shah/config-kit';
-import { loadConfigModule, resolveConfigFile, CONFIG_EXTENSIONS } from './config/loader.js';
-import type { z, ZodError } from 'zod';
-import type { ManifestConfig } from './manifest/index.js';
-import { extForgeConfigSchema } from './config/schema.js';
-import { formatZodError } from './config/format-errors.js';
 import { resolve } from 'node:path';
-import { PluginRunner } from './plugins/runner.js';
-import { presetReact } from './plugins/preset-react.js';
+import { configFileSource, loadConfig, objectSource } from '@arshad-shah/config-kit';
+import type { ZodError, z } from 'zod';
+import { formatZodError } from './config/format-errors.js';
+import { CONFIG_EXTENSIONS, loadConfigModule, resolveConfigFile } from './config/loader.js';
+import { extForgeConfigSchema } from './config/schema.js';
 import { createLogger } from './logger/index.js';
+import type { ManifestConfig } from './manifest/index.js';
+import { presetReact } from './plugins/preset-react.js';
+import { PluginRunner } from './plugins/runner.js';
 
 export type { ExtForgePlugin } from './plugins/types.js';
+
 import type { ExtForgePlugin } from './plugins/types.js';
 
 // ─── Config shape (derived from Zod schema — single source of truth) ─────────
@@ -47,7 +48,7 @@ export async function loadExtForgeConfig(
   // (`EXTFORGE_STRICT_CONFIG=0`) downgrades to a warning for users still
   // migrating; the internal `_strictConfig` override always forces strict.
   const forcedStrict = (overrides as { _strictConfig?: boolean })?._strictConfig === true;
-  const optedOut = process.env['EXTFORGE_STRICT_CONFIG'] === '0' && !forcedStrict;
+  const optedOut = process.env.EXTFORGE_STRICT_CONFIG === '0' && !forcedStrict;
 
   // Resolved only so a validation error can cite the file; config-kit's
   // configFileSource does its own discovery for loading.
@@ -65,7 +66,8 @@ export async function loadExtForgeConfig(
     // debug-level detail for ExtForge, so it only shows under --verbose.
     info: (m: string, c?: Record<string, unknown>) => log.debug(m, c),
     warn: (m: string, c?: Record<string, unknown>) => log.warn(m, c),
-    error: (m: string | Error, c?: Record<string, unknown>) => log.error(m instanceof Error ? m.message : m, c),
+    error: (m: string | Error, c?: Record<string, unknown>) =>
+      log.error(m instanceof Error ? m.message : m, c),
   };
 
   // config-kit owns discovery, deep-merge (defaults < file < overrides), and

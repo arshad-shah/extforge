@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { HMR_STRATEGY, type HMRStrategy } from '../src/core/hmr/strategy.js';
 
 describe('HMR_STRATEGY', () => {

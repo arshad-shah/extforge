@@ -1,5 +1,5 @@
 // src/core/testing/fakes/storage.ts
-import { spy, type Spy } from '../internal/spy.js';
+import { type Spy, spy } from '../internal/spy.js';
 
 export interface StorageAreaFake {
   get: Spy<(keys?: string | string[] | null) => Promise<Record<string, unknown>>>;
@@ -11,8 +11,8 @@ export interface StorageAreaFake {
 
 export interface StorageFake {
   readonly chrome: {
-    local:   StorageAreaFake;
-    sync:    StorageAreaFake;
+    local: StorageAreaFake;
+    sync: StorageAreaFake;
     session: StorageAreaFake;
   };
   reset(): void;
@@ -34,22 +34,30 @@ function createArea(): StorageAreaFake {
     const list = Array.isArray(keys) ? keys : [keys];
     for (const k of list) delete state[k];
   });
-  const clear = spy(async () => { state = {}; });
+  const clear = spy(async () => {
+    state = {};
+  });
   const area: StorageAreaFake = {
-    get, set, remove, clear,
+    get,
+    set,
+    remove,
+    clear,
     __state: () => ({ ...state }),
   };
   // attach a private reset that wipes state and call records
   (area as any).__reset = () => {
     state = {};
-    get.reset(); set.reset(); remove.reset(); clear.reset();
+    get.reset();
+    set.reset();
+    remove.reset();
+    clear.reset();
   };
   return area;
 }
 
 export function createStorageFake(): StorageFake {
-  const local   = createArea();
-  const sync    = createArea();
+  const local = createArea();
+  const sync = createArea();
   const session = createArea();
   return {
     chrome: { local, sync, session },

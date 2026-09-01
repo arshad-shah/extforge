@@ -10,10 +10,10 @@
  * rc-file merging. Those are not used by ExtForge.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync } from 'node:fs';
-import { join, resolve, isAbsolute, sep } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { isAbsolute, join, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
 import { ExtForgeError } from '../errors/index.js';
 
@@ -64,7 +64,12 @@ function compileTsConfig(file: string, cwd: string): { tmpDir: string; outFile: 
     });
   } catch (err) {
     rmSync(tmpDir, { recursive: true, force: true });
-    const e = err as { errors?: Array<{ text?: string; location?: { file?: string; line?: number; column?: number } }> };
+    const e = err as {
+      errors?: Array<{
+        text?: string;
+        location?: { file?: string; line?: number; column?: number };
+      }>;
+    };
     const e0 = e?.errors?.[0];
     throw new ExtForgeError({
       code: 'EXT_CONFIG_INVALID',
@@ -97,7 +102,7 @@ function isPackageEsm(cwd: string): boolean {
 async function importEsm(file: string): Promise<unknown> {
   // Cache-bust to force reload across test runs that mutate the same temp file
   // path. The host process keeps a module cache by URL.
-  const url = pathToFileURL(file).href + `?t=${Date.now()}`;
+  const url = `${pathToFileURL(file).href}?t=${Date.now()}`;
   return await import(url);
 }
 

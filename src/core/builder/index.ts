@@ -2,28 +2,46 @@
  * ExtForge Builder — esbuild pipeline
  */
 
-import * as esbuild from 'esbuild';
 import {
-  copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
-  statSync, writeFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
 } from 'node:fs';
-import { join, resolve, dirname, isAbsolute, relative } from 'node:path';
-import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
-import { type Browser, ALL_BROWSERS, generateManifest, applyInjectedDefaults } from '../manifest/index.js';
-import { validateProject } from '../validator/index.js';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import * as esbuild from 'esbuild';
+import { type CompatIssue, checkSourceCompat } from '../compat/index.js';
 import type { ExtForgeConfig } from '../config.js';
+import { type CSUIDiscovery, discoverCSUI } from '../csui/discovery.js';
+import { loadEnv, publicEnvToDefine } from '../env/index.js';
 import { ExtForgeError } from '../errors/index.js';
-import { ESBUILD_TARGETS, ESBUILD_LOADERS, ENTRY_SCANS, HTML_DIRS, ICON_SIZES, INJECTED_DIR } from './constants.js';
-import { loadTemplate } from '../scaffold/template-loader.js';
+import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
 import { loadTemplateRaw as loadHmrTemplateRaw } from '../hmr/template-loader.js';
-import { checkSourceCompat, type CompatIssue } from '../compat/index.js';
+import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
+import {
+  ALL_BROWSERS,
+  applyInjectedDefaults,
+  type Browser,
+  generateManifest,
+} from '../manifest/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
-import { resolveCssProcessor, processStylesheet, type CssTransformContext } from './css.js';
-import { loadEnv, publicEnvToDefine } from '../env/index.js';
-import { discoverCSUI, type CSUIDiscovery } from '../csui/discovery.js';
-import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
+import { loadTemplate } from '../scaffold/template-loader.js';
 import { walkSources } from '../util/walk-sources.js';
+import { validateProject } from '../validator/index.js';
+import {
+  ENTRY_SCANS,
+  ESBUILD_LOADERS,
+  ESBUILD_TARGETS,
+  HTML_DIRS,
+  ICON_SIZES,
+  INJECTED_DIR,
+} from './constants.js';
+import { type CssTransformContext, processStylesheet, resolveCssProcessor } from './css.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -67,7 +85,7 @@ export function buildContentScriptMap(
   const cs = config.manifest?.contentScripts ?? [];
   const map = new Map<string, number>();
   cs.forEach((entry, idx) => {
-    for (const rel of (entry.js ?? [])) {
+    for (const rel of entry.js ?? []) {
       map.set(resolve(projectRoot, rel), idx);
     }
   });
@@ -89,9 +107,15 @@ function discoverEntryPoints(srcDir: string): Record<string, string> {
   for (const { subPath, outputKey } of ENTRY_SCANS) {
     for (const ext of ['.ts', '.tsx']) {
       const direct = join(srcDir, subPath + ext);
-      const index = join(srcDir, subPath, 'index' + ext);
-      if (existsSync(direct)) { entries[outputKey] = direct; break; }
-      if (existsSync(index))  { entries[outputKey] = index; break; }
+      const index = join(srcDir, subPath, `index${ext}`);
+      if (existsSync(direct)) {
+        entries[outputKey] = direct;
+        break;
+      }
+      if (existsSync(index)) {
+        entries[outputKey] = index;
+        break;
+      }
     }
   }
   return entries;
@@ -100,12 +124,14 @@ function discoverEntryPoints(srcDir: string): Record<string, string> {
 export function discoverInjectedEntries(srcDir: string, log: Logger): Record<string, string> {
   const entries: Record<string, string> = {};
   const dir = join(srcDir, INJECTED_DIR);
-  const looseTs  = join(srcDir, 'injected.ts');
+  const looseTs = join(srcDir, 'injected.ts');
   const looseTsx = join(srcDir, 'injected.tsx');
 
   if (existsSync(dir) && statSync(dir).isDirectory()) {
     if (existsSync(looseTs) || existsSync(looseTsx)) {
-      log.warn('Both src/injected/ and src/injected.ts(x) exist; using directory mode and ignoring the loose file.');
+      log.warn(
+        'Both src/injected/ and src/injected.ts(x) exist; using directory mode and ignoring the loose file.',
+      );
     }
     for (const e of readdirSync(dir, { withFileTypes: true })) {
       if (!e.isFile()) continue;
@@ -116,8 +142,14 @@ export function discoverInjectedEntries(srcDir: string, log: Logger): Record<str
     return entries;
   }
 
-  if (existsSync(looseTs))  { entries['injected'] = looseTs;  return entries; }
-  if (existsSync(looseTsx)) { entries['injected'] = looseTsx; return entries; }
+  if (existsSync(looseTs)) {
+    entries.injected = looseTs;
+    return entries;
+  }
+  if (existsSync(looseTsx)) {
+    entries.injected = looseTsx;
+    return entries;
+  }
   return entries;
 }
 
@@ -176,8 +208,10 @@ function copyPublic(root: string, outDir: string, log: Logger): void {
   const walk = (src: string, dest: string) => {
     mkdirSync(dest, { recursive: true });
     for (const e of readdirSync(src, { withFileTypes: true })) {
-      const s = join(src, e.name), d = join(dest, e.name);
-      if (e.isDirectory()) walk(s, d); else copyFileSync(s, d);
+      const s = join(src, e.name),
+        d = join(dest, e.name);
+      if (e.isDirectory()) walk(s, d);
+      else copyFileSync(s, d);
     }
   };
   walk(pub, outDir);
@@ -197,7 +231,7 @@ function augmentManifestWithCSUI(
   log: Logger,
 ): void {
   if (discoveries.length === 0) return;
-  const existing = (manifest['content_scripts'] as Array<Record<string, unknown>> | undefined) ?? [];
+  const existing = (manifest.content_scripts as Array<Record<string, unknown>> | undefined) ?? [];
   const merged = [...existing];
 
   // Index already-declared JS files so we don't re-emit a manifest entry for
@@ -211,7 +245,9 @@ function augmentManifestWithCSUI(
 
   for (const c of discoveries) {
     if (!c.matches || c.matches.length === 0) {
-      log.warn(`[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`);
+      log.warn(
+        `[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`,
+      );
       continue;
     }
     if (declaredJs.has(c.outputJsPath)) continue; // already declared by user
@@ -222,7 +258,7 @@ function augmentManifestWithCSUI(
     });
     declaredJs.add(c.outputJsPath);
   }
-  if (merged.length > 0) manifest['content_scripts'] = merged;
+  if (merged.length > 0) manifest.content_scripts = merged;
 }
 
 function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
@@ -245,8 +281,21 @@ function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
 
 // ─── Build config factory ────────────────────────────────────────────────────
 
-function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuild.BuildOptions,
-  'bundle' | 'platform' | 'target' | 'sourcemap' | 'minify' | 'define' | 'alias' | 'loader' | 'logLevel' | 'metafile'
+function makeSharedEsbuildOptions(
+  root: string,
+  opts: BuildOptions,
+): Pick<
+  esbuild.BuildOptions,
+  | 'bundle'
+  | 'platform'
+  | 'target'
+  | 'sourcemap'
+  | 'minify'
+  | 'define'
+  | 'alias'
+  | 'loader'
+  | 'logLevel'
+  | 'metafile'
 > {
   const mode = opts.dev ? 'development' : 'production';
   const { publicEnv } = loadEnv({ cwd: root, mode });
@@ -260,8 +309,8 @@ function makeSharedEsbuildOptions(root: string, opts: BuildOptions): Pick<esbuil
     define: {
       'process.env.NODE_ENV': opts.dev ? '"development"' : '"production"',
       'process.env.BROWSER': `"${opts.browser}"`,
-      '__DEV__': String(opts.dev),
-      '__BROWSER__': `"${opts.browser}"`,
+      __DEV__: String(opts.dev),
+      __BROWSER__: `"${opts.browser}"`,
       ...envDefine,
     },
     alias: { '@': resolve(root, 'src') },
@@ -302,16 +351,19 @@ async function runEntryHook(
   return next.esbuildOptions ?? baseOptions;
 }
 
-function makeBuildConfig(root: string, opts: BuildOptions, entries: Record<string, string>, config?: ExtForgeConfig): esbuild.BuildOptions {
+function makeBuildConfig(
+  root: string,
+  opts: BuildOptions,
+  entries: Record<string, string>,
+  config?: ExtForgeConfig,
+): esbuild.BuildOptions {
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const banner = makeHMRBanner(opts);
   // React Fast Refresh: opt-in. Active only when (1) dev mode, (2) framework
   // is react in the user's config, and (3) @swc/core is installed (the plugin
   // self-disables otherwise).
   const useRefresh = Boolean(opts.dev && config?.framework === 'react');
-  const plugins: esbuild.Plugin[] = useRefresh
-    ? [refreshPlugin({ enabled: true })]
-    : [];
+  const plugins: esbuild.Plugin[] = useRefresh ? [refreshPlugin({ enabled: true })] : [];
   return {
     ...makeSharedEsbuildOptions(root, opts),
     entryPoints: entries,
@@ -340,7 +392,8 @@ function throwAsBuildError(err: unknown, prefix?: string): never {
     // can fix them in a single pass. The first error stays in the
     // ExtForgeError fields so editors that linkify file:line still jump
     // to the most informative one.
-    const extras = e.errors.slice(1)
+    const extras = e.errors
+      .slice(1)
       .map((er) => {
         const loc = er.location
           ? ` (${er.location.file ?? '?'}:${er.location.line ?? '?'}:${er.location.column ?? '?'})`
@@ -349,9 +402,7 @@ function throwAsBuildError(err: unknown, prefix?: string): never {
       })
       .join('\n');
     const base = prefix ? `${prefix}: ${e0.text ?? 'Build failed'}` : (e0.text ?? 'Build failed');
-    const message = extras
-      ? `${base}\n${e.errors.length} error(s) total:\n${extras}`
-      : base;
+    const message = extras ? `${base}\n${e.errors.length} error(s) total:\n${extras}` : base;
     throw new ExtForgeError({
       code: 'EXT_BUILD_FAILED',
       message,
@@ -368,7 +419,10 @@ function throwAsBuildError(err: unknown, prefix?: string): never {
 // ─── Build ───────────────────────────────────────────────────────────────────
 
 export async function build(
-  root: string, config: ExtForgeConfig, opts: BuildOptions, logger?: Logger,
+  root: string,
+  config: ExtForgeConfig,
+  opts: BuildOptions,
+  logger?: Logger,
 ): Promise<BuildResult> {
   const log = (logger ?? createLogger({ scope: 'builder' })).child(opts.browser);
   const start = performance.now();
@@ -419,7 +473,9 @@ export async function build(
   // ─── Compat scan ─────────────────────────────────────────────────────────────
   // Skipped when called from buildAll, which runs the scan once for all browsers.
   if (!opts._skipCompatScan) {
-    const compatBrowsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
+    const compatBrowsers = (config.browsers ?? ['chrome']) as Array<
+      'chrome' | 'firefox' | 'edge' | 'safari'
+    >;
     // Walk the configured src directory so chrome.* calls in helper modules
     // imported by entries are inspected too, not just the entry files
     // themselves. The walker keeps a sane cap to avoid pathological repos.
@@ -430,12 +486,16 @@ export async function build(
       try {
         const src = readFileSync(file, 'utf8');
         allIssues.push(...checkSourceCompat({ source: src, file, browsers: compatBrowsers }));
-      } catch { /* ignore unreadable files */ }
+      } catch {
+        /* ignore unreadable files */
+      }
     }
     if (allIssues.length > 0) {
       log.warn(`[compat] ${allIssues.length} cross-browser issue(s) found:`);
       for (const i of allIssues) {
-        log.warn(`  ${i.file}:${i.line}:${i.column}  ${i.api}  unsupported in: ${i.unsupported.join(', ')}`);
+        log.warn(
+          `  ${i.file}:${i.line}:${i.column}  ${i.api}  unsupported in: ${i.unsupported.join(', ')}`,
+        );
       }
       if (opts.strictCompat) {
         throw new ExtForgeError({
@@ -458,8 +518,11 @@ export async function build(
       Object.assign(mergedEntryOptions, returned);
     }
     const finalEsmConfig = { ...baseEsmConfig, ...mergedEntryOptions };
-    try { result = await esbuild.build(finalEsmConfig as esbuild.BuildOptions); }
-    catch (err) { throwAsBuildError(err); }
+    try {
+      result = await esbuild.build(finalEsmConfig as esbuild.BuildOptions);
+    } catch (err) {
+      throwAsBuildError(err);
+    }
   }
 
   // ─── IIFE pass (content + injected) ────────────────────────────────────────
@@ -483,19 +546,10 @@ export async function build(
     // scriptId banner (dev only). Production builds get no banner.
     for (const [key, absPath] of Object.entries(csEntries)) {
       const scriptId = csMap.get(absPath)!;
-      const csBanner = opts.dev
-        ? `globalThis.__EXTFORGE_SCRIPT_ID__ = ${scriptId};\n`
-        : undefined;
+      const csBanner = opts.dev ? `globalThis.__EXTFORGE_SCRIPT_ID__ = ${scriptId};\n` : undefined;
       const hmrBanner = makeHMRBanner(opts);
       const bannerJs = [csBanner, hmrBanner?.js].filter(Boolean).join('');
-      const entryOpts = await runEntryHook(
-        { ...sharedOpts },
-        key,
-        absPath,
-        'iife',
-        true,
-        runner,
-      );
+      const entryOpts = await runEntryHook({ ...sharedOpts }, key, absPath, 'iife', true, runner);
       try {
         await esbuild.build({
           ...entryOpts,
@@ -505,7 +559,9 @@ export async function build(
           splitting: false,
           ...(bannerJs ? { banner: { js: bannerJs } } : {}),
         } as esbuild.BuildOptions);
-      } catch (err) { throwAsBuildError(err, `IIFE build failed for content script (${key})`); }
+      } catch (err) {
+        throwAsBuildError(err, `IIFE build failed for content script (${key})`);
+      }
     }
 
     // Build remaining IIFE entries (injected scripts) in a single pass.
@@ -526,7 +582,9 @@ export async function build(
           splitting: false,
           ...(hmrBanner ? { banner: hmrBanner } : {}),
         } as esbuild.BuildOptions);
-      } catch (err) { throwAsBuildError(err, 'IIFE build failed'); }
+      } catch (err) {
+        throwAsBuildError(err, 'IIFE build failed');
+      }
     }
   }
 
@@ -539,11 +597,21 @@ export async function build(
     ? (ctx: CssTransformContext): Promise<string> => runner.fireCssTransform(ctx)
     : undefined;
   for (const rel of ['styles/globals.css', 'styles/content.css']) {
-    await processStylesheet(join(srcDir, rel), join(outDir, rel), cssProcessor, cssPluginChain, cssBase, log);
+    await processStylesheet(
+      join(srcDir, rel),
+      join(outDir, rel),
+      cssProcessor,
+      cssPluginChain,
+      cssBase,
+      log,
+    );
   }
 
   if (config.manifest) {
-    let manifest: ManifestObject = generateManifest(config.manifest, opts.browser) as ManifestObject;
+    let manifest: ManifestObject = generateManifest(
+      config.manifest,
+      opts.browser,
+    ) as ManifestObject;
     applyInjectedDefaults(manifest as Record<string, unknown>, config.manifest, injectedEntries);
     augmentManifestWithCSUI(manifest as Record<string, unknown>, csuiEntries, log);
     if (runner) manifest = await runner.fireManifestTransform(manifest, opts.browser);
@@ -570,28 +638,40 @@ export async function build(
 
   const files: Array<{ path: string; size: number }> = [];
   if (result?.metafile) {
-    for (const [p, m] of Object.entries(result.metafile.outputs)) files.push({ path: p, size: m.bytes });
+    for (const [p, m] of Object.entries(result.metafile.outputs))
+      files.push({ path: p, size: m.bytes });
   }
 
   const duration = performance.now() - start;
   const total = files.reduce((s, f) => s + f.size, 0);
-  log.success(`Built ${opts.browser} → ${outDir} (${files.length} files, ${formatFileSize(total)}) in ${formatDuration(duration)}`);
+  log.success(
+    `Built ${opts.browser} → ${outDir} (${files.length} files, ${formatFileSize(total)}) in ${formatDuration(duration)}`,
+  );
   const buildResult: BuildResult = { browser: opts.browser, outDir, duration, files, errors };
   await runner?.fireBuildEnd(buildResult);
   return buildResult;
 }
 
 export async function buildAll(
-  root: string, config: ExtForgeConfig, opts: Omit<BuildOptions, 'browser'>, logger?: Logger,
+  root: string,
+  config: ExtForgeConfig,
+  opts: Omit<BuildOptions, 'browser'>,
+  logger?: Logger,
 ): Promise<BuildResult[]> {
   const log = logger ?? createLogger({ scope: 'builder' });
   const browsers = config.browsers ?? ALL_BROWSERS;
 
-  log.banner('ExtForge Build', [`Browsers: ${browsers.join(', ')}`, `Mode: ${opts.dev ? 'development' : 'production'}`]);
+  log.banner('ExtForge Build', [
+    `Browsers: ${browsers.join(', ')}`,
+    `Mode: ${opts.dev ? 'development' : 'production'}`,
+  ]);
   log.time('total-build');
 
   const validation = validateProject(root, log.child('validate'));
-  if (!validation.valid) { log.error('Fix errors above before building'); return []; }
+  if (!validation.valid) {
+    log.error('Fix errors above before building');
+    return [];
+  }
 
   // ─── One-time compat scan across all browsers ───────────────────────────────
   // Run once here so individual browser builds don't each re-read and re-scan
@@ -602,20 +682,31 @@ export async function buildAll(
     const injectedEntries = discoverInjectedEntries(srcDir, log.child('compat'));
     const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
     const allEntryFiles = [...Object.values(esmEntries), ...Object.values(iifeEntries)];
-    const compatBrowsers = (config.browsers ?? ['chrome']) as Array<'chrome' | 'firefox' | 'edge' | 'safari'>;
+    const compatBrowsers = (config.browsers ?? ['chrome']) as Array<
+      'chrome' | 'firefox' | 'edge' | 'safari'
+    >;
     const allIssues: CompatIssue[] = [];
     const fileCache = new Map<string, string>();
     for (const entryFile of allEntryFiles) {
       try {
         let src = fileCache.get(entryFile);
-        if (src === undefined) { src = readFileSync(entryFile, 'utf8'); fileCache.set(entryFile, src); }
-        allIssues.push(...checkSourceCompat({ source: src, file: entryFile, browsers: compatBrowsers }));
-      } catch { /* ignore unreadable files */ }
+        if (src === undefined) {
+          src = readFileSync(entryFile, 'utf8');
+          fileCache.set(entryFile, src);
+        }
+        allIssues.push(
+          ...checkSourceCompat({ source: src, file: entryFile, browsers: compatBrowsers }),
+        );
+      } catch {
+        /* ignore unreadable files */
+      }
     }
     if (allIssues.length > 0) {
       log.warn(`[compat] ${allIssues.length} cross-browser issue(s) found:`);
       for (const i of allIssues) {
-        log.warn(`  ${i.file}:${i.line}:${i.column}  ${i.api}  unsupported in: ${i.unsupported.join(', ')}`);
+        log.warn(
+          `  ${i.file}:${i.line}:${i.column}  ${i.api}  unsupported in: ${i.unsupported.join(', ')}`,
+        );
       }
       if (opts.strictCompat) {
         throw new ExtForgeError({
@@ -628,26 +719,35 @@ export async function buildAll(
   }
 
   const results: BuildResult[] = [];
-  for (const browser of browsers) results.push(await build(root, config, { ...opts, browser, _skipCompatScan: true } as BuildOptions, log));
+  for (const browser of browsers)
+    results.push(
+      await build(root, config, { ...opts, browser, _skipCompatScan: true } as BuildOptions, log),
+    );
 
   log.timeEnd('total-build', 'Total build time');
   const totalErrors = results.reduce((s, r) => s + r.errors.length, 0);
   if (totalErrors > 0) log.error(`Build completed with ${totalErrors} error(s)`);
   else log.success(`All ${browsers.length} browser builds completed`);
 
-  log.summary('Build complete', results.map(r => {
-    const { fileCount, totalBytes } = summarizeDir(r.outDir);
-    return {
-      label: r.browser,
-      value: `${r.outDir}  (${fileCount} files, ${formatFileSize(totalBytes)})`,
-    };
-  }));
+  log.summary(
+    'Build complete',
+    results.map((r) => {
+      const { fileCount, totalBytes } = summarizeDir(r.outDir);
+      return {
+        label: r.browser,
+        value: `${r.outDir}  (${fileCount} files, ${formatFileSize(totalBytes)})`,
+      };
+    }),
+  );
 
   return results;
 }
 
 export async function createBuildContext(
-  root: string, config: ExtForgeConfig, opts: BuildOptions, logger?: Logger,
+  root: string,
+  config: ExtForgeConfig,
+  opts: BuildOptions,
+  logger?: Logger,
 ): Promise<esbuild.BuildContext> {
   const log = logger ?? createLogger({ scope: 'builder' });
   const srcDir = join(root, 'src');
@@ -657,14 +757,21 @@ export async function createBuildContext(
 
   return esbuild.context({
     ...cfg,
-    plugins: [...(cfg.plugins ?? []), {
-      name: 'extforge-rebuild-notify',
-      setup(build) {
-        build.onEnd((result) => {
-          if (result.errors.length > 0) log.error(`Rebuild failed with ${result.errors.length} error(s)`);
-          else log.success(`Rebuilt ${opts.browser} (${result.metafile ? Object.keys(result.metafile.outputs).length : '?'} files)`);
-        });
+    plugins: [
+      ...(cfg.plugins ?? []),
+      {
+        name: 'extforge-rebuild-notify',
+        setup(build) {
+          build.onEnd((result) => {
+            if (result.errors.length > 0)
+              log.error(`Rebuild failed with ${result.errors.length} error(s)`);
+            else
+              log.success(
+                `Rebuilt ${opts.browser} (${result.metafile ? Object.keys(result.metafile.outputs).length : '?'} files)`,
+              );
+          });
+        },
       },
-    }],
+    ],
   });
 }

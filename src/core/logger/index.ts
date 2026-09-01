@@ -5,11 +5,13 @@
  * Constants live at the top of this file for easy editing.
  */
 
-import pc from './ansi.js';
 import {
-  box, indent, keyValue, stripAnsi,
-  formatDuration as clifFormatDuration,
+  box,
   formatBytes as clifFormatBytes,
+  formatDuration as clifFormatDuration,
+  indent,
+  keyValue,
+  stripAnsi,
 } from '@arshad-shah/clif';
 import {
   createLogger as createLkLogger,
@@ -18,6 +20,7 @@ import {
   type LogRecord as LkLogRecord,
   type Transport as LkTransport,
 } from '@arshad-shah/log-kit';
+import pc from './ansi.js';
 
 // ─── Log Levels (co-located constant) ────────────────────────────────────────
 
@@ -26,7 +29,7 @@ export enum LogLevel {
   Error = 1,
   Warn = 2,
   Info = 3,
-  // eslint-disable-next-line @typescript-eslint/no-duplicate-enum-values
+  // biome-ignore lint/suspicious/noDuplicateEnumValues: aliases are intentional.
   Success = 3, // alias for Info — success messages share the Info threshold
   Debug = 4,
   Trace = 5,
@@ -36,26 +39,26 @@ export enum LogLevel {
 // Edit icons/colors here — they render in all log output.
 
 const BADGES: Record<string, { icon: string; color: (s: string) => string }> = {
-  error:   { icon: '✖', color: pc.red },
-  warn:    { icon: '⚠', color: pc.yellow },
-  info:    { icon: '●', color: pc.blue },
+  error: { icon: '✖', color: pc.red },
+  warn: { icon: '⚠', color: pc.yellow },
+  info: { icon: '●', color: pc.blue },
   success: { icon: '✔', color: pc.green },
-  debug:   { icon: '◆', color: pc.magenta },
-  trace:   { icon: '◇', color: pc.gray },
-  time:    { icon: '⏱', color: pc.cyan },
-  build:   { icon: '⚡', color: pc.yellow },
-  hmr:     { icon: '🔥', color: pc.red },
-  watch:   { icon: '👁', color: pc.blue },
+  debug: { icon: '◆', color: pc.magenta },
+  trace: { icon: '◇', color: pc.gray },
+  time: { icon: '⏱', color: pc.cyan },
+  build: { icon: '⚡', color: pc.yellow },
+  hmr: { icon: '🔥', color: pc.red },
+  watch: { icon: '👁', color: pc.blue },
 };
 
 // ─── HMR type colors (co-located constant) ───────────────────────────────────
 
 const HMR_TYPE_COLORS: Record<string, (s: string) => string> = {
-  css:           pc.magenta,
-  js:            pc.yellow,
+  css: pc.magenta,
+  js: pc.yellow,
   'full-reload': pc.red,
-  manifest:      pc.cyan,
-  assets:        pc.green,
+  manifest: pc.cyan,
+  assets: pc.green,
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -100,9 +103,7 @@ export function formatFileSize(bytes: number): string {
 
 export function formatPath(filePath: string, cwd?: string): string {
   const base = cwd ?? process.cwd();
-  const relative = filePath.startsWith(base)
-    ? filePath.slice(base.length + 1)
-    : filePath;
+  const relative = filePath.startsWith(base) ? filePath.slice(base.length + 1) : filePath;
   return tint(pc.cyan, relative);
 }
 
@@ -110,11 +111,16 @@ export function formatPath(filePath: string, cwd?: string): string {
 
 function badgeForLevel(level: LogLevel) {
   switch (level) {
-    case LogLevel.Error:   return BADGES.error;
-    case LogLevel.Warn:    return BADGES.warn;
-    case LogLevel.Debug:   return BADGES.debug;
-    case LogLevel.Trace:   return BADGES.trace;
-    default:               return BADGES.info;
+    case LogLevel.Error:
+      return BADGES.error;
+    case LogLevel.Warn:
+      return BADGES.warn;
+    case LogLevel.Debug:
+      return BADGES.debug;
+    case LogLevel.Trace:
+      return BADGES.trace;
+    default:
+      return BADGES.info;
   }
 }
 
@@ -133,13 +139,14 @@ const consoleTransport: LogTransport = (entry: LogEntry) => {
   }
 
   const stream = entry.level <= LogLevel.Warn ? process.stderr : process.stdout;
-  stream.write(parts.join(' ') + '\n');
+  stream.write(`${parts.join(' ')}\n`);
 
   for (const arg of entry.args) {
-    const text = typeof arg === 'object'
-      ? '  ' + JSON.stringify(arg, null, 2).split('\n').join('\n  ')
-      : '  ' + String(arg);
-    stream.write(text + '\n');
+    const text =
+      typeof arg === 'object'
+        ? `  ${JSON.stringify(arg, null, 2).split('\n').join('\n  ')}`
+        : `  ${String(arg)}`;
+    stream.write(`${text}\n`);
   }
 };
 
@@ -158,22 +165,32 @@ const consoleTransport: LogTransport = (entry: LogEntry) => {
 
 function efLevelToLk(level: LogLevel): LkLogLevel {
   switch (level) {
-    case LogLevel.Error: return 'error';
-    case LogLevel.Warn:  return 'warn';
-    case LogLevel.Debug: return 'debug';
-    case LogLevel.Trace: return 'trace';
-    default:             return 'info'; // Info / Success share the Info threshold
+    case LogLevel.Error:
+      return 'error';
+    case LogLevel.Warn:
+      return 'warn';
+    case LogLevel.Debug:
+      return 'debug';
+    case LogLevel.Trace:
+      return 'trace';
+    default:
+      return 'info'; // Info / Success share the Info threshold
   }
 }
 
 function lkLevelToEf(level: LkLogLevel): LogLevel {
   switch (level) {
     case 'error':
-    case 'fatal': return LogLevel.Error;
-    case 'warn':  return LogLevel.Warn;
-    case 'debug': return LogLevel.Debug;
-    case 'trace': return LogLevel.Trace;
-    default:      return LogLevel.Info;
+    case 'fatal':
+      return LogLevel.Error;
+    case 'warn':
+      return LogLevel.Warn;
+    case 'debug':
+      return LogLevel.Debug;
+    case 'trace':
+      return LogLevel.Trace;
+    default:
+      return LogLevel.Info;
   }
 }
 
@@ -185,7 +202,8 @@ function recordToEntry(record: LkLogRecord): LogEntry {
     scope: record.scope ?? '',
     message: record.message,
     args: record.args ?? [],
-    timestamp: typeof record.timestamp === 'number' ? record.timestamp : Date.parse(record.timestamp),
+    timestamp:
+      typeof record.timestamp === 'number' ? record.timestamp : Date.parse(record.timestamp),
     duration: (record.meta as { duration?: number } | undefined)?.duration,
   };
 }
@@ -193,7 +211,9 @@ function recordToEntry(record: LkLogRecord): LogEntry {
 function toLkTransport(t: LogTransport, index: number): LkTransport {
   return {
     name: `extforge:${index}`,
-    write(record) { t(recordToEntry(record)); },
+    write(record) {
+      t(recordToEntry(record));
+    },
   };
 }
 
@@ -245,8 +265,12 @@ export class Logger {
     });
   }
 
-  setLevel(level: LogLevel): void { this.level = level; }
-  getLevel(): LogLevel { return this.level; }
+  setLevel(level: LogLevel): void {
+    this.level = level;
+  }
+  getLevel(): LogLevel {
+    return this.level;
+  }
 
   child(scope: string, overrides?: Partial<LoggerOptions>): Logger {
     return new Logger({
@@ -259,21 +283,41 @@ export class Logger {
 
   private emit(level: LogLevel, message: string, args: unknown[], duration?: number): void {
     if (level > this.level) return;
-    const entry: LogEntry = { level, scope: this.scope, message, args, timestamp: Date.now(), duration };
+    const entry: LogEntry = {
+      level,
+      scope: this.scope,
+      message,
+      args,
+      timestamp: Date.now(),
+      duration,
+    };
     this.dispatch(entry);
   }
 
-  error(msg: string, ...args: unknown[]) { this.emit(LogLevel.Error, tint(pc.red, msg), args); }
-  warn(msg: string, ...args: unknown[])  { this.emit(LogLevel.Warn, tint(pc.yellow, msg), args); }
-  info(msg: string, ...args: unknown[])  { this.emit(LogLevel.Info, msg, args); }
-  debug(msg: string, ...args: unknown[]) { this.emit(LogLevel.Debug, tint(pc.dim, msg), args); }
-  trace(msg: string, ...args: unknown[]) { this.emit(LogLevel.Trace, tint(pc.gray, msg), args); }
+  error(msg: string, ...args: unknown[]) {
+    this.emit(LogLevel.Error, tint(pc.red, msg), args);
+  }
+  warn(msg: string, ...args: unknown[]) {
+    this.emit(LogLevel.Warn, tint(pc.yellow, msg), args);
+  }
+  info(msg: string, ...args: unknown[]) {
+    this.emit(LogLevel.Info, msg, args);
+  }
+  debug(msg: string, ...args: unknown[]) {
+    this.emit(LogLevel.Debug, tint(pc.dim, msg), args);
+  }
+  trace(msg: string, ...args: unknown[]) {
+    this.emit(LogLevel.Trace, tint(pc.gray, msg), args);
+  }
 
   success(msg: string, ...args: unknown[]) {
     if (LogLevel.Success > this.level) return;
     const entry: LogEntry = {
-      level: LogLevel.Success, scope: this.scope,
-      message: tint(pc.green, msg), args, timestamp: Date.now(),
+      level: LogLevel.Success,
+      scope: this.scope,
+      message: tint(pc.green, msg),
+      args,
+      timestamp: Date.now(),
     };
     this.dispatch(entry);
   }
@@ -287,13 +331,20 @@ export class Logger {
 
   timeEnd(label: string, message?: string): number {
     const start = this.timers.get(label);
-    if (start === undefined) { this.warn(`Timer "${label}" does not exist`); return 0; }
+    if (start === undefined) {
+      this.warn(`Timer "${label}" does not exist`);
+      return 0;
+    }
     const duration = performance.now() - start;
     this.timers.delete(label);
     if (LogLevel.Info <= this.level) {
       const entry: LogEntry = {
-        level: LogLevel.Info, scope: this.scope,
-        message: message ?? label, args: [], timestamp: Date.now(), duration,
+        level: LogLevel.Info,
+        scope: this.scope,
+        message: message ?? label,
+        args: [],
+        timestamp: Date.now(),
+        duration,
       };
       this.dispatch(entry);
     }
@@ -304,14 +355,20 @@ export class Logger {
 
   file(path: string, sizeBytes: number, action: 'built' | 'changed' | 'deleted' = 'built'): void {
     const colors = { built: pc.green, changed: pc.yellow, deleted: pc.red };
-    const icons  = { built: '📦', changed: '📝', deleted: '🗑️' };
-    this.info(`${icons[action]} ${formatPath(path)} ${tint(colors[action], action)} ${tint(pc.dim, formatFileSize(sizeBytes))}`);
+    const icons = { built: '📦', changed: '📝', deleted: '🗑️' };
+    this.info(
+      `${icons[action]} ${formatPath(path)} ${tint(colors[action], action)} ${tint(pc.dim, formatFileSize(sizeBytes))}`,
+    );
   }
 
   hmr(files: string[], type: string): void {
     const colorFn = HMR_TYPE_COLORS[type] ?? pc.white;
-    const fileList = files.map(f => formatPath(f)).join(', ');
-    this.emit(LogLevel.Info, `${tint(BADGES.hmr.color, BADGES.hmr.icon)} ${tint(colorFn, type)} ${fileList}`, []);
+    const fileList = files.map((f) => formatPath(f)).join(', ');
+    this.emit(
+      LogLevel.Info,
+      `${tint(BADGES.hmr.color, BADGES.hmr.icon)} ${tint(colorFn, type)} ${fileList}`,
+      [],
+    );
   }
 
   group<T>(title: string, fn: () => T): T;
@@ -340,7 +397,7 @@ export class Logger {
     this.emit(LogLevel.Info, tint(pc.bold, title), []);
     // clif's `keyValue` owns the column alignment and key coloring; we split it
     // back into lines so each row stays a badged log entry on its own.
-    const data = Object.fromEntries(rows.map(r => [r.label, r.value]));
+    const data = Object.fromEntries(rows.map((r) => [r.label, r.value]));
     for (const line of keyValue(data, { indent: 2, keyColor: pc.dim }).split('\n')) {
       this.emit(LogLevel.Info, line, []);
     }
@@ -349,9 +406,10 @@ export class Logger {
   banner(title: string, lines: string[] = []): void {
     if (this.silentHumanOutput) return;
     // clif's `box` owns the framing, padding, width, and color-aware borders.
-    const rendered = lines.length > 0
-      ? box(lines.join('\n'), { title, border: 'round', padding: 1, titleColor: pc.bold })
-      : box(title, { border: 'round', padding: 1 });
+    const rendered =
+      lines.length > 0
+        ? box(lines.join('\n'), { title, border: 'round', padding: 1, titleColor: pc.bold })
+        : box(title, { border: 'round', padding: 1 });
     process.stdout.write(`\n${indent(rendered, 2)}\n\n`);
   }
 
@@ -363,7 +421,7 @@ export class Logger {
    */
   raw(line: string = ''): void {
     if (this.silentHumanOutput) return;
-    process.stdout.write(line + '\n');
+    process.stdout.write(`${line}\n`);
   }
 
   addTransport(t: LogTransport): void {
@@ -425,7 +483,9 @@ function safeStringify(obj: unknown): string {
   }
 }
 
-export function jsonTransport(write: (line: string) => void = (s) => process.stdout.write(s + '\n')): LogTransport {
+export function jsonTransport(
+  write: (line: string) => void = (s) => process.stdout.write(`${s}\n`),
+): LogTransport {
   return (entry) => {
     const obj = {
       v: 1,
@@ -446,8 +506,15 @@ export function jsonTransport(write: (line: string) => void = (s) => process.std
 
 let _root: Logger | undefined;
 
-export function createLogger(opts?: LoggerOptions): Logger { return new Logger(opts); }
-export function getLogger(): Logger { return _root ??= new Logger({ scope: 'extforge' }); }
-export function setRootLogger(logger: Logger): void { _root = logger; }
+export function createLogger(opts?: LoggerOptions): Logger {
+  return new Logger(opts);
+}
+export function getLogger(): Logger {
+  _root ??= new Logger({ scope: 'extforge' });
+  return _root;
+}
+export function setRootLogger(logger: Logger): void {
+  _root = logger;
+}
 
 export { pc as colors };

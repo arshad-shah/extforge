@@ -17,4 +17,10 @@ import { withErrorHandler } from './error-handler.js';
 
 const cli = createCLI(main);
 
-withErrorHandler(() => cli.run({ onError: (err) => { throw err; } }));
+withErrorHandler(() =>
+  cli.run({
+    onError: (err) => {
+      throw err;
+    },
+  }),
+);

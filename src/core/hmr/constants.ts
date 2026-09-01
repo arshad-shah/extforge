@@ -27,12 +27,7 @@ export const DEFAULT_HMR_PORT = 35729;
 export const MAX_PORT_RETRIES = 10;
 
 /** Chokidar ignored globs */
-export const WATCH_IGNORED = [
-  '**/node_modules/**',
-  '**/dist/**',
-  '**/.git/**',
-  '**/.*',
-] as const;
+export const WATCH_IGNORED = ['**/node_modules/**', '**/dist/**', '**/.git/**', '**/.*'] as const;
 
 /**
  * v2 — coarse {type, files, scriptIds} envelope. Server emits this for

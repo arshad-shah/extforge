@@ -33,11 +33,8 @@ function runtimeLog(level: 'warn' | 'error' | 'info', ...args: unknown[]): void 
   const g = globalThis as { __EXTFORGE_HMR_QUIET__?: boolean };
   if (g.__EXTFORGE_HMR_QUIET__) return;
   const prefix = '[extforge:hmr]';
-  // eslint-disable-next-line no-console
   if (level === 'error') console.error(prefix, ...args);
-  // eslint-disable-next-line no-console
-  else if (level === 'warn')  console.warn(prefix, ...args);
-  // eslint-disable-next-line no-console
+  else if (level === 'warn') console.warn(prefix, ...args);
   else console.info(prefix, ...args);
 }
 
@@ -115,7 +112,9 @@ export function createHMRRuntime(): HMRRuntime {
         declined.add(id);
         rec.acceptCallbacks = [];
       },
-      get enabled() { return enabled; },
+      get enabled() {
+        return enabled;
+      },
     };
   }
 
@@ -128,7 +127,11 @@ export function createHMRRuntime(): HMRRuntime {
 
     // Run dispose callbacks for the OLD instance.
     for (const dc of rec.disposeCallbacks) {
-      try { dc(); } catch (e) { runtimeLog('error', 'dispose threw', e); }
+      try {
+        dc();
+      } catch (e) {
+        runtimeLog('error', 'dispose threw', e);
+      }
     }
 
     let newExports: Record<string, unknown>;
@@ -163,7 +166,10 @@ export function createHMRRuntime(): HMRRuntime {
     register,
     apply,
     get: (id) => modules.get(id),
-    __reset() { modules.clear(); declined.clear(); },
+    __reset() {
+      modules.clear();
+      declined.clear();
+    },
   };
 }
 

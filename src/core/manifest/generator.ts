@@ -5,12 +5,12 @@
  * Types imported from ./types.ts
  */
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
+import { slugify } from '../util/slug.js';
 import { BROWSER_FEATURES, FIREFOX_MIN_VERSION } from './constants.js';
 import type { Browser, ManifestConfig, ValidationResult } from './types.js';
-import { slugify } from '../util/slug.js';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
 
@@ -18,8 +18,7 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!config.name || config.name.trim().length === 0)
-    errors.push('Extension name is required');
+  if (!config.name || config.name.trim().length === 0) errors.push('Extension name is required');
   if (config.name && config.name.length > 45)
     errors.push('Extension name must be 45 characters or less');
   if (!config.version || !/^\d+\.\d+\.\d+$/.test(config.version))
@@ -39,7 +38,9 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
     errors.push('Missing required `permissions` object — expected { required, optional, host }');
   }
   if (perms.includes('webRequest') && perms.includes('webRequestBlocking'))
-    warnings.push('webRequestBlocking is only available in MV2 — use declarativeNetRequest for MV3');
+    warnings.push(
+      'webRequestBlocking is only available in MV2 — use declarativeNetRequest for MV3',
+    );
   if (perms.includes('<all_urls>') || hostPerms.includes('<all_urls>'))
     warnings.push('Requesting access to all URLs increases review time on stores');
 
@@ -69,7 +70,9 @@ function applyBrowserOverride(base: ManifestConfig, browser: Browser): ManifestC
       ? { ...base.permissions, ...override.permissions }
       : base.permissions,
     action: override.action ? { ...base.action, ...override.action } : base.action,
-    background: override.background ? { ...base.background, ...override.background } : base.background,
+    background: override.background
+      ? { ...base.background, ...override.background }
+      : base.background,
     sidePanel: override.sidePanel ? { ...base.sidePanel, ...override.sidePanel } : base.sidePanel,
     commands: override.commands ? { ...base.commands, ...override.commands } : base.commands,
   };
@@ -77,7 +80,10 @@ function applyBrowserOverride(base: ManifestConfig, browser: Browser): ManifestC
   return merged;
 }
 
-export function generateManifest(baseConfig: ManifestConfig, browser: Browser): Record<string, unknown> {
+export function generateManifest(
+  baseConfig: ManifestConfig,
+  browser: Browser,
+): Record<string, unknown> {
   const features = BROWSER_FEATURES[browser];
   const config = applyBrowserOverride(baseConfig, browser);
 
@@ -101,14 +107,15 @@ export function generateManifest(baseConfig: ManifestConfig, browser: Browser): 
 
   // Background
   if (config.background) {
-    manifest.background = features.backgroundType === 'service_worker'
-      ? { service_worker: config.background.entrypoint, type: 'module' }
-      : { scripts: [config.background.entrypoint], type: 'module' };
+    manifest.background =
+      features.backgroundType === 'service_worker'
+        ? { service_worker: config.background.entrypoint, type: 'module' }
+        : { scripts: [config.background.entrypoint], type: 'module' };
   }
 
   // Content scripts
   if (config.contentScripts?.length) {
-    manifest.content_scripts = config.contentScripts.map(cs => ({
+    manifest.content_scripts = config.contentScripts.map((cs) => ({
       matches: cs.matches,
       ...(cs.js && { js: cs.js }),
       ...(cs.css && { css: cs.css }),
@@ -127,10 +134,8 @@ export function generateManifest(baseConfig: ManifestConfig, browser: Browser): 
 
   // Options
   if (config.optionsPage) {
-    if (features.optionsKey === 'options_page')
-      manifest.options_page = config.optionsPage;
-    else
-      manifest.options_ui = { page: config.optionsPage, open_in_tab: true };
+    if (features.optionsKey === 'options_page') manifest.options_page = config.optionsPage;
+    else manifest.options_ui = { page: config.optionsPage, open_in_tab: true };
   }
 
   // Side panel
@@ -138,7 +143,10 @@ export function generateManifest(baseConfig: ManifestConfig, browser: Browser): 
     if (features.sidePanelSupport)
       manifest.side_panel = { default_path: config.sidePanel.defaultPath };
     else if (browser === 'firefox')
-      manifest.sidebar_action = { default_panel: config.sidePanel.defaultPath, default_title: config.name };
+      manifest.sidebar_action = {
+        default_panel: config.sidePanel.defaultPath,
+        default_title: config.name,
+      };
   }
 
   // Web accessible resources
@@ -195,7 +203,7 @@ export function applyInjectedDefaults(
   if (Object.keys(injectedEntries).length === 0) return;
   if (userConfig.webAccessibleResources && userConfig.webAccessibleResources.length > 0) return;
 
-  const resources = Object.keys(injectedEntries).map(key =>
+  const resources = Object.keys(injectedEntries).map((key) =>
     key === 'injected' ? 'injected.js' : `${key}.js`,
   );
 
@@ -217,7 +225,10 @@ export function applyInjectedDefaults(
 // ─── Writer ──────────────────────────────────────────────────────────────────
 
 export function writeManifest(
-  config: ManifestConfig, browser: Browser, outDir: string, logger?: Logger,
+  config: ManifestConfig,
+  browser: Browser,
+  outDir: string,
+  logger?: Logger,
 ): void {
   const log = logger ?? createLogger({ scope: 'manifest' });
   const manifest = generateManifest(config, browser);

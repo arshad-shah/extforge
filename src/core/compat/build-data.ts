@@ -1,9 +1,10 @@
 // Release-time script: extracts the webextensions slice of MDN browser-compat-data
 // into a committed data.json so the runtime doesn't need to ship the full BCD.
 // Run: pnpm compat:rebuild
-import { createRequire } from 'node:module';
+
 import { writeFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
@@ -34,10 +35,10 @@ function walk(node: unknown, prefix: string, out: Record<string, ApiSupport>): v
     const compat = obj.__compat as { support?: Record<string, unknown> };
     const supp = compat.support ?? {};
     out[prefix] = {
-      chrome:  pickVersion(supp.chrome),
+      chrome: pickVersion(supp.chrome),
       firefox: pickVersion(supp.firefox),
-      edge:    pickVersion(supp.edge),
-      safari:  pickVersion(supp.safari_ios) || pickVersion(supp.safari),
+      edge: pickVersion(supp.edge),
+      safari: pickVersion(supp.safari_ios) || pickVersion(supp.safari),
     };
   }
   for (const [k, v] of Object.entries(obj)) {

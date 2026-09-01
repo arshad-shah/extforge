@@ -30,7 +30,10 @@ export function stripSource(source: string): string {
       // Line comment.
       out += '//';
       i += 2;
-      while (i < len && source[i] !== '\n') { out += ' '; i++; }
+      while (i < len && source[i] !== '\n') {
+        out += ' ';
+        i++;
+      }
       continue;
     }
     if (ch === '/' && next === '*') {
@@ -41,7 +44,10 @@ export function stripSource(source: string): string {
         out += source[i] === '\n' ? '\n' : ' ';
         i++;
       }
-      if (i < len) { out += '*/'; i += 2; }
+      if (i < len) {
+        out += '*/';
+        i += 2;
+      }
       continue;
     }
     if (ch === '/' && regexAllowed) {
@@ -52,15 +58,25 @@ export function stripSource(source: string): string {
       let inClass = false;
       while (i < len && source[i] !== '\n') {
         const c = source[i]!;
-        if (c === '\\' && i + 1 < len) { out += '  '; i += 2; continue; }
+        if (c === '\\' && i + 1 < len) {
+          out += '  ';
+          i += 2;
+          continue;
+        }
         if (c === '[') inClass = true;
         else if (c === ']') inClass = false;
         else if (c === '/' && !inClass) break;
         out += ' ';
         i++;
       }
-      if (i < len && source[i] === '/') { out += '/'; i++; }
-      while (i < len && /[gimsuyd]/.test(source[i]!)) { out += source[i]!; i++; }
+      if (i < len && source[i] === '/') {
+        out += '/';
+        i++;
+      }
+      while (i < len && /[gimsuyd]/.test(source[i]!)) {
+        out += source[i]!;
+        i++;
+      }
       regexAllowed = false;
       continue;
     }
@@ -70,11 +86,18 @@ export function stripSource(source: string): string {
       out += quote;
       i++;
       while (i < len && source[i] !== quote) {
-        if (source[i] === '\\') { out += '  '; i += 2; continue; }
+        if (source[i] === '\\') {
+          out += '  ';
+          i += 2;
+          continue;
+        }
         out += source[i] === '\n' ? '\n' : ' ';
         i++;
       }
-      if (i < len) { out += quote; i++; }
+      if (i < len) {
+        out += quote;
+        i++;
+      }
       regexAllowed = false;
       continue;
     }

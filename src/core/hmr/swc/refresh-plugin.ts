@@ -49,10 +49,7 @@ export interface RefreshPluginOptions {
 }
 
 interface SwcModule {
-  transform: (
-    src: string,
-    options: SwcTransformOptions,
-  ) => Promise<{ code: string; map?: string }>;
+  transform: (src: string, options: SwcTransformOptions) => Promise<{ code: string; map?: string }>;
 }
 
 interface SwcTransformOptions {
@@ -98,7 +95,7 @@ async function loadSwc(log: Logger): Promise<SwcModule | null> {
       swcWarned = true;
       log.warn(
         '[hmr] React Fast Refresh disabled — @swc/core not installed. ' +
-        'Install with `pnpm add -D @swc/core react-refresh` to enable component-level HMR.',
+          'Install with `pnpm add -D @swc/core react-refresh` to enable component-level HMR.',
       );
     }
     return null;
@@ -111,10 +108,12 @@ const COMPONENT_FILE_RE = /\.(tsx|jsx)$/;
 let _runtimeHeader: string | undefined;
 let _runtimeFooter: string | undefined;
 function getRuntimeHeader(): string {
-  return _runtimeHeader ??= loadTemplateRaw('refresh-runtime-header.js.tpl').trim();
+  _runtimeHeader ??= loadTemplateRaw('refresh-runtime-header.js.tpl').trim();
+  return _runtimeHeader;
 }
 function getRuntimeFooter(): string {
-  return _runtimeFooter ??= loadTemplateRaw('refresh-runtime-footer.js.tpl').trim();
+  _runtimeFooter ??= loadTemplateRaw('refresh-runtime-footer.js.tpl').trim();
+  return _runtimeFooter;
 }
 
 export function refreshPlugin(options: RefreshPluginOptions): Plugin {
@@ -128,7 +127,7 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
       if (!options.enabled) return;
 
       // Match every .tsx/.jsx in user code (not node_modules).
-      const filter = new RegExp(`(${exts.map(e => e.replace('.', '\\.')).join('|')})$`);
+      const filter = new RegExp(`(${exts.map((e) => e.replace('.', '\\.')).join('|')})$`);
       build.onLoad({ filter, namespace: 'file' }, async (args) => {
         if (args.path.includes('/node_modules/')) return null;
 
@@ -136,8 +135,11 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
         if (!swc) return null; // graceful no-op when SWC isn't available
 
         let source: string;
-        try { source = readFileSync(args.path, 'utf8'); }
-        catch { return null; }
+        try {
+          source = readFileSync(args.path, 'utf8');
+        } catch {
+          return null;
+        }
 
         const isTsx = COMPONENT_FILE_RE.test(args.path) && args.path.endsWith('.tsx');
         try {
@@ -168,7 +170,9 @@ export function refreshPlugin(options: RefreshPluginOptions): Plugin {
             loader: isTsx ? 'tsx' : 'jsx',
           };
         } catch (err) {
-          log.warn(`[hmr] SWC transform failed for ${args.path}: ${err instanceof Error ? err.message : String(err)}`);
+          log.warn(
+            `[hmr] SWC transform failed for ${args.path}: ${err instanceof Error ? err.message : String(err)}`,
+          );
           return null;
         }
       });

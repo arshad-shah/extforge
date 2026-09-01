@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path/posix';
+import { describe, expect, it } from 'vitest';
 import { build } from '../src/core/builder/index.js';
 import { isExtForgeError } from '../src/core/errors/index.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
@@ -24,7 +24,9 @@ describe('builder error wrapping', () => {
         { browser: 'chrome', dev: false },
         createLogger({ level: LogLevel.Silent }),
       );
-    } catch (e) { caught = e; }
+    } catch (e) {
+      caught = e;
+    }
 
     expect(isExtForgeError(caught)).toBe(true);
     if (isExtForgeError(caught)) {

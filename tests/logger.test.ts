@@ -1,8 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  Logger, LogLevel, createLogger, getLogger, setRootLogger,
-  formatDuration, formatFileSize, jsonTransport,
-  type LogEntry, type LogTransport,
+  createLogger,
+  formatDuration,
+  formatFileSize,
+  getLogger,
+  jsonTransport,
+  type LogEntry,
+  Logger,
+  LogLevel,
+  type LogTransport,
+  setRootLogger,
 } from '../src/core/logger/index.js';
 
 describe('Logger', () => {
@@ -30,7 +37,9 @@ describe('Logger', () => {
 
     beforeEach(() => {
       entries = [];
-      transport = (entry: LogEntry) => { entries.push(entry); };
+      transport = (entry: LogEntry) => {
+        entries.push(entry);
+      };
       logger = createLogger({ transports: [transport], level: LogLevel.Trace });
     });
 
@@ -110,7 +119,9 @@ describe('Logger', () => {
 
     beforeEach(() => {
       entries = [];
-      const transport: LogTransport = (entry) => { entries.push(entry); };
+      const transport: LogTransport = (entry) => {
+        entries.push(entry);
+      };
       logger = createLogger({ scope: 'parent', transports: [transport], level: LogLevel.Trace });
     });
 
@@ -138,29 +149,35 @@ describe('Logger', () => {
   describe('Given timing operations', () => {
     it('should measure elapsed time', () => {
       const entries: LogEntry[] = [];
-      const transport: LogTransport = (entry) => { entries.push(entry); };
+      const transport: LogTransport = (entry) => {
+        entries.push(entry);
+      };
       const logger = createLogger({ transports: [transport], level: LogLevel.Trace });
 
       logger.time('op');
       // Simulate some work
       const start = performance.now();
-      while (performance.now() - start < 5) { /* spin */ }
+      while (performance.now() - start < 5) {
+        /* spin */
+      }
       const duration = logger.timeEnd('op');
 
       expect(duration).toBeGreaterThan(0);
       // Should have logged the timer start (debug) and the completion (info)
-      const completionEntry = entries.find(e => e.duration !== undefined);
+      const completionEntry = entries.find((e) => e.duration !== undefined);
       expect(completionEntry).toBeDefined();
       expect(completionEntry!.duration).toBeGreaterThan(0);
     });
 
     it('should warn on unknown timer label', () => {
       const entries: LogEntry[] = [];
-      const transport: LogTransport = (entry) => { entries.push(entry); };
+      const transport: LogTransport = (entry) => {
+        entries.push(entry);
+      };
       const logger = createLogger({ transports: [transport], level: LogLevel.Trace });
 
       logger.timeEnd('nonexistent');
-      expect(entries.some(e => e.message.includes('does not exist'))).toBe(true);
+      expect(entries.some((e) => e.message.includes('does not exist'))).toBe(true);
     });
   });
 
@@ -229,13 +246,19 @@ describe('Logger.group/step/summary', () => {
     const lines: string[] = [];
     const log = new Logger({ transports: [(e) => lines.push(e.message)] });
     await log.step('do the thing', async () => 42);
-    expect(lines.some(l => /do the thing/.test(l))).toBe(true);
+    expect(lines.some((l) => /do the thing/.test(l))).toBe(true);
   });
 
   it('step rethrows and logs a failure entry when the body throws', async () => {
     const lines: Array<{ message: string; level: number }> = [];
-    const log = new Logger({ transports: [(e) => lines.push({ message: e.message, level: e.level })] });
-    await expect(log.step('failing', async () => { throw new Error('nope'); })).rejects.toThrow('nope');
+    const log = new Logger({
+      transports: [(e) => lines.push({ message: e.message, level: e.level })],
+    });
+    await expect(
+      log.step('failing', async () => {
+        throw new Error('nope');
+      }),
+    ).rejects.toThrow('nope');
     expect(lines.some((l) => l.level === LogLevel.Error && /failing/.test(l.message))).toBe(true);
   });
 
@@ -261,7 +284,10 @@ describe('Logger.group/step/summary', () => {
     // Spy on process.stdout.write so we can inspect what was emitted.
     const chunks: string[] = [];
     const orig = process.stdout.write.bind(process.stdout);
-    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => { chunks.push(s); return true; }) as never;
+    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => {
+      chunks.push(s);
+      return true;
+    }) as never;
     try {
       const log = new Logger();
       log.banner('Build', ['line one', 'line two']);
@@ -277,7 +303,10 @@ describe('Logger.group/step/summary', () => {
   it('banner is silent when silentHumanOutput=true', () => {
     const chunks: string[] = [];
     const orig = process.stdout.write.bind(process.stdout);
-    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => { chunks.push(s); return true; }) as never;
+    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => {
+      chunks.push(s);
+      return true;
+    }) as never;
     try {
       const log = new Logger({ silentHumanOutput: true });
       log.banner('hi');
@@ -290,7 +319,10 @@ describe('Logger.group/step/summary', () => {
   it('raw writes directly to stdout unless silentHumanOutput', () => {
     const chunks: string[] = [];
     const orig = process.stdout.write.bind(process.stdout);
-    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => { chunks.push(s); return true; }) as never;
+    (process.stdout as { write: (...a: unknown[]) => boolean }).write = ((s: string) => {
+      chunks.push(s);
+      return true;
+    }) as never;
     try {
       new Logger().raw('hello-raw');
       new Logger({ silentHumanOutput: true }).raw('hidden');
@@ -304,9 +336,11 @@ describe('Logger.group/step/summary', () => {
   it('quiet level suppresses info but keeps warn/error', () => {
     const lines: string[] = [];
     const log = new Logger({ level: LogLevel.Warn, transports: [(e) => lines.push(e.message)] });
-    log.info('hidden'); log.warn('shown'); log.error('shown');
-    expect(lines.find(l => /hidden/.test(l))).toBeUndefined();
-    expect(lines.filter(l => /shown/.test(l)).length).toBe(2);
+    log.info('hidden');
+    log.warn('shown');
+    log.error('shown');
+    expect(lines.find((l) => /hidden/.test(l))).toBeUndefined();
+    expect(lines.filter((l) => /shown/.test(l)).length).toBe(2);
   });
 
   it('jsonTransport emits one JSON object per entry', () => {

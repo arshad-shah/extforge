@@ -14,11 +14,11 @@
  * heavy for validating this pure logic.
  */
 
-import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path/posix';
+import { describe, expect, it } from 'vitest';
 import { buildContentScriptMap } from '../src/core/builder/index.js';
-import { extractScriptIds } from '../src/core/hmr/index.js';
 import type { ExtForgeConfig } from '../src/core/config.js';
+import { extractScriptIds } from '../src/core/hmr/index.js';
 
 const ROOT = '/fake/project';
 
@@ -46,9 +46,7 @@ describe('targeted content-script reload', () => {
     });
 
     it('maps multiple js files in one entry to the same scriptId', () => {
-      const config = makeConfig([
-        { matches: ['<all_urls>'], js: ['src/a.ts', 'src/b.ts'] },
-      ]);
+      const config = makeConfig([{ matches: ['<all_urls>'], js: ['src/a.ts', 'src/b.ts'] }]);
       const map = buildContentScriptMap(ROOT, config);
       expect(map.get(resolve(ROOT, 'src/a.ts'))).toBe(0);
       expect(map.get(resolve(ROOT, 'src/b.ts'))).toBe(0);
@@ -75,9 +73,7 @@ describe('targeted content-script reload', () => {
     });
 
     it('returns undefined when changed file is not a content script', () => {
-      const config = makeConfig([
-        { matches: ['<all_urls>'], js: ['src/content.ts'] },
-      ]);
+      const config = makeConfig([{ matches: ['<all_urls>'], js: ['src/content.ts'] }]);
       const map = buildContentScriptMap(ROOT, config);
 
       const changed = [resolve(ROOT, 'src/util.ts')];
@@ -94,24 +90,16 @@ describe('targeted content-script reload', () => {
       const map = buildContentScriptMap(ROOT, config);
 
       // Change files from entry 2 and entry 0 (out of order)
-      const changed = [
-        resolve(ROOT, 'src/third.ts'),
-        resolve(ROOT, 'src/content.ts'),
-      ];
+      const changed = [resolve(ROOT, 'src/third.ts'), resolve(ROOT, 'src/content.ts')];
       const result = extractScriptIds(changed, map);
       expect(result).toEqual([0, 2]);
     });
 
     it('deduplicates when multiple files from the same entry change', () => {
-      const config = makeConfig([
-        { matches: ['<all_urls>'], js: ['src/a.ts', 'src/b.ts'] },
-      ]);
+      const config = makeConfig([{ matches: ['<all_urls>'], js: ['src/a.ts', 'src/b.ts'] }]);
       const map = buildContentScriptMap(ROOT, config);
 
-      const changed = [
-        resolve(ROOT, 'src/a.ts'),
-        resolve(ROOT, 'src/b.ts'),
-      ];
+      const changed = [resolve(ROOT, 'src/a.ts'), resolve(ROOT, 'src/b.ts')];
       const result = extractScriptIds(changed, map);
       expect(result).toEqual([0]);
     });
@@ -123,9 +111,7 @@ describe('targeted content-script reload', () => {
     });
 
     it('returns undefined for an empty changed-files list', () => {
-      const config = makeConfig([
-        { matches: ['<all_urls>'], js: ['src/content.ts'] },
-      ]);
+      const config = makeConfig([{ matches: ['<all_urls>'], js: ['src/content.ts'] }]);
       const map = buildContentScriptMap(ROOT, config);
       const result = extractScriptIds([], map);
       expect(result).toBeUndefined();

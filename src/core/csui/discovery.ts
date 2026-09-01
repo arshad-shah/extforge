@@ -15,7 +15,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { basename, join } from 'node:path';
 import { stripSource } from '../util/strip-source.js';
 
 export interface CSUIDiscovery {
@@ -111,8 +111,10 @@ export function extractMatches(source: string): string[] | undefined {
   for (; i < stripped.length; i++) {
     const c = stripped[i]!;
     if (c === '{') depth++;
-    else if (c === '}') { depth--; if (depth === 0) break; }
-    else if (depth === 1) {
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) break;
+    } else if (depth === 1) {
       // Look for `matches` as a key token: preceded by `{` or `,` (skipping
       // whitespace) and followed by `:`.
       if (c === 'm' && stripped.startsWith('matches', i)) {
@@ -145,6 +147,7 @@ export function extractMatches(source: string): string[] | undefined {
   const items: string[] = [];
   const literalRe = /(["'`])((?:\\\1|.)*?)\1/g;
   let lit: RegExpExecArray | null;
+  // biome-ignore lint/suspicious/noAssignInExpressions: canonical RegExp.exec iteration.
   while ((lit = literalRe.exec(arrBody)) !== null) {
     items.push(lit[2] ?? '');
   }
@@ -171,8 +174,10 @@ export function extractRunAt(source: string): CSUIDiscovery['runAt'] | undefined
   for (; i < stripped.length; i++) {
     const c = stripped[i]!;
     if (c === '{') depth++;
-    else if (c === '}') { depth--; if (depth === 0) break; }
-    else if (depth === 1 && c === 'r' && stripped.startsWith('runAt', i)) {
+    else if (c === '}') {
+      depth--;
+      if (depth === 0) break;
+    } else if (depth === 1 && c === 'r' && stripped.startsWith('runAt', i)) {
       let p = i - 1;
       while (p >= optsStart && /\s/.test(stripped[p]!)) p--;
       const isKeyStart = p < optsStart || stripped[p] === '{' || stripped[p] === ',';
@@ -196,4 +201,3 @@ export function extractRunAt(source: string): CSUIDiscovery['runAt'] | undefined
   }
   return undefined;
 }
-

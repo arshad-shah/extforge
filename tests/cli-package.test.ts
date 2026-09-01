@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { archiveFilename, packageBrowser } from '../src/cli/package-cmd.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
@@ -36,7 +36,9 @@ describe('packageBrowser', () => {
   });
 
   afterEach(() => {
-    try { rmSync(tmp, { recursive: true, force: true }); } catch {}
+    try {
+      rmSync(tmp, { recursive: true, force: true });
+    } catch {}
   });
 
   it('does not execute shell metacharacters from the archive filename', async () => {
@@ -53,7 +55,9 @@ describe('packageBrowser', () => {
     // Even if zip is unavailable in this environment the call must not run
     // arbitrary shell from the malicious name.
     const archive = join(pkgDir, archiveFilename(`evil"; touch "${sentinel}`, '0.0.0', 'chrome'));
-    await packageBrowser({ dist, archive, log }).catch(() => { /* zip may not be installed */ });
+    await packageBrowser({ dist, archive, log }).catch(() => {
+      /* zip may not be installed */
+    });
 
     expect(existsSync(sentinel)).toBe(false);
   });

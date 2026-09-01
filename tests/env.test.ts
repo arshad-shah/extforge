@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseDotenv, loadEnv, publicEnvToDefine, ENV_PREFIX } from '../src/core/env/index.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { ENV_PREFIX, loadEnv, parseDotenv, publicEnvToDefine } from '../src/core/env/index.js';
 
 describe('parseDotenv', () => {
   it('parses simple KEY=value', () => {
@@ -60,25 +60,25 @@ describe('loadEnv', () => {
   });
 
   it('precedence: .env < .env.local < .env.<mode> < .env.<mode>.local', () => {
-    writeFileSync(join(dir, '.env'),                    'EXTFORGE_PUBLIC_X=base');
-    writeFileSync(join(dir, '.env.local'),              'EXTFORGE_PUBLIC_X=local');
-    writeFileSync(join(dir, '.env.production'),         'EXTFORGE_PUBLIC_X=prod');
-    writeFileSync(join(dir, '.env.production.local'),   'EXTFORGE_PUBLIC_X=prod-local');
+    writeFileSync(join(dir, '.env'), 'EXTFORGE_PUBLIC_X=base');
+    writeFileSync(join(dir, '.env.local'), 'EXTFORGE_PUBLIC_X=local');
+    writeFileSync(join(dir, '.env.production'), 'EXTFORGE_PUBLIC_X=prod');
+    writeFileSync(join(dir, '.env.production.local'), 'EXTFORGE_PUBLIC_X=prod-local');
     const r = loadEnv({ cwd: dir, mode: 'production', processEnv: {} });
-    expect(r.publicEnv['EXTFORGE_PUBLIC_X']).toBe('prod-local');
+    expect(r.publicEnv.EXTFORGE_PUBLIC_X).toBe('prod-local');
   });
 
   it('processEnv overlays everything from disk', () => {
     writeFileSync(join(dir, '.env'), 'EXTFORGE_PUBLIC_X=disk');
     const r = loadEnv({ cwd: dir, processEnv: { EXTFORGE_PUBLIC_X: 'process' } });
-    expect(r.publicEnv['EXTFORGE_PUBLIC_X']).toBe('process');
+    expect(r.publicEnv.EXTFORGE_PUBLIC_X).toBe('process');
   });
 
   it('only EXTFORGE_PUBLIC_* keys appear in publicEnv', () => {
     writeFileSync(join(dir, '.env'), 'EXTFORGE_PUBLIC_OK=yes\nEXTFORGE_SECRET=no\nFOO=bar');
     const r = loadEnv({ cwd: dir, processEnv: {} });
     expect(Object.keys(r.publicEnv)).toEqual(['EXTFORGE_PUBLIC_OK']);
-    expect(r.raw['EXTFORGE_SECRET']).toBe('no'); // raw still has it
+    expect(r.raw.EXTFORGE_SECRET).toBe('no'); // raw still has it
   });
 });
 
@@ -87,10 +87,10 @@ describe('publicEnvToDefine', () => {
     const def = publicEnvToDefine({ EXTFORGE_PUBLIC_FOO: 'bar' }, 'production');
     expect(def['process.env.EXTFORGE_PUBLIC_FOO']).toBe('"bar"');
     const env = JSON.parse(def['import.meta.env']!) as Record<string, unknown>;
-    expect(env['EXTFORGE_PUBLIC_FOO']).toBe('bar');
-    expect(env['MODE']).toBe('production');
-    expect(env['PROD']).toBe('true');
-    expect(env['DEV']).toBe('false');
+    expect(env.EXTFORGE_PUBLIC_FOO).toBe('bar');
+    expect(env.MODE).toBe('production');
+    expect(env.PROD).toBe('true');
+    expect(env.DEV).toBe('false');
   });
 });
 
