@@ -14,4 +14,4 @@ Configuration for `build`.
 | `build.outDir` | `string` | `"dist"` | Output directory for builds. |
 | `build.srcDir` | `string` | `"src"` | Source directory. |
 | `build.sourcemap` | `boolean` | `false` | Emit source maps. |
-| `build.esbuild` | `Record<string, unknown>` | — | Pass-through esbuild options merged into every entry build. |
+| `build.esbuild` | `Record<string, unknown>` | — | Pass-through esbuild options merged into every entry build. `define`, `loader` and `alias` merge key-by-key with the built-ins; `plugins` is appended after ExtForge's own; every other option replaces. Options ExtForge owns (`entryPoints`, `outdir`, `outfile`, `format`, `splitting`, `metafile`, `write`, `banner`) are ignored with a warning. |

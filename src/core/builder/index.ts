@@ -42,6 +42,7 @@ import {
   INJECTED_DIR,
 } from './constants.js';
 import { type CssTransformContext, processStylesheet, resolveCssProcessor } from './css.js';
+import { applyEsbuildOverrides, collectReservedEsbuildKeys } from './esbuild-overrides.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -281,26 +282,21 @@ function summarizeDir(dir: string): { fileCount: number; totalBytes: number } {
 
 // ─── Build config factory ────────────────────────────────────────────────────
 
+/**
+ * Options shared by every entry build, with the project's `build.esbuild`
+ * pass-through merged over them. The return type is the full
+ * `esbuild.BuildOptions` rather than a narrow `Pick` because a project may
+ * introduce any option esbuild accepts.
+ */
 function makeSharedEsbuildOptions(
   root: string,
   opts: BuildOptions,
-): Pick<
-  esbuild.BuildOptions,
-  | 'bundle'
-  | 'platform'
-  | 'target'
-  | 'sourcemap'
-  | 'minify'
-  | 'define'
-  | 'alias'
-  | 'loader'
-  | 'logLevel'
-  | 'metafile'
-> {
+  config?: ExtForgeConfig,
+): esbuild.BuildOptions {
   const mode = opts.dev ? 'development' : 'production';
   const { publicEnv } = loadEnv({ cwd: root, mode });
   const envDefine = publicEnvToDefine(publicEnv, mode);
-  return {
+  const base: esbuild.BuildOptions = {
     bundle: true,
     platform: 'browser',
     target: ESBUILD_TARGETS,
@@ -318,6 +314,7 @@ function makeSharedEsbuildOptions(
     logLevel: opts.dev ? 'warning' : 'error',
     metafile: true,
   };
+  return applyEsbuildOverrides(base, config?.build?.esbuild);
 }
 
 // ─── Plugin hook helpers ──────────────────────────────────────────────────────
@@ -363,14 +360,17 @@ function makeBuildConfig(
   // is react in the user's config, and (3) @swc/core is installed (the plugin
   // self-disables otherwise).
   const useRefresh = Boolean(opts.dev && config?.framework === 'react');
-  const plugins: esbuild.Plugin[] = useRefresh ? [refreshPlugin({ enabled: true })] : [];
+  const builtinPlugins: esbuild.Plugin[] = useRefresh ? [refreshPlugin({ enabled: true })] : [];
+  const shared = makeSharedEsbuildOptions(root, opts, config);
   return {
-    ...makeSharedEsbuildOptions(root, opts),
+    ...shared,
     entryPoints: entries,
     outdir: outDir,
     format: 'esm',
     splitting: false,
-    plugins,
+    // Builder plugins run first; any the project passed through
+    // `build.esbuild.plugins` follow.
+    plugins: [...builtinPlugins, ...(shared.plugins ?? [])],
     ...(banner ? { banner } : {}),
   };
 }
@@ -429,6 +429,16 @@ export async function build(
   const errors: string[] = [];
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const srcDir = join(root, 'src');
+
+  // `build.esbuild` is a pass-through, but a handful of options belong to the
+  // builder. Warn once per build; applyEsbuildOverrides drops them silently on
+  // every entry so this isn't repeated per bundle.
+  const reservedEsbuildKeys = collectReservedEsbuildKeys(config.build?.esbuild);
+  if (reservedEsbuildKeys.length > 0) {
+    log.warn(
+      `Ignoring build.esbuild ${reservedEsbuildKeys.length === 1 ? 'option' : 'options'} managed by ExtForge: ${reservedEsbuildKeys.join(', ')}`,
+    );
+  }
 
   // Wipe the per-browser output directory before every PRODUCTION build so a
   // renamed entry (e.g. content/foo.ts → content/bar.ts) doesn't leave the
@@ -528,7 +538,7 @@ export async function build(
   // ─── IIFE pass (content + injected) ────────────────────────────────────────
   if (Object.keys(iifeEntries).length > 0) {
     const csMap = buildContentScriptMap(root, config);
-    const sharedOpts = makeSharedEsbuildOptions(root, { ...opts, outDir });
+    const sharedOpts = makeSharedEsbuildOptions(root, { ...opts, outDir }, config);
 
     // Separate content-script entries (need per-entry scriptId banner in dev)
     // from other IIFE entries (injected scripts, no scriptId banner needed).
@@ -760,6 +770,17 @@ export async function createBuildContext(
   const srcDir = join(root, 'src');
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
   const entries = discoverEntryPoints(srcDir);
+
+  // `build.esbuild` is a pass-through, but a handful of options belong to the
+  // builder. Warn once per build; applyEsbuildOverrides drops them silently on
+  // every entry so this isn't repeated per bundle.
+  const reservedEsbuildKeys = collectReservedEsbuildKeys(config.build?.esbuild);
+  if (reservedEsbuildKeys.length > 0) {
+    log.warn(
+      `Ignoring build.esbuild ${reservedEsbuildKeys.length === 1 ? 'option' : 'options'} managed by ExtForge: ${reservedEsbuildKeys.join(', ')}`,
+    );
+  }
+
   const cfg = makeBuildConfig(root, { ...opts, outDir }, entries, config);
 
   return esbuild.context({
