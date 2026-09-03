@@ -12,6 +12,15 @@
   var MAX_RECONNECT_ATTEMPTS = 30;
   // keep in sync with src/core/hmr/client-logic.ts — RELOAD_RELAY_TYPE
   var RELOAD_RELAY_TYPE = 'extforge:hmr-reload';
+  // keep in sync with src/core/hmr/before-reload.ts
+  var BEFORE_RELOAD_REGISTRY_KEY = '__EXTFORGE_BEFORE_RELOAD__';
+  var BEFORE_RELOAD_EVENT = 'extforge:before-reload';
+  var BEFORE_RELOAD_TIMEOUT_MS = 500;
+  var CONTEXT_POLL_MS = 1000;
+  // Every tab's client hears the same update at the same moment; this much
+  // slack lets them all finish tearing down before one of them reloads the
+  // extension out from under the others.
+  var DISPOSE_GRACE_MS = 50;
   var OWN_SCRIPT_ID = (typeof globalThis !== 'undefined' && typeof globalThis.__EXTFORGE_SCRIPT_ID__ === 'number')
     ? globalThis.__EXTFORGE_SCRIPT_ID__
     : undefined;
@@ -242,8 +251,80 @@
     return 'unavailable';
   }
 
+  /**
+   * Run every teardown hook registered through `onBeforeExtensionReload`
+   * (extforge/csui) and dispatch `extforge:before-reload`, so content scripts
+   * unmount before `chrome.runtime.reload()` orphans them. Mirror of
+   * runBeforeExtensionReload in src/core/hmr/before-reload.ts.
+   *
+   * Never rejects and never waits forever: a hook that throws or hangs is
+   * stepped over, because a dev loop that stops reloading is worse than a
+   * leaked listener.
+   */
+  function runBeforeReloadHooks() {
+    try {
+      if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') {
+        globalThis.dispatchEvent(new globalThis.CustomEvent(BEFORE_RELOAD_EVENT));
+      }
+    } catch (e) { /* a listener threw; the reload still has to happen */ }
+
+    // Snapshot: a hook that unsubscribes itself mustn't reshape the array
+    // we're iterating.
+    var reg = globalThis[BEFORE_RELOAD_REGISTRY_KEY];
+    if (!reg || reg.length === 0) return Promise.resolve();
+    reg = reg.slice();
+    var pending = [];
+    for (var i = 0; i < reg.length; i++) {
+      try {
+        pending.push(Promise.resolve(reg[i]()).catch(function (err) {
+          console.warn('[ExtForge HMR] before-reload hook threw', err);
+        }));
+      } catch (e) {
+        console.warn('[ExtForge HMR] before-reload hook threw', e);
+      }
+    }
+    if (pending.length === 0) return Promise.resolve();
+    return Promise.race([
+      Promise.all(pending),
+      new Promise(function (resolve) { setTimeout(resolve, BEFORE_RELOAD_TIMEOUT_MS); })
+    ]).then(function () {});
+  }
+
+  var reloadPending = false;
   function handleFullReload(reason, allowRelay) {
-    performReload(reason, allowRelay);
+    if (reloadPending) return;
+    reloadPending = true;
+    runBeforeReloadHooks().then(function () {
+      setTimeout(function () {
+        // Nothing could be reloaded from here — don't latch, or every later
+        // change would be swallowed by the guard above.
+        if (performReload(reason, allowRelay) === 'unavailable') reloadPending = false;
+      }, DISPOSE_GRACE_MS);
+    });
+  }
+
+  /**
+   * Fallback layer: if this script is orphaned without ever hearing the
+   * dispose broadcast — dev server gone, socket already given up — notice that
+   * `chrome.runtime` died and tear ourselves down anyway.
+   */
+  function watchExtensionContext() {
+    if (typeof chrome === 'undefined' || !chrome.runtime) return;
+    // Extension pages are torn down with the extension; only injected scripts
+    // outlive it.
+    if (typeof location !== 'undefined' && location.protocol === 'chrome-extension:') return;
+    var timer = setInterval(function () {
+      var alive;
+      try { alive = typeof chrome.runtime.id === 'string' && chrome.runtime.id.length > 0; }
+      catch (e) { alive = false; }
+      if (alive) return;
+      clearInterval(timer);
+      console.debug('[ExtForge HMR] extension context invalidated — disposing orphaned script');
+      giveUp = true;
+      hideBadge();
+      if (ws) { try { ws.onclose = null; ws.close(); } catch (e) {} ws = null; }
+      runBeforeReloadHooks();
+    }, CONTEXT_POLL_MS);
   }
 
   // ─── Service worker path ────────────────────────────────────────────
@@ -271,4 +352,5 @@
   }
 
   connect();
+  watchExtensionContext();
 })();
