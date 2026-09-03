@@ -3,16 +3,15 @@
 //
 // Pure logic mirrors src/core/hmr/client-logic.ts — keep both in sync.
 (function extforgeHMR() {
-  if (typeof window === 'undefined' && typeof self !== 'undefined') {
-    setupServiceWorkerHMR();
-    return;
-  }
-
+  // NOTE: everything the service-worker path touches must be declared BEFORE
+  // the early return below — `var` hoists the binding but not the value.
   var WS_URL = 'ws://{{HMR_HOST}}:{{HMR_PORT}}';
   var HMR_PROTOCOL_VERSION = 3;
   // keep in sync with src/core/hmr/client-logic.ts — BACKOFF array and nextBackoff
   var BACKOFF = [250, 500, 1000, 2000, 4000, 8000];
   var MAX_RECONNECT_ATTEMPTS = 30;
+  // keep in sync with src/core/hmr/client-logic.ts — RELOAD_RELAY_TYPE
+  var RELOAD_RELAY_TYPE = 'extforge:hmr-reload';
   var OWN_SCRIPT_ID = (typeof globalThis !== 'undefined' && typeof globalThis.__EXTFORGE_SCRIPT_ID__ === 'number')
     ? globalThis.__EXTFORGE_SCRIPT_ID__
     : undefined;
@@ -20,6 +19,11 @@
   var ws = null;
   var reconnectAttempts = 0;
   var giveUp = false;
+
+  if (typeof window === 'undefined' && typeof self !== 'undefined') {
+    setupServiceWorkerHMR();
+    return;
+  }
 
   // ─── Pure logic (mirror of client-logic.ts) ─────────────────────────
   function shouldReload(update, ownScriptId) {
@@ -137,7 +141,10 @@
    */
   function handleHotUpdate(update, t0) {
     if (typeof location === 'undefined' || location.protocol !== 'chrome-extension:') {
-      handleFullReload('hmr-update');
+      // Not an extension page — a content script that received a UI-only
+      // envelope. Refresh in place; do NOT relay, or editing the popup would
+      // reload the whole extension.
+      handleFullReload('hmr-update', false);
       logUpdate(update, t0);
       return;
     }
@@ -157,7 +164,7 @@
       .then(function () { logUpdate(update, t0); })
       .catch(function () {
         // Any failure → fall back to a clean reload.
-        handleFullReload('hmr-update');
+        handleFullReload('hmr-update', false);
       });
   }
 
@@ -195,33 +202,72 @@
     location.reload();
   }
 
-  function handleFullReload(reason) {
+  /**
+   * Ask the service worker to reload the extension. Content scripts have no
+   * `chrome.runtime.reload`, so they hand the request to the worker — which
+   * `sendMessage` also wakes up. Mirror of `requestExtensionReload` in
+   * client-logic.ts.
+   */
+  function relayReloadToWorker(reason) {
+    chrome.runtime.sendMessage({ type: RELOAD_RELAY_TYPE, reason: reason }, function () {
+      // Reading lastError suppresses the "unchecked runtime.lastError" noise.
+      // A missing receiver means no background entrypoint answered — say so
+      // loudly rather than letting the dev loop go quiet.
+      var err = chrome.runtime.lastError;
+      if (err && /Receiving end does not exist|Could not establish connection/i.test(err.message || '')) {
+        console.warn(
+          '[ExtForge HMR] no background service worker answered the reload relay (' + err.message +
+          '). Reload the extension manually from the extensions page.'
+        );
+      }
+    });
+  }
+
+  function performReload(reason, allowRelay) {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.reload) {
-      chrome.runtime.reload();
-    } else {
-      location.reload();
+      try { chrome.runtime.reload(); return 'direct'; }
+      catch (e) { console.warn('[ExtForge HMR] chrome.runtime.reload() failed; trying the relay', e); }
     }
+    if (allowRelay !== false && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      try { relayReloadToWorker(reason); return 'relayed'; }
+      catch (e) {
+        console.warn(
+          '[ExtForge HMR] could not reach the background service worker to reload the extension (' +
+          (e && e.message ? e.message : e) + '); reload it manually from the extensions page.'
+        );
+      }
+    }
+    if (typeof location !== 'undefined' && location.reload) { location.reload(); return 'page-reload'; }
+    console.warn('[ExtForge HMR] no way to apply a "' + reason + '" update from this context.');
+    return 'unavailable';
+  }
+
+  function handleFullReload(reason, allowRelay) {
+    performReload(reason, allowRelay);
   }
 
   // ─── Service worker path ────────────────────────────────────────────
+  /**
+   * The worker holds NO socket. MV3 evicts an idle worker after ~30s, which
+   * closes any socket it owns; reconnecting on close resurrected the worker
+   * and churned forever (issue #88). Instead the worker just listens for the
+   * relay message that a page or content script — which already has a live
+   * socket — sends when the dev server says `full-reload` / `manifest`.
+   */
   function setupServiceWorkerHMR() {
-    var swWs = null;
-    var swAttempts = 0;
-    function swConnect() {
-      try { swWs = new WebSocket('ws://{{HMR_HOST}}:{{HMR_PORT}}'); }
-      catch (e) { setTimeout(swConnect, nextBackoff(++swAttempts)); return; }
-      swWs.onopen = function () { swAttempts = 0; };
-      swWs.onmessage = function (event) {
-        var update;
-        try { update = JSON.parse(event.data); } catch (e) { return; }
-        if (update.type === 'full-reload' || update.type === 'manifest') {
-          chrome.runtime.reload();
-        }
-      };
-      swWs.onclose = function () { swWs = null; setTimeout(swConnect, nextBackoff(++swAttempts)); };
-      swWs.onerror = function () { if (swWs) swWs.close(); };
-    }
-    swConnect();
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
+    var reloading = false;
+    chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
+      if (!message || message.type !== RELOAD_RELAY_TYPE) return undefined;
+      try { sendResponse({ ok: true }); } catch (e) { /* port already closed */ }
+      // Every open tab relays the same change at the same moment; only the
+      // first one needs to do anything.
+      if (reloading) return undefined;
+      reloading = true;
+      console.log('[ExtForge HMR] reloading extension (' + (message.reason || 'full-reload') + ')');
+      if (chrome.runtime.reload) chrome.runtime.reload();
+      return undefined;
+    });
   }
 
   connect();

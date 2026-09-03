@@ -186,3 +186,60 @@ describe('hmr client template', () => {
     expect(code).toContain('ws://example.test:12345');
   });
 });
+
+// ─── issue #88: no socket in the MV3 service worker ──────────────────────────
+
+/** Slice out a top-level `function <name>() { … }` body by brace matching. */
+function extractFunction(source: string, name: string): string {
+  const start = source.indexOf(`function ${name}(`);
+  if (start === -1) throw new Error(`function ${name} not found in generated client`);
+  const open = source.indexOf('{', start);
+  let depth = 0;
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '{') depth++;
+    else if (source[i] === '}') {
+      depth--;
+      if (depth === 0) return source.slice(start, i + 1);
+    }
+  }
+  throw new Error(`unterminated function ${name}`);
+}
+
+describe('hmr client — service worker path', () => {
+  const code = generateHMRClientCode(35729);
+  const sw = extractFunction(code, 'setupServiceWorkerHMR');
+
+  it('holds no WebSocket in the service worker', () => {
+    // MV3 evicts an idle worker after ~30s. A socket there closes on every
+    // eviction and reconnecting on close churns forever (#88).
+    expect(sw).not.toContain('WebSocket');
+  });
+
+  it('schedules no reconnect, so an eviction-shaped close cannot churn', () => {
+    expect(sw).not.toContain('setTimeout');
+    expect(sw).not.toContain('nextBackoff');
+    expect(sw).not.toContain('onclose');
+  });
+
+  it('listens for the relay message instead', () => {
+    expect(sw).toContain('chrome.runtime.onMessage.addListener');
+    expect(sw).toContain('RELOAD_RELAY_TYPE');
+    expect(sw).toContain('chrome.runtime.reload');
+  });
+
+  it('declares the relay type before the worker branch returns', () => {
+    // `var` hoists the binding but not the value — a constant declared after
+    // the early return reads as undefined inside the worker.
+    expect(code.indexOf("var RELOAD_RELAY_TYPE = 'extforge:hmr-reload'")).toBeGreaterThan(-1);
+    expect(code.indexOf('var RELOAD_RELAY_TYPE')).toBeLessThan(
+      code.indexOf('setupServiceWorkerHMR();'),
+    );
+  });
+
+  it('relays from page contexts that cannot call chrome.runtime.reload', () => {
+    expect(code).toContain('relayReloadToWorker');
+    expect(code).toContain('chrome.runtime.sendMessage');
+    // and says so out loud when nothing answers
+    expect(code).toContain('Receiving end does not exist');
+  });
+});
