@@ -21,6 +21,20 @@ export interface ContentScriptHMRDescriptor {
   js: string;
   /** Optional runAt timing. Default: 'document_idle'. */
   runAt?: 'document_start' | 'document_end' | 'document_idle';
+  /** Match patterns to subtract. Mirrors `contentScripts[].excludeMatches`. */
+  excludeMatches?: string[];
+  /** Register in every frame. Mirrors `contentScripts[].allFrames`. */
+  allFrames?: boolean;
+  /**
+   * Execution world. Mirrors `contentScripts[].world`; defaults to
+   * `'ISOLATED'`, which is what the HMR dispose registry needs.
+   *
+   * Note there is no `matchAboutBlank` here: `scripting.registerContentScripts`
+   * has no equivalent option (its nearest relative is
+   * `matchOriginAsFallback`), so a manifest-declared `match_about_blank` has no
+   * effect under dynamic-registration HMR.
+   */
+  world?: 'MAIN' | 'ISOLATED';
 }
 
 /**

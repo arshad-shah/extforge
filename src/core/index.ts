@@ -31,6 +31,9 @@ export {
 } from './logger/index.js';
 export type {
   Browser,
+  ContentScriptConfig,
+  ContentScriptRunAt,
+  ContentScriptWorld,
   ManifestConfig,
   ManifestPermission,
   Permission,

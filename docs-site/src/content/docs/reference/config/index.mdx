@@ -17,7 +17,7 @@ Config validation failures are hard errors by default. Set `EXTFORGE_STRICT_CONF
 |---|---|---|
 | [`root`](/reference/config/root/) | `string` | Override the project root. Defaults to the directory `extforge` is invoked from. |
 | [`browsers`](/reference/config/browsers/) | `Array<'chrome' \| 'firefox' \| 'edge' \| 'safari'>` | Browsers to build for. ExtForge generates a per-browser manifest into `dist/<browser>/`. |
-| [`manifest`](/reference/config/manifest/) | `unknown` | The MV3 manifest, ExtForge-flavored. Browser-specific quirks are handled automatically. |
+| [`manifest`](/reference/config/manifest/) | `object` | The MV3 manifest, ExtForge-flavored. Browser-specific quirks are handled automatically. |
 | [`build`](/reference/config/build/) | `object` |  |
 | [`dev`](/reference/config/dev/) | `object` |  |
 | [`framework`](/reference/config/framework/) | `'react' \| 'vanilla'` | UI framework. Drives auto-injection of first-party plugins (e.g., `presetReact()` when set to `react`). |
