@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.2.0
+
+### Minor Changes
+
+- [#91](https://github.com/arshad-shah/extforge/pull/91) [`5ea84de`](https://github.com/arshad-shah/extforge/commit/5ea84dea23200fbec72ea08287303839a259c868) Thanks [@arshad-shah](https://github.com/arshad-shah)! - Content scripts are torn down before a dev reload instead of being orphaned on the page, and `extforge/csui` gains `onBeforeExtensionReload(cb)`.
+  
+  `chrome.runtime.reload()` replaces the extension but leaves every already-injected content script running. The orphan kept its timers, listeners and mounted UI alive while its `chrome.runtime` was dead — so the old UI stayed on the page after every reload, threw `Extension context invalidated` when you interacted with it, and the next navigation mounted a second copy beside it.
+  
+  The HMR client now broadcasts a dispose pass before it asks for the reload, and waits for it:
+  
+  - Anything CSUI mounted is unmounted for you — cleanup functions run, hosts are removed. No code change needed.
+  - `onBeforeExtensionReload(cb)`, exported from `extforge/csui`, registers your own teardown for the state CSUI doesn't own — intervals, observers, listeners on the host page. It returns an unsubscribe function, callbacks may be async, and outside dev builds nothing ever calls them.
+  - An `extforge:before-reload` event is dispatched on the global for code that would rather listen than register.
+  
+  ```ts
+  import { onBeforeExtensionReload } from 'extforge/csui';
+  
+  onBeforeExtensionReload(() => {
+    clearInterval(poll);
+    observer.disconnect();
+  });
+  ```
+  
+  Teardown is best-effort by design: hooks run in parallel, a hook that throws is logged and stepped over, and the whole pass is capped at 500ms. A dev loop that stops reloading would be worse than a leaked listener.
+  
+  As a second layer for the case where the broadcast never arrives — the dev server is gone, or the socket already gave up — injected scripts poll `chrome.runtime.id` and run the same teardown on their own when the extension context goes away.
+
+- [#90](https://github.com/arshad-shah/extforge/pull/90) [`c22b459`](https://github.com/arshad-shah/extforge/commit/c22b4599c6a549085b078b61c65dcadf9dd9d5e3) Thanks [@arshad-shah](https://github.com/arshad-shah)! - Content scripts can now declare `allFrames`, `matchAboutBlank`, `excludeMatches` and `world` — in `manifest.contentScripts[]` and in the `defineCSUI` descriptor — emitted as `all_frames`, `match_about_blank`, `exclude_matches` and `world`. Anything that has to reach inside iframes (inspectors, overlays, measuring tools) no longer needs to hand-edit a manifest the build regenerates.
+  
+  Only `run_at` still carries a default; every new key is omitted from the generated manifest when unset, so manifests for configs that don't use them are unchanged. Declaring `world` raises the Firefox build's `strict_min_version` to `128.0` — the first Firefox that honours the key — rather than emitting something older Firefox would silently ignore.
+
+### Patch Changes
+
+- [#91](https://github.com/arshad-shah/extforge/pull/91) [`5ea84de`](https://github.com/arshad-shah/extforge/commit/5ea84dea23200fbec72ea08287303839a259c868) Thanks [@arshad-shah](https://github.com/arshad-shah)! - The dev HMR client no longer holds a WebSocket open from the MV3 service worker.
+  
+  MV3 evicts an idle service worker after about 30 seconds, which closed the socket the worker was holding. `onclose` scheduled a reconnect, opening the socket woke the worker back up, it went idle, and it was evicted again — a connect/disconnect cycle every ~30s for the whole dev session with no file having changed. Backoff could not damp it: `swAttempts` reset to `0` on every successful open, so the delay never grew.
+  
+  The worker holds no socket now. Extension pages and content scripts already have a live connection; when the dev server sends `full-reload` or `manifest` they relay the request to the worker with `chrome.runtime.sendMessage`, which is also what wakes the worker to serve it. The relay message is namespaced (`extforge:hmr-reload`) and other messages pass straight through to your own `onMessage` listeners. Only the first relay of a change acts, so several open tabs reloading at once still reload the extension once.
+  
+  The client degrades one step at a time and says which step it took: an extension page calls `chrome.runtime.reload()` directly, a content script relays, and if nothing answers the relay — an extension with no background entrypoint, say — it warns with the underlying error and falls back to reloading the page rather than going quiet.
+  
+  Also fixes a latent bug in the same path: the worker branch ran before the client's `var` constants were initialised, so `nextBackoff` read `BACKOFF` as `undefined` and threw on the first close.
+
 ## 1.1.0
 
 ### Minor Changes
