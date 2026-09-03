@@ -17,6 +17,10 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
     description:
       'The MV3 manifest, ExtForge-flavored. Browser-specific quirks are handled automatically.',
   },
+  'manifest.contentScripts': {
+    description:
+      "Content-script declarations. Each entry maps to one `content_scripts` object: `matches`, `excludeMatches`, `js`, `css`, `runAt`, `allFrames`, `matchAboutBlank` and `world` are emitted as `matches`, `exclude_matches`, `js`, `css`, `run_at`, `all_frames`, `match_about_blank` and `world`. Only `run_at` has a default (`document_idle`) — every other optional key is left out of the manifest when unset, so the browser default applies. `world: 'MAIN'` raises the Firefox build's `strict_min_version` to 128.0, the first Firefox that honours the key.",
+  },
   'build.outDir': { description: 'Output directory for builds.', defaultValue: '"dist"' },
   'build.srcDir': { description: 'Source directory.', defaultValue: '"src"' },
   'build.sourcemap': { description: 'Emit source maps.', defaultValue: 'false' },

@@ -245,6 +245,14 @@ function augmentManifestWithCSUI(
   }
 
   for (const c of discoveries) {
+    // A declared-but-unreadable option is never dropped in silence: the entry
+    // still lands in the manifest (so the widget mounts) but the user is told
+    // exactly which option didn't make it and how to get it there.
+    for (const opt of c.unresolvedOptions ?? []) {
+      log.warn(
+        `[csui] ${c.file}: \`${opt}\` is declared but is not a static literal, so it was NOT written to the manifest. Use a literal value, or declare the content script in extforge.config.ts.`,
+      );
+    }
     if (!c.matches || c.matches.length === 0) {
       log.warn(
         `[csui] ${c.file}: could not statically extract \`matches\`. Declare the content script in extforge.config.ts to include it in the manifest.`,
@@ -254,8 +262,12 @@ function augmentManifestWithCSUI(
     if (declaredJs.has(c.outputJsPath)) continue; // already declared by user
     merged.push({
       matches: c.matches,
+      ...(c.excludeMatches && { exclude_matches: c.excludeMatches }),
       js: [c.outputJsPath],
       run_at: c.runAt ?? 'document_idle',
+      ...(c.allFrames !== undefined && { all_frames: c.allFrames }),
+      ...(c.matchAboutBlank !== undefined && { match_about_blank: c.matchAboutBlank }),
+      ...(c.world && { world: c.world }),
     });
     declaredJs.add(c.outputJsPath);
   }

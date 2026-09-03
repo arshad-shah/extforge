@@ -156,15 +156,31 @@ manifest: {
   contentScripts: [
     {
       matches: ['https://*.example.com/*'],
+      excludeMatches: ['https://*.example.com/admin/*'],
       js: ['src/content/index.ts'],
       css: ['src/content/style.css'],
       runAt: 'document_idle',
+      allFrames: true,
+      matchAboutBlank: true,
+      world: 'ISOLATED',
     },
   ],
 }
 ```
 
-`runAt` accepts `'document_start'`, `'document_end'`, or `'document_idle'`.
+| Key | Manifest key | Notes |
+|---|---|---|
+| `matches` | `matches` | Required. |
+| `excludeMatches` | `exclude_matches` | Patterns subtracted from `matches`. |
+| `js` / `css` | `js` / `css` | |
+| `runAt` | `run_at` | `'document_start' \| 'document_end' \| 'document_idle'`. Defaults to `'document_idle'`. |
+| `allFrames` | `all_frames` | Inject into every frame, not just the top one — what iframe-aware inspectors and overlays need. |
+| `matchAboutBlank` | `match_about_blank` | Also inject into `about:blank` / `about:srcdoc` frames whose creator matches. |
+| `world` | `world` | `'MAIN'` runs in the page's own JS realm (no extension APIs); `'ISOLATED'` is the default sandbox. |
+
+Only `runAt` has a default. Every other optional key is **omitted from the generated manifest when unset**, so the browser's own default applies and manifests for configs that don't use them are unchanged.
+
+`world` needs Chrome/Edge 111+, Firefox 128+ or Safari 18+. Because Firefox below 128 ignores the key silently — running a `'MAIN'` script in the isolated world instead — declaring `world` raises the Firefox build's `browser_specific_settings.gecko.strict_min_version` from `109.0` to `128.0` rather than shipping a manifest Firefox would quietly misread.
 
 ### `webAccessibleResources`
 

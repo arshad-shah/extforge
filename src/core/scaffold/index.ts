@@ -232,6 +232,10 @@ function buildExtForgeConfig(a: ScaffoldAnswers): string {
       js: ['content/index.js'],
       css: ['styles/content.css'],
       runAt: 'document_idle',
+      // allFrames: true,        // also inject into iframes
+      // matchAboutBlank: true,  // …and into about:blank frames
+      // excludeMatches: ['https://example.com/admin/*'],
+      // world: 'MAIN',          // run in the page's own JS realm
     }],`);
   }
   if (a.features.includes('options')) {

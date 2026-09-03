@@ -159,3 +159,15 @@ export const BROWSER_FEATURES: Record<
 // ─── Firefox minimum version ─────────────────────────────────────────────────
 
 export const FIREFOX_MIN_VERSION = '109.0';
+
+/**
+ * Floor for a Firefox build whose content scripts declare `world`.
+ *
+ * `content_scripts[].world` landed in Firefox 128; older Firefox silently
+ * ignores the key, which would run a `'MAIN'`-world script in the isolated
+ * world instead — a subtle, hard-to-diagnose failure. Rather than drop the
+ * key (Firefox would then be quietly wrong) the generator raises
+ * `browser_specific_settings.gecko.strict_min_version` to this value so the
+ * addon only installs where the declaration is honoured.
+ */
+export const FIREFOX_CONTENT_SCRIPT_WORLD_MIN_VERSION = '128.0';

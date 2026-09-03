@@ -95,6 +95,21 @@ for (const example of examples) {
       check(key in background, `${label}: background should use \`${key}\``);
     }
 
+    // `content_scripts[].world` is honoured only from Firefox 128, so the
+    // generator raises strict_min_version when a content script declares it.
+    // Assert the two never drift apart — a Firefox build that ships `world`
+    // under an older floor would silently run MAIN-world scripts isolated.
+    const contentScripts = (manifest.content_scripts as Array<Record<string, unknown>>) ?? [];
+    if (browser === 'firefox' && contentScripts.some((cs) => cs.world !== undefined)) {
+      const gecko = (manifest.browser_specific_settings as { gecko?: Record<string, unknown> })
+        ?.gecko;
+      const min = Number.parseFloat(String(gecko?.strict_min_version ?? '0'));
+      check(
+        min >= 128,
+        `${label}: content_scripts declare \`world\` but strict_min_version is ${String(gecko?.strict_min_version)} (< 128)`,
+      );
+    }
+
     // Firefox is the only target that needs an addon id declared.
     check(
       browser === 'firefox'

@@ -41,12 +41,18 @@ export default defineCSUI(
 
 That's the full integration. The builder reads the `matches:` array statically (no AST parser dep), adds the entry to the manifest's `content_scripts`, builds it as IIFE for content-script context, and the CSUI runtime auto-mounts on script load.
 
+Every manifest-affecting option (`matches`, `excludeMatches`, `runAt`, `allFrames`, `matchAboutBlank`, `world`) is read by that same static scan, so each has to be a **literal** in the `defineCSUI` call — only the key at the top level of the options object counts, so a nested object with the same key name can't shadow it. If you declare one and the scan can't read the value (a variable, a spread, a computed expression), the build warns by name and leaves that option out of the manifest; declare the content script in `extforge.config.ts` when you need a computed value.
+
 ## `defineCSUI(options, render)`
 
 | Option | Type | Description |
 |---|---|---|
 | `matches` | `string[]` | URL match patterns. **Read at build time** — must be a static literal array |
+| `excludeMatches` | `string[]` | Patterns subtracted from `matches`. **Read at build time** — must be a static literal array |
 | `runAt` | `'document_start' \| 'document_end' \| 'document_idle'` | Forwarded to manifest entry. Default `document_idle` |
+| `allFrames` | `boolean` | Mount in every frame of a matching page. **Read at build time** — must be a `true`/`false` literal. Omitted when unset |
+| `matchAboutBlank` | `boolean` | Also inject into `about:blank` frames whose creator matches. **Read at build time** — must be a `true`/`false` literal |
+| `world` | `'MAIN' \| 'ISOLATED'` | Execution world. `'MAIN'` has no extension APIs. **Read at build time** — must be a string literal |
 | `id` | `string` | Stable identifier for idempotent remount (HMR / SPA route change). Default: derived from filename |
 | `getMountPoint` | `() => Element \| null \| Promise<...>` | Element to insert the host into. Default: `document.documentElement` |
 | `getStyle` | `() => string \| Promise<string>` | CSS injected into the Shadow Root before mount |

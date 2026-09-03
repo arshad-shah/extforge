@@ -9,7 +9,11 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createLogger, type Logger } from '../logger/index.js';
 import { slugify } from '../util/slug.js';
-import { BROWSER_FEATURES, FIREFOX_MIN_VERSION } from './constants.js';
+import {
+  BROWSER_FEATURES,
+  FIREFOX_CONTENT_SCRIPT_WORLD_MIN_VERSION,
+  FIREFOX_MIN_VERSION,
+} from './constants.js';
 import type { Browser, ManifestConfig, ValidationResult } from './types.js';
 
 // ─── Validation ──────────────────────────────────────────────────────────────
@@ -37,6 +41,19 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
   if (!config.permissions) {
     errors.push('Missing required `permissions` object — expected { required, optional, host }');
   }
+  for (const [i, cs] of (config.contentScripts ?? []).entries()) {
+    if (cs.world !== undefined && cs.world !== 'MAIN' && cs.world !== 'ISOLATED')
+      errors.push(
+        `contentScripts[${i}].world must be 'MAIN' or 'ISOLATED' (received ${JSON.stringify(cs.world)})`,
+      );
+    if (cs.world !== undefined && config.manifestVersion !== 3)
+      errors.push(`contentScripts[${i}].world requires manifest V3`);
+  }
+  if (usesContentScriptWorld(config))
+    warnings.push(
+      `content_scripts \`world\` needs Chrome/Edge 111+, Firefox 128+ or Safari 18+ — the Firefox build's strict_min_version is raised to ${FIREFOX_CONTENT_SCRIPT_WORLD_MIN_VERSION} so the key is never silently ignored`,
+    );
+
   if (perms.includes('webRequest') && perms.includes('webRequestBlocking'))
     warnings.push(
       'webRequestBlocking is only available in MV2 — use declarativeNetRequest for MV3',
@@ -45,6 +62,11 @@ export function validateManifestConfig(config: ManifestConfig): ValidationResult
     warnings.push('Requesting access to all URLs increases review time on stores');
 
   return { valid: errors.length === 0, errors, warnings };
+}
+
+/** True when any content script declares `world`. */
+function usesContentScriptWorld(config: ManifestConfig): boolean {
+  return (config.contentScripts ?? []).some((cs) => cs.world !== undefined);
 }
 
 // ─── Generator ───────────────────────────────────────────────────────────────
@@ -113,13 +135,19 @@ export function generateManifest(
         : { scripts: [config.background.entrypoint], type: 'module' };
   }
 
-  // Content scripts
+  // Content scripts. Only `run_at` carries a default — every other optional
+  // key is omitted when unset so the browser's own default applies and the
+  // emitted manifest stays byte-identical for configs that don't use them.
   if (config.contentScripts?.length) {
     manifest.content_scripts = config.contentScripts.map((cs) => ({
       matches: cs.matches,
+      ...(cs.excludeMatches && { exclude_matches: cs.excludeMatches }),
       ...(cs.js && { js: cs.js }),
       ...(cs.css && { css: cs.css }),
       run_at: cs.runAt ?? 'document_idle',
+      ...(cs.allFrames !== undefined && { all_frames: cs.allFrames }),
+      ...(cs.matchAboutBlank !== undefined && { match_about_blank: cs.matchAboutBlank }),
+      ...(cs.world && { world: cs.world }),
     }));
   }
 
@@ -170,7 +198,9 @@ export function generateManifest(
     manifest.browser_specific_settings = {
       gecko: {
         id: config.firefoxId ?? deriveFirefoxId(config.name),
-        strict_min_version: FIREFOX_MIN_VERSION,
+        strict_min_version: usesContentScriptWorld(config)
+          ? FIREFOX_CONTENT_SCRIPT_WORLD_MIN_VERSION
+          : FIREFOX_MIN_VERSION,
       },
     };
   }

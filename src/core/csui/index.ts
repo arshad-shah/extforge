@@ -55,9 +55,38 @@ export interface CSUIOptions {
    */
   matches?: string[];
   /**
+   * Match patterns subtracted from `matches`. Emitted as `exclude_matches`.
+   *
+   * Read at build time by the same static scan as `matches`, so it must be a
+   * literal array of string literals. A value the scan can't read (a variable,
+   * a spread, a computed expression) is reported as a build warning and left
+   * out of the manifest — declare the content script in `extforge.config.ts`
+   * in that case.
+   */
+  excludeMatches?: string[];
+  /**
    * Run-at timing forwarded to the manifest entry. Default: `'document_idle'`.
    */
   runAt?: 'document_start' | 'document_end' | 'document_idle';
+  /**
+   * Mount in every frame of a matching page, not just the top one. Emitted as
+   * `all_frames`. Read at build time — must be a `true` / `false` literal.
+   * Omitted from the manifest when unset (browser default: `false`).
+   */
+  allFrames?: boolean;
+  /**
+   * Also inject into `about:blank` / `about:srcdoc` frames whose creator
+   * matches. Emitted as `match_about_blank`. Read at build time — must be a
+   * `true` / `false` literal.
+   */
+  matchAboutBlank?: boolean;
+  /**
+   * Execution world. `'MAIN'` runs in the page's own realm (no extension
+   * APIs — `chrome.runtime` and friends are unavailable, which usually rules
+   * out CSUI's messaging helpers). Emitted as `world`; read at build time —
+   * must be a string literal.
+   */
+  world?: 'MAIN' | 'ISOLATED';
   /**
    * Opt-in: watch for SPA navigations / DOM replacements that would orphan
    * the mounted host. When the configured trigger fires, the previous

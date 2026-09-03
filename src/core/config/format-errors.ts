@@ -2,6 +2,16 @@ import type { ZodError } from 'zod';
 import { ExtForgeError } from '../errors/index.js';
 
 const SUGGESTIONS: Record<string, (received: unknown) => string | undefined> = {
+  'manifest.contentScripts.*.world': (v) => {
+    if (typeof v !== 'string') return 'expected the string "MAIN" or "ISOLATED"';
+    const upper = v.toUpperCase();
+    if (upper === 'MAIN' || upper === 'ISOLATED') return `world is upper-case — use "${upper}".`;
+    return 'expected one of MAIN, ISOLATED';
+  },
+  'manifest.contentScripts.*.allFrames': (v) =>
+    typeof v === 'string'
+      ? `allFrames is a boolean — use ${v === 'false' ? 'false' : 'true'}, not "${v}".`
+      : undefined,
   'browsers.*': (v) => {
     if (typeof v !== 'string') return undefined;
     const known = ['chrome', 'firefox', 'edge', 'safari'];
