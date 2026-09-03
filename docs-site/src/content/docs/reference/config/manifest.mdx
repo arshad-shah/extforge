@@ -5,5 +5,10 @@ description: "The MV3 manifest, ExtForge-flavored. Browser-specific quirks are h
 
 The MV3 manifest, ExtForge-flavored. Browser-specific quirks are handled automatically.
 
-**Type:** `unknown`
+**Type:** `object`
 
+## Fields
+
+| Path | Type | Default | Description |
+|---|---|---|---|
+| `manifest.contentScripts` | `Array<object>` | — | Content-script declarations. Each entry maps to one `content_scripts` object: `matches`, `excludeMatches`, `js`, `css`, `runAt`, `allFrames`, `matchAboutBlank` and `world` are emitted as `matches`, `exclude_matches`, `js`, `css`, `run_at`, `all_frames`, `match_about_blank` and `world`. Only `run_at` has a default (`document_idle`) — every other optional key is left out of the manifest when unset, so the browser default applies. `world: 'MAIN'` raises the Firefox build's `strict_min_version` to 128.0, the first Firefox that honours the key. |
