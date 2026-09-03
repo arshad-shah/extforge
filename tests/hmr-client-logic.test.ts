@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  createReloadRelayMessage,
+  createServiceWorkerReloadRelay,
   formatReloadLog,
   isCompatibleEnvelope,
+  isReloadRelayMessage,
   nextBackoffDelay,
+  RELOAD_RELAY_TYPE,
+  requestExtensionReload,
   shouldClientReload,
 } from '../src/core/hmr/client-logic.js';
 
@@ -65,5 +70,125 @@ describe('formatReloadLog', () => {
   it('uses raw type as fallback for unknown reasons', () => {
     const line = formatReloadLog({ type: 'unknown-future' as any, files: ['x'], durationMs: 1 }, 1);
     expect(line).toContain('unknown-future');
+  });
+});
+
+// ─── issue #88: the reload relay ─────────────────────────────────────────────
+
+describe('reload relay message', () => {
+  it('round-trips through create/is', () => {
+    const msg = createReloadRelayMessage('manifest');
+    expect(msg).toEqual({ type: RELOAD_RELAY_TYPE, reason: 'manifest' });
+    expect(isReloadRelayMessage(msg)).toBe(true);
+  });
+  it('rejects anything that is not a relay message', () => {
+    expect(isReloadRelayMessage(null)).toBe(false);
+    expect(isReloadRelayMessage(undefined)).toBe(false);
+    expect(isReloadRelayMessage('extforge:hmr-reload')).toBe(false);
+    expect(isReloadRelayMessage({ type: 'other' })).toBe(false);
+    // A user's own message must pass straight through to their listener.
+    expect(isReloadRelayMessage({ type: 'GET_STATE', payload: 1 })).toBe(false);
+  });
+});
+
+describe('requestExtensionReload', () => {
+  it('reloads directly when the context owns chrome.runtime.reload', () => {
+    const reloadExtension = vi.fn();
+    const sendMessage = vi.fn();
+    const reloadPage = vi.fn();
+    expect(requestExtensionReload('manifest', { reloadExtension, sendMessage, reloadPage })).toBe(
+      'direct',
+    );
+    expect(reloadExtension).toHaveBeenCalledOnce();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(reloadPage).not.toHaveBeenCalled();
+  });
+
+  it('relays to the worker from a content script (no runtime.reload there)', () => {
+    const sendMessage = vi.fn();
+    const reloadPage = vi.fn();
+    expect(requestExtensionReload('full-reload', { sendMessage, reloadPage })).toBe('relayed');
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: RELOAD_RELAY_TYPE,
+      reason: 'full-reload',
+    });
+    expect(reloadPage).not.toHaveBeenCalled();
+  });
+
+  it('falls through to the relay when runtime.reload throws (dead context)', () => {
+    const reloadExtension = vi.fn(() => {
+      throw new Error('Extension context invalidated.');
+    });
+    const sendMessage = vi.fn();
+    const warn = vi.fn();
+    expect(
+      requestExtensionReload('manifest', {
+        reloadExtension,
+        sendMessage,
+        reloadPage: vi.fn(),
+        warn,
+      }),
+    ).toBe('relayed');
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('degrades to a page reload, loudly, when no relay target is reachable', () => {
+    const sendMessage = vi.fn(() => {
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    });
+    const reloadPage = vi.fn();
+    const warn = vi.fn();
+    expect(requestExtensionReload('full-reload', { sendMessage, reloadPage, warn })).toBe(
+      'page-reload',
+    );
+    expect(reloadPage).toHaveBeenCalledOnce();
+    // The one failure mode we must never ship is a silent dev loop.
+    expect(warn.mock.calls[0]?.[0]).toMatch(/manually/);
+  });
+
+  it('does not relay when the caller withholds sendMessage (v3 fallback path)', () => {
+    const reloadPage = vi.fn();
+    expect(requestExtensionReload('hmr-update', { reloadPage })).toBe('page-reload');
+    expect(reloadPage).toHaveBeenCalledOnce();
+  });
+
+  it('warns instead of failing silently when nothing at all is available', () => {
+    const warn = vi.fn();
+    expect(requestExtensionReload('full-reload', { warn })).toBe('unavailable');
+    expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+describe('createServiceWorkerReloadRelay', () => {
+  it('reloads the extension on a full-reload relay', () => {
+    const reload = vi.fn();
+    const handler = createServiceWorkerReloadRelay({ reload });
+    expect(handler(createReloadRelayMessage('full-reload'))).toBe(true);
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('reloads on a manifest relay too', () => {
+    const reload = vi.fn();
+    expect(createServiceWorkerReloadRelay({ reload })(createReloadRelayMessage('manifest'))).toBe(
+      true,
+    );
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('ignores unrelated messages so user listeners still see them', () => {
+    const reload = vi.fn();
+    const handler = createServiceWorkerReloadRelay({ reload });
+    expect(handler({ type: 'GET_STATE' })).toBe(false);
+    expect(handler(undefined)).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('reloads once even though every open tab relays the same change', () => {
+    const reload = vi.fn();
+    const handler = createServiceWorkerReloadRelay({ reload });
+    handler(createReloadRelayMessage('full-reload'));
+    handler(createReloadRelayMessage('full-reload'));
+    handler(createReloadRelayMessage('manifest'));
+    expect(reload).toHaveBeenCalledOnce();
   });
 });

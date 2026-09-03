@@ -3,14 +3,20 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Opt out of defineCSUI's auto-mount so these tests exercise the manual
 // mountCSUI() path explicitly. Must be set before importing the module.
 (globalThis as { __EXTFORGE_CSUI_NO_AUTOMOUNT__?: boolean }).__EXTFORGE_CSUI_NO_AUTOMOUNT__ = true;
 
 import { discoverCSUI, extractMatches, extractRunAt } from '../src/core/csui/discovery.js';
-import { __resetCSUI, defineCSUI, mountCSUI } from '../src/core/csui/index.js';
+import {
+  __resetCSUI,
+  defineCSUI,
+  mountCSUI,
+  onBeforeExtensionReload,
+} from '../src/core/csui/index.js';
+import { __resetBeforeReload, runBeforeExtensionReload } from '../src/core/hmr/before-reload.js';
 
 describe('discovery: extractMatches', () => {
   it('extracts a simple matches array from defineCSUI', () => {
@@ -259,4 +265,71 @@ describe('mountCSUI', () => {
       expect(rendered).toBe(true);
     },
   );
+});
+
+// ─── issue #89: teardown before an extension reload ──────────────────────────
+
+describe('onBeforeExtensionReload', () => {
+  beforeEach(() => {
+    __resetBeforeReload();
+    (globalThis as { __EXTFORGE_HMR_QUIET__?: boolean }).__EXTFORGE_HMR_QUIET__ = true;
+  });
+  afterEach(() => {
+    __resetCSUI();
+    __resetBeforeReload();
+    (globalThis as { __EXTFORGE_HMR_QUIET__?: boolean }).__EXTFORGE_HMR_QUIET__ = undefined;
+  });
+
+  it('unmounts what CSUI mounted, with no callback registered', async () => {
+    const cleanup = vi.fn();
+    await mountCSUI(
+      defineCSUI({ id: 'before-reload-default' }, (root) => {
+        root.textContent = 'widget';
+        return cleanup;
+      }),
+    );
+    expect(document.querySelector('[data-extforge-csui="before-reload-default"]')).not.toBeNull();
+
+    await runBeforeExtensionReload();
+
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(document.querySelector('[data-extforge-csui="before-reload-default"]')).toBeNull();
+  });
+
+  it('runs a user callback as well as the CSUI teardown', async () => {
+    const userTeardown = vi.fn();
+    onBeforeExtensionReload(userTeardown);
+    await mountCSUI(defineCSUI({ id: 'before-reload-user' }, (root) => root.append('x')));
+
+    await runBeforeExtensionReload();
+
+    expect(userTeardown).toHaveBeenCalledOnce();
+    expect(document.querySelector('[data-extforge-csui="before-reload-user"]')).toBeNull();
+  });
+
+  it('still unmounts when the user callback throws', async () => {
+    onBeforeExtensionReload(() => {
+      throw new Error('user teardown blew up');
+    });
+    await mountCSUI(defineCSUI({ id: 'before-reload-throw' }, (root) => root.append('x')));
+
+    await expect(runBeforeExtensionReload()).resolves.toBeUndefined();
+    expect(document.querySelector('[data-extforge-csui="before-reload-throw"]')).toBeNull();
+  });
+
+  it('unsubscribes the user callback without disarming the CSUI teardown', async () => {
+    const userTeardown = vi.fn();
+    const off = onBeforeExtensionReload(userTeardown);
+    off();
+    await mountCSUI(defineCSUI({ id: 'before-reload-off' }, (root) => root.append('x')));
+
+    await runBeforeExtensionReload();
+
+    expect(userTeardown).not.toHaveBeenCalled();
+    expect(document.querySelector('[data-extforge-csui="before-reload-off"]')).toBeNull();
+  });
+
+  it('is a no-op when nothing was ever mounted', async () => {
+    await expect(runBeforeExtensionReload()).resolves.toBeUndefined();
+  });
 });

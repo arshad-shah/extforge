@@ -15,6 +15,12 @@
  * manifest — declare them in extforge.config.ts in that case.)
  */
 
+import {
+  type BeforeReloadCallback,
+  isBeforeReloadCallbackRegistered,
+  onBeforeExtensionReload as registerBeforeExtensionReload,
+} from '../hmr/before-reload.js';
+
 export interface CSUIOptions {
   /**
    * Returns the element (or shadow host) under which to attach the Shadow
@@ -311,6 +317,10 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
     void mountCSUI(descriptor);
   });
 
+  // From the first mount on, a dev-mode extension reload tears this down
+  // instead of orphaning it on the page (issue #89).
+  ensureDefaultBeforeReloadDispose();
+
   ACTIVE.set(id, { host, cleanup, unwatchRemount });
 
   return () => {
@@ -331,8 +341,12 @@ export async function mountCSUI(descriptor: CSUIDescriptor<Renderer>): Promise<(
   };
 }
 
-/** @internal — clears all active mounts. Used by tests. */
-export function __resetCSUI(): void {
+/**
+ * Unmount every active CSUI instance: unsubscribe its remount trigger, run its
+ * cleanup, and remove its host from the page. Safe to call when nothing is
+ * mounted, and safe to call twice.
+ */
+export function unmountAllCSUI(): void {
   for (const { host, cleanup, unwatchRemount } of ACTIVE.values()) {
     try {
       unwatchRemount?.();
@@ -352,3 +366,55 @@ export function __resetCSUI(): void {
   }
   ACTIVE.clear();
 }
+
+/** @internal — clears all active mounts. Used by tests. */
+export function __resetCSUI(): void {
+  unmountAllCSUI();
+}
+
+// ─── Extension-reload teardown (issue #89) ───────────────────────────────────
+
+const defaultBeforeReloadDispose: BeforeReloadCallback = () => {
+  unmountAllCSUI();
+};
+
+/**
+ * Register the built-in teardown exactly once. Without this a dev-mode
+ * `chrome.runtime.reload()` leaves the mounted host on the page, still running
+ * against a dead `chrome.runtime`, and the next navigation mounts a second
+ * copy beside it.
+ *
+ * Membership is checked against the registry itself rather than a local flag,
+ * so the hook comes back if the registry is ever reset underneath us.
+ */
+function ensureDefaultBeforeReloadDispose(): void {
+  if (isBeforeReloadCallbackRegistered(defaultBeforeReloadDispose)) return;
+  registerBeforeExtensionReload(defaultBeforeReloadDispose);
+}
+
+/**
+ * Run `callback` just before ExtForge reloads the extension in dev, so a
+ * content script can tear down what it put on the page.
+ *
+ * Anything CSUI mounted is unmounted for you — you only need this for state
+ * CSUI doesn't own: intervals, observers, event listeners on the host page,
+ * a portal rendered outside the shadow root.
+ *
+ * ```ts
+ * const stop = onBeforeExtensionReload(() => {
+ *   clearInterval(poll);
+ *   observer.disconnect();
+ * });
+ * ```
+ *
+ * Callbacks may be async and are awaited in parallel, but the reload will not
+ * wait indefinitely — one that throws or hangs is logged and stepped over.
+ * Returns an unsubscribe function. Outside dev builds nothing ever calls the
+ * callback, so registering one is harmless in production.
+ */
+export function onBeforeExtensionReload(callback: BeforeReloadCallback): () => void {
+  ensureDefaultBeforeReloadDispose();
+  return registerBeforeExtensionReload(callback);
+}
+
+export type { BeforeReloadCallback };
