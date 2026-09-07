@@ -100,8 +100,8 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     title: 'Module has an invalid shape',
     description: 'An entry in `modules: [...]` resolved, but is not a valid ExtForge module.',
     whenYouSeeThis:
-      'The resolved value is missing a `name` string or a `setup()` function — for example the module\'s default export was not passed through `defineModule()`.',
+      'The resolved value is missing a `name` string or a `setup()` function — for example the module did not export the expected object shape.',
     howToFix:
-      'Make sure the module file has a default export shaped like `defineModule({ name, setup(ctx) { ... } })`.',
+      'Ensure the module default export is an object like `{ name: string, setup(ctx) { ... } }`. Using `defineModule({ ... })` is recommended for type inference.'
   },
 };
