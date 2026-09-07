@@ -80,6 +80,25 @@ export function resolveWebExtBinary(projectRoot: string, override?: string): str
   return findOnPath([binName]);
 }
 
+/**
+ * Since the fix for CVE-2024-27980, `child_process.spawn()` rejects
+ * `.cmd`/`.bat` targets with `EINVAL` unless `shell` is truthy — and adding
+ * `shell: true` would reopen a command-injection surface, since `distDir`,
+ * `profileDir` and `startUrls` all flow into the spawned args. So on
+ * Windows, resolve the project-local install's actual JS entrypoint and run
+ * it directly through `process.execPath` instead of the `.cmd` shim.
+ */
+function resolveWebExtSpawnTarget(
+  projectRoot: string,
+  webExt: string,
+): { command: string; prefixArgs: string[] } {
+  if (process.platform === 'win32' && webExt.toLowerCase().endsWith('.cmd')) {
+    const jsEntry = join(projectRoot, 'node_modules', 'web-ext', 'bin', 'web-ext.js');
+    if (existsSync(jsEntry)) return { command: process.execPath, prefixArgs: [jsEntry] };
+  }
+  return { command: webExt, prefixArgs: [] };
+}
+
 export interface LaunchDevBrowserOptions {
   browser: Browser;
   /** Project root — used to resolve a project-local `web-ext` install. */
@@ -150,10 +169,12 @@ export async function launchDevBrowser(
       '--keep-profile-changes',
       '--no-input',
     ];
-    for (const url of startUrls) args.push('--start-url', url);
+    const safeUrls = startUrls.filter((u) => !u.startsWith('-'));
+    for (const url of safeUrls) args.push('--start-url', url);
+    const { command, prefixArgs } = resolveWebExtSpawnTarget(projectRoot, webExt);
     try {
       const child = await new Promise<ChildProcess>((resolve, reject) => {
-        const p = spawn(webExt, args, { stdio: 'ignore' });
+        const p = spawn(command, [...prefixArgs, ...args], { stdio: 'ignore' });
         p.once('spawn', () => resolve(p));
         p.once('error', reject);
       });

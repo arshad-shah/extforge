@@ -73,7 +73,10 @@ export const dev = defineCommand({
         ? resolve(root, config.dev.profileDir)
         : resolve(root, '.extforge', 'profile');
       const profileDir = join(profileBase, browser);
-      const distDir = join(root, config.build?.outDir ?? 'dist', browser);
+      // The dev build (createHMRServer -> build()/createBuildContext()) never
+      // threads config.build.outDir through, so it always lands in
+      // `dist/<browser>` regardless of that setting. Match it here.
+      const distDir = join(root, 'dist', browser);
       const result = await launchDevBrowser({
         browser: browser as import('../../core/manifest/types.js').Browser,
         projectRoot: root,

@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   launchDevBrowser,
@@ -17,11 +17,18 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-/** A no-op executable script — `spawn` runs it and it exits immediately. */
-function fakeBinary(name: string): string {
-  const p = join(dir, name);
-  writeFileSync(p, '#!/bin/sh\nexit 0\n');
-  chmodSync(p, 0o755);
+/**
+ * A no-op executable script — `spawn` runs it and it exits immediately.
+ * `relPath` may include subdirectories (e.g. `node_modules/.bin/web-ext`).
+ * On win32 this writes a `.cmd` stub, since that's what Node resolves there.
+ */
+function fakeBinary(relPath: string): string {
+  const isWin = process.platform === 'win32';
+  const target = isWin && !relPath.endsWith('.cmd') ? `${relPath}.cmd` : relPath;
+  const p = join(dir, target);
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, isWin ? '@echo off\r\nexit /b 0\r\n' : '#!/bin/sh\nexit 0\n');
+  if (!isWin) chmodSync(p, 0o755);
   return p;
 }
 
@@ -43,11 +50,7 @@ describe('resolveChromeBinary / resolveEdgeBinary', () => {
 
 describe('resolveWebExtBinary', () => {
   it('finds a project-local node_modules/.bin/web-ext', () => {
-    const binDir = join(dir, 'node_modules', '.bin');
-    mkdirSync(binDir, { recursive: true });
-    const p = join(binDir, 'web-ext');
-    writeFileSync(p, '#!/bin/sh\nexit 0\n');
-    chmodSync(p, 0o755);
+    const p = fakeBinary(join('node_modules', '.bin', 'web-ext'));
     expect(resolveWebExtBinary(dir)).toBe(p);
   });
 
