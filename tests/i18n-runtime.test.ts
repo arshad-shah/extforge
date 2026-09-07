@@ -10,7 +10,9 @@ declare module '../src/core/i18n/index.js' {
   }
 }
 
-type FakeChrome = { i18n: { getMessage: (key: string, substitutions?: string | string[]) => string } };
+type FakeChrome = {
+  i18n: { getMessage: (key: string, substitutions?: string | string[]) => string };
+};
 
 afterEach(() => {
   delete (globalThis as { chrome?: unknown }).chrome;

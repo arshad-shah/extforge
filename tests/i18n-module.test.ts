@@ -9,7 +9,10 @@ function tempDir(): string {
   return mkdtempSync(join(tmpdir(), 'extforge-i18n-'));
 }
 
-function fakeModuleContext(root: string, i18n: { defaultLocale?: string; localesDir?: string } | undefined) {
+function fakeModuleContext(
+  root: string,
+  i18n: { defaultLocale?: string; localesDir?: string } | undefined,
+) {
   const emitted: Array<[string, string | Uint8Array]> = [];
   const typeDeclarations: string[] = [];
   const manifestPatches: unknown[] = [];
@@ -57,7 +60,10 @@ describe('i18nModule', () => {
     await mod.setup(ctx);
 
     const files = Object.fromEntries(emitted);
-    expect(Object.keys(files).sort()).toEqual(['_locales/en/messages.json', '_locales/fr/messages.json']);
+    expect(Object.keys(files).sort()).toEqual([
+      '_locales/en/messages.json',
+      '_locales/fr/messages.json',
+    ]);
     expect(JSON.parse(files['_locales/en/messages.json'] as string)).toEqual({
       popup_title: { message: 'My Extension' },
       popup_greeting: { message: 'Hello, $1' },
@@ -95,7 +101,10 @@ describe('i18nModule', () => {
     writeFileSync(join(root, 'i18n-src/en.json'), JSON.stringify({ title: 'Hi' }));
 
     const mod = i18nModule();
-    const { ctx, emitted } = fakeModuleContext(root, { defaultLocale: 'en', localesDir: 'i18n-src' });
+    const { ctx, emitted } = fakeModuleContext(root, {
+      defaultLocale: 'en',
+      localesDir: 'i18n-src',
+    });
     await mod.setup(ctx);
 
     const files = Object.fromEntries(emitted);
