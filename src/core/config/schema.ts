@@ -62,11 +62,27 @@ export const manifestSchema = z
   })
   .passthrough();
 
+/**
+ * `i18n` config. Presence of this block (even `{}`) opts a project into
+ * `extforge/i18n`: locale sources under `localesDir` are compiled into
+ * `_locales/<lang>/messages.json`, typed message keys are generated, and
+ * `defaultLocale` is wired into the manifest's `default_locale`.
+ */
+export const i18nSchema = z
+  .object({
+    /** Locale whose keys define the typed surface. Defaults to `'en'`. */
+    defaultLocale: z.string().optional(),
+    /** Directory of `<locale>.yml` / `.yaml` / `.json` source files, relative to the project root. Defaults to `'locales'`. */
+    localesDir: z.string().optional(),
+  })
+  .optional();
+
 export const extForgeConfigSchema = z
   .object({
     root: z.string().optional(),
     browsers: z.array(browserSchema).optional(),
     manifest: manifestSchema.optional(),
+    i18n: i18nSchema,
     build: z
       .object({
         outDir: z.string().optional(),

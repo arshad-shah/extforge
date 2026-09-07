@@ -28,6 +28,9 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
+      js-yaml:
+        specifier: ^4.3.1
+        version: 4.3.2
       react-refresh:
         specifier: '>=0.14.0'
         version: 0.18.0
@@ -56,6 +59,9 @@ importers:
       '@types/chrome':
         specifier: ^0.2.7
         version: 0.2.7
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
       '@types/node':
         specifier: ^26.4.0
         version: 26.4.0

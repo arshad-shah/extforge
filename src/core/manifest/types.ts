@@ -73,6 +73,8 @@ export interface ManifestConfig {
     defaultPath?: string;
   };
   icons?: Record<string, string>;
+  /** Emitted as `default_locale`. Required by Chrome once `_locales/` exists. */
+  defaultLocale?: string;
   webAccessibleResources?: Array<{
     resources: string[];
     matches: string[];
