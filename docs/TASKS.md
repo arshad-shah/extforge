@@ -10,6 +10,45 @@
 
 ---
 
+## v1.0.0 readiness snapshot (2026-05-31)
+
+This is a live checkpoint against the v1 tracking issue. It is intentionally
+status-only: each unchecked item still needs explicit sign-off before `1.0.0`.
+
+### Current state
+
+- Released: **`0.4.0`** (`CHANGELOG.md`).
+- Pending changesets in `.changeset/`: **5** release entries (`*.md` excluding `README.md`).
+- `CHANGELOG.md` currently includes `## [Unreleased]` with additional queued work.
+
+### Must-have (blocks v1)
+
+- [ ] Ship the `0.4.0` release and clear `## [Unreleased]` (0.4.0 is shipped; unreleased entries remain).
+- [ ] Soak period: one minor cycle with no new `fix-*` changesets in core areas.
+- [ ] API freeze audit for all public subpath exports (`@internal` tagging + docs split).
+- [ ] Config schema lock-in (`extforge.config.*`) and experimental labeling for anything still in flux.
+- [ ] CLI flag freeze and deprecation notes for renamed flags.
+- [x] HMR protocol v3 documented and v2/v1 compatibility path tested (`docs-site/src/content/docs/guides/hmr.mdx`, `tests/hmr-client-logic.test.ts`, `tests/hmr-protocol.test.ts`).
+- [x] Plasmo-parity packages (storage, messaging, csui, env) documented and represented in `examples/` (`examples/vanilla-popup`, `examples/react-csui`, `examples/env-config`).
+- [ ] Node engine policy documented as a support window (current engine floor is `>=20.0.0` in `package.json`).
+- [ ] Cross-browser e2e in CI for all four targets (current CI installs Chromium only in `.github/workflows/ci.yml`).
+- [x] Supply chain baseline in place (`pnpm audit --prod` clean, OIDC + provenance enabled in publish workflows).
+- [ ] Docs parity audit at exported-symbol granularity (runtime/cli/config pages exist, full symbol-by-symbol sign-off still pending).
+
+### Nice-to-have
+
+- [ ] Migration guide (`0.x -> 1.0`) + codemod notes.
+- [ ] Performance baseline (cold build + dev start) committed and CI-tracked.
+- [ ] Published bundle-size budget tracked in CI.
+
+### Open questions still to resolve before the final v1 call
+
+- [ ] Should `extforge/testing` and `extforge/testing/vitest` be marked experimental at v1?
+- [ ] Are `globalThis.__EXTFORGE_HMR__` and `globalThis.__EXTFORGE_HMR_QUIET__` public contract or internal?
+- [ ] Is `extforge/plugins` a stable API at v1, or experimental until v2?
+
+---
+
 ## Phase 1 — Slim deps & patch all CVEs (no-behavior-change)
 
 ### 1.1 Delete unused declared dependencies
