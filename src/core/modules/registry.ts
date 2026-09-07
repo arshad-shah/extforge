@@ -84,7 +84,7 @@ export class ModuleRegistry {
               return;
             }
             this.runtimeImports.push({ name, from });
-          }
+          },
         };
         await mod.setup(moduleCtx);
       },

@@ -2,9 +2,7 @@ import { loadExtForgeConfig } from '../../config.js';
 import type { ModuleRegistry } from '../../modules/registry.js';
 import type { Check } from '../index.js';
 
-function describe(
-  contributions: ReturnType<ModuleRegistry['getContributions']>[number],
-): string {
+function describe(contributions: ReturnType<ModuleRegistry['getContributions']>[number]): string {
   const parts: string[] = [];
   if (contributions.entrypoints.length > 0) {
     parts.push(`entrypoints: ${contributions.entrypoints.join(', ')}`);

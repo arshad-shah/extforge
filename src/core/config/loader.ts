@@ -198,10 +198,7 @@ function resolveModuleFile(specifier: string, cwd: string): string {
  * specifier (loaded via a plain dynamic `import`, since published packages
  * ship pre-compiled JS).
  */
-export async function loadModuleSpecifier<T = unknown>(
-  specifier: string,
-  cwd: string,
-): Promise<T> {
+export async function loadModuleSpecifier<T = unknown>(specifier: string, cwd: string): Promise<T> {
   if (isPathSpecifier(specifier)) {
     const file = resolveModuleFile(specifier, cwd);
     return await loadConfigModule<T>(file, cwd);

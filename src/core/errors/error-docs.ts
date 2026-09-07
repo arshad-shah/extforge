@@ -102,6 +102,6 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     whenYouSeeThis:
       'The resolved value is missing a `name` string or a `setup()` function — for example the module did not export the expected object shape.',
     howToFix:
-      'Ensure the module default export is an object like `{ name: string, setup(ctx) { ... } }`. Using `defineModule({ ... })` is recommended for type inference.'
+      'Ensure the module default export is an object like `{ name: string, setup(ctx) { ... } }`. Using `defineModule({ ... })` is recommended for type inference.',
   },
 };
