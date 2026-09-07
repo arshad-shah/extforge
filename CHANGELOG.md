@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- [#120](https://github.com/arshad-shah/extforge/pull/120) [`c33fdc8`](https://github.com/arshad-shah/extforge/commit/c33fdc8bec7b5bcfd438f7c244951cac5442dace) Thanks [@arshad-shah](https://github.com/arshad-shah)! - `extforge dev --open` (or `dev: { open: true }` in `extforge.config.ts`) now launches a browser with the extension already installed, instead of leaving `dev.open` as an unused config field.
+  
+  - Chrome/Edge: launched with `--load-extension` + `--disable-extensions-except`, pointed at the built `dist/<browser>/` output.
+  - Firefox: launched via `web-ext run` (install it with `npm i -D web-ext`) if it's found on the project's `node_modules/.bin` or `PATH`.
+  - A profile persists across `dev` restarts at `.extforge/profile/<browser>/` by default, configurable via `dev.profileDir`. Override the resolved binary with `dev.browserBinary`, and open extra tabs with `dev.startUrls`.
+  - When no binary (or `web-ext`) can be found — or the target is Safari, which can't be scripted this way — `dev` logs a warning and falls back to the existing "load unpacked from `dist/<browser>/`" instructions.
+
+- [#119](https://github.com/arshad-shah/extforge/pull/119) [`8d0e56d`](https://github.com/arshad-shah/extforge/commit/8d0e56d1fcf80f532ca5f5f75aba4b150ab40206) Thanks [@arshad-shah](https://github.com/arshad-shah)! - Add a module system: `extforge/modules` exports `defineModule()` and `ModuleContext`, and `extforge.config.ts` accepts a `modules: [...]` array alongside `plugins`.
+  
+  A module is a superset of a plugin — it gets everything `ExtForgePluginV1` gets (`ctx.hooks`, `ctx.addEntry`, `ctx.emitFile`) plus four new capabilities:
+  
+  - `ctx.addEntrypoint({ name, input })` — add a synthetic build entry.
+  - `ctx.extendManifest(patch)` — deep-merge a partial manifest (arrays concat + dedupe, objects merge, primitives overwrite).
+  - `ctx.addTypeDeclaration(dts)` — contribute `.d.ts` source, collected into a generated `.extforge/modules.d.ts`.
+  - `ctx.addRuntimeImport(name, from)` — register a named runtime re-export, collected into a generated `.extforge/modules.ts` barrel.
+  
+  `modules: [...]` entries may be an already-imported module object, a bare package specifier (e.g. `'@extforge/module-analytics'`), or a local path (e.g. `'./modules/my-module'`, compiled the same way as `extforge.config.ts` so local modules may be TypeScript). Modules run in declared order, after built-in presets and before `plugins`; `extforge doctor` gained a `modules-active` check that lists every active module and what it contributed.
+  
+  Existing plugins are unaffected — modules are adapted into plugins under the hood, so they flow through the same build-time wiring.
+
 ## 1.2.0
 
 ### Minor Changes
