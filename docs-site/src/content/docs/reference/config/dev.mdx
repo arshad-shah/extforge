@@ -14,5 +14,8 @@ Configuration for `dev`.
 | `dev.port` | `number` | `35729` | WebSocket port for the HMR server. |
 | `dev.host` | `string` | `"localhost"` | Host to bind the HMR server to. |
 | `dev.debounce` | `number` | `150` | Debounce window (ms) for collapsing rapid file changes into one rebuild. |
-| `dev.open` | `boolean` | `false` | Open chrome://extensions automatically when the dev server starts. |
+| `dev.open` | `boolean` | `false` | Launch a browser with the extension pre-installed when the dev server starts (same as `--open`). Falls back to printing manual load-unpacked instructions with a warning when no browser binary (or `web-ext`, for Firefox) can be found. |
 | `dev.strictCompat` | `boolean` | `false` | Treat cross-browser compat warnings as errors. |
+| `dev.browserBinary` | `string` | — | Path to the browser executable to launch for `--open`. Overrides auto-detection. For Firefox, this points at `web-ext` instead of the browser itself. |
+| `dev.profileDir` | `string` | `".extforge/profile"` | Directory for the persistent browser profile used by `--open`, relative to the project root. Reused across `dev` restarts so logins, devtools layout and pinned toolbar position survive. One subdirectory per browser is created underneath it. |
+| `dev.startUrls` | `Array<string>` | — | URLs to open in new tabs when the browser launches via `--open`. |

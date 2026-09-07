@@ -1,0 +1,14 @@
+---
+title: EXT_MODULE_NOT_FOUND
+description: Module could not be resolved
+---
+
+`EXT_MODULE_NOT_FOUND` — A string entry in `modules: [...]` could not be resolved to a file or package.
+
+## When you see this
+
+A typo in the module specifier, a local module path that does not exist, or a package that is not installed.
+
+## How to fix
+
+Check the spelling of the specifier, that a local path is relative to the project root, and that the package is listed in your dependencies.

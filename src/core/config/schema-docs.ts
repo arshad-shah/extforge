@@ -35,12 +35,25 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
     defaultValue: '150',
   },
   'dev.open': {
-    description: 'Open chrome://extensions automatically when the dev server starts.',
+    description:
+      'Launch a browser with the extension pre-installed when the dev server starts (same as `--open`). Falls back to printing manual load-unpacked instructions with a warning when no browser binary (or `web-ext`, for Firefox) can be found.',
     defaultValue: 'false',
   },
   'dev.strictCompat': {
     description: 'Treat cross-browser compat warnings as errors.',
     defaultValue: 'false',
+  },
+  'dev.browserBinary': {
+    description:
+      'Path to the browser executable to launch for `--open`. Overrides auto-detection. For Firefox, this points at `web-ext` instead of the browser itself.',
+  },
+  'dev.profileDir': {
+    description:
+      'Directory for the persistent browser profile used by `--open`, relative to the project root. Reused across `dev` restarts so logins, devtools layout and pinned toolbar position survive. One subdirectory per browser is created underneath it.',
+    defaultValue: '".extforge/profile"',
+  },
+  'dev.startUrls': {
+    description: 'URLs to open in new tabs when the browser launches via `--open`.',
   },
   framework: {
     description:
