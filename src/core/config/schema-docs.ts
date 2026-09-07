@@ -55,6 +55,15 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
   'dev.startUrls': {
     description: 'URLs to open in new tabs when the browser launches via `--open`.',
   },
+  'dev.debugPort': {
+    description:
+      'Open a CDP port on the browser launched by `--open`, so Playwright, Puppeteer or any ' +
+      'CDP client can drive it — the same browser, profile and logged-in state the developer ' +
+      'is looking at, rather than a second one launched separately. Chromium only: Firefox ' +
+      'goes through `web-ext`, which manages its own remote debugging. The endpoint is ' +
+      'unauthenticated and is bound to 127.0.0.1; anything that can reach it can drive the ' +
+      'browser, so leave it unset unless something is using it.',
+  },
   framework: {
     description:
       'UI framework. Drives auto-injection of first-party plugins (e.g., `presetReact()` when set to `react`).',

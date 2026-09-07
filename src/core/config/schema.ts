@@ -101,6 +101,7 @@ export const extForgeConfigSchema = z
         browserBinary: z.string().optional(),
         profileDir: z.string().optional(),
         startUrls: z.array(z.string()).optional(),
+        debugPort: z.number().int().min(1).max(65535).optional(),
       })
       .optional(),
     framework: frameworkSchema.optional(),
