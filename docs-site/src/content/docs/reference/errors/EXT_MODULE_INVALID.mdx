@@ -1,0 +1,14 @@
+---
+title: EXT_MODULE_INVALID
+description: Module has an invalid shape
+---
+
+`EXT_MODULE_INVALID` — An entry in `modules: [...]` resolved, but is not a valid ExtForge module.
+
+## When you see this
+
+The resolved value is missing a `name` string or a `setup()` function — for example the module did not export the expected object shape.
+
+## How to fix
+
+Ensure the module default export is an object like `{ name: string, setup(ctx) { ... } }`. Using `defineModule({ ... })` is recommended for type inference.

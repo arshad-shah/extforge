@@ -67,8 +67,7 @@ export function resolveChromeBinary(override?: string): string | undefined {
 export function resolveEdgeBinary(override?: string): string | undefined {
   if (override) return existsSync(override) ? override : undefined;
   if (process.platform === 'darwin') return firstExisting(EDGE_MAC_PATHS);
-  if (process.platform === 'win32')
-    return firstExisting(EDGE_WIN_PATHS) ?? findOnPath(['msedge']);
+  if (process.platform === 'win32') return firstExisting(EDGE_WIN_PATHS) ?? findOnPath(['msedge']);
   return findOnPath(EDGE_LINUX_NAMES);
 }
 

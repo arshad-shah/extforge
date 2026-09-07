@@ -1,5 +1,5 @@
-import { defineCommand } from '@arshad-shah/clif';
 import { join, resolve } from 'node:path';
+import { defineCommand } from '@arshad-shah/clif';
 
 export const dev = defineCommand({
   name: 'dev',
