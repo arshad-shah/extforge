@@ -13,7 +13,7 @@ describe('countArity', () => {
     expect(countArity('$1 sent $2 to $3')).toBe(3);
   });
 
-  it('ignores unrelated dollar signs', () => {
+  it('counts `$N` (1-9) placeholders and ignores `$0`', () => {
     expect(countArity('Price: $9.99')).toBe(9);
     expect(countArity('$0 is not a valid placeholder')).toBe(0);
   });
