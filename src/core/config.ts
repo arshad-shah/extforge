@@ -119,6 +119,7 @@ export async function loadExtForgeConfig(
   const moduleRegistry = new ModuleRegistry();
   const moduleSpecifiers = (merged.modules ?? []) as ModuleSpecifier[];
   const modulePlugins: ExtForgePlugin[] = [];
+  const moduleNames = new Set<string>();
   for (const spec of moduleSpecifiers) {
     const mod =
       typeof spec === 'string' ? await loadModuleSpecifier<ExtForgeModule>(spec, cwd) : spec;
@@ -129,6 +130,14 @@ export async function loadExtForgeConfig(
         hint: 'A module must have a `name` string and a `setup(ctx)` function — wrap it in `defineModule({ ... })`.',
       });
     }
+    if (moduleNames.has(mod.name)) {
+      throw new ExtForgeError({
+        code: ERROR_CODES.EXT_MODULE_INVALID,
+        message: `Duplicate module name "${mod.name}". Module names must be unique.`,
+        hint: 'Give each module a unique `name` so diagnostics and doctor output are deterministic.',
+      });
+    }
+    moduleNames.add(mod.name);
     modulePlugins.push(moduleRegistry.toPlugin(mod));
   }
 
