@@ -75,7 +75,7 @@ export const dev = defineCommand({
       const profileDir = join(profileBase, browser);
       const distDir = join(root, config.build?.outDir ?? 'dist', browser);
       const result = await launchDevBrowser({
-        browser: browser as any,
+        browser: browser as import('../../core/manifest/types.js').Browser,
         projectRoot: root,
         distDir,
         profileDir,
