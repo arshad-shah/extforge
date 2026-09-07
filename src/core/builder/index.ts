@@ -459,13 +459,23 @@ export async function build(
   // content is deterministic and small.
   const moduleRegistry = (config as { __moduleRegistry?: ModuleRegistry }).__moduleRegistry;
   if (moduleRegistry) {
+    const genDir = join(root, '.extforge');
+    const dtsPath = join(genDir, 'modules.d.ts');
+    const runtimePath = join(genDir, 'modules.ts');
+
     const dtsContent = moduleRegistry.getTypeDeclarationsFile();
     const runtimeContent = moduleRegistry.getRuntimeImportsFile();
+
     if (dtsContent || runtimeContent) {
-      const genDir = join(root, '.extforge');
       mkdirSync(genDir, { recursive: true });
-      if (dtsContent) writeFileSync(join(genDir, 'modules.d.ts'), dtsContent);
-      if (runtimeContent) writeFileSync(join(genDir, 'modules.ts'), runtimeContent);
+      if (dtsContent) writeFileSync(dtsPath, dtsContent);
+      else rmSync(dtsPath, { force: true });
+
+      if (runtimeContent) writeFileSync(runtimePath, runtimeContent);
+      else rmSync(runtimePath, { force: true });
+    } else if (existsSync(genDir)) {
+      rmSync(dtsPath, { force: true });
+      rmSync(runtimePath, { force: true });
     }
   }
 
