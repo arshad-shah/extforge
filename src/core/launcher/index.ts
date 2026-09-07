@@ -165,14 +165,23 @@ export async function launchDevBrowser(
     };
   }
 
+  const safeUrls = startUrls.filter((u) => !u.startsWith('-'));
   const args = [
     `--load-extension=${distDir}`,
     `--disable-extensions-except=${distDir}`,
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
     '--no-default-browser-check',
-    ...startUrls,
+    ...safeUrls,
   ];
-  const child = spawn(resolved, args, { stdio: 'ignore' });
-  return { launched: true, binary: resolved, process: child };
+  try {
+    const child = await new Promise<ChildProcess>((resolve, reject) => {
+      const p = spawn(resolved, args, { stdio: 'ignore' });
+      p.once('spawn', () => resolve(p));
+      p.once('error', reject);
+    });
+    return { launched: true, binary: resolved, process: child };
+  } catch (err) {
+    return { launched: false, warning: `Failed to launch ${browser}: ${String(err)}` };
+  }
 }
