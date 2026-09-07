@@ -76,6 +76,21 @@ describe('Config System', () => {
       expect(cfg.dev?.open).toBe(false);
     });
 
+    it('accepts dev.open, dev.browserBinary, dev.profileDir and dev.startUrls', async () => {
+      const cfg = await loadExtForgeConfig(process.cwd(), {
+        dev: {
+          open: true,
+          browserBinary: '/usr/bin/chromium',
+          profileDir: '.custom-profile',
+          startUrls: ['http://localhost:3000'],
+        },
+      });
+      expect(cfg.dev?.open).toBe(true);
+      expect(cfg.dev?.browserBinary).toBe('/usr/bin/chromium');
+      expect(cfg.dev?.profileDir).toBe('.custom-profile');
+      expect(cfg.dev?.startUrls).toEqual(['http://localhost:3000']);
+    });
+
     it('preserves build defaults the user did not touch', async () => {
       const cfg = await loadExtForgeConfig(process.cwd(), { build: { sourcemap: true } });
       expect(cfg.build?.sourcemap).toBe(true);

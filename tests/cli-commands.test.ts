@@ -48,7 +48,7 @@ describe('extforge CLI command tree', () => {
     expect(a.browser).toMatchObject({ type: 'string', default: 'chrome' });
     expect(a.port).toMatchObject({ type: 'string', default: '35729' });
     expect(a.host).toMatchObject({ type: 'string', default: 'localhost' });
-    for (const f of ['quiet', 'verbose', 'json', 'once']) {
+    for (const f of ['quiet', 'verbose', 'json', 'once', 'open']) {
       expect(a[f], f).toMatchObject({ type: 'boolean', default: false });
     }
   });

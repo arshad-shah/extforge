@@ -48,6 +48,10 @@ The bundler runs esbuild for each target browser in parallel, then starts a WebS
 
 ## 4. Load the unpacked extension
 
+Run `extforge dev --open` (or add `dev: { open: true }` to `extforge.config.ts`) and ExtForge launches Chrome with the extension already installed, using a persistent profile under `.extforge/profile/` so logins and devtools layout survive restarts. Pass `--browser firefox --open` to do the same via `web-ext` (run `npm i -D web-ext` first).
+
+Without `--open`, install it by hand:
+
 1. Open `chrome://extensions` in Chrome.
 2. Enable **Developer mode** (toggle, top-right).
 3. Click **Load unpacked** and select the `dist/chrome/` path printed in your terminal.

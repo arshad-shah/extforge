@@ -1,4 +1,5 @@
 import { defineCommand } from '@arshad-shah/clif';
+import { join, resolve } from 'node:path';
 
 export const dev = defineCommand({
   name: 'dev',
@@ -11,6 +12,11 @@ export const dev = defineCommand({
     verbose: { type: 'boolean', description: 'Verbose HMR output', default: false },
     json: { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
     once: { type: 'boolean', description: 'Run a single build then exit', default: false },
+    open: {
+      type: 'boolean',
+      description: 'Launch a browser with the extension installed',
+      default: false,
+    },
   },
   async handler({ args }) {
     const { loadExtForgeConfig } = await import('../../core/config.js');
@@ -60,8 +66,36 @@ export const dev = defineCommand({
     });
     await server.start();
 
+    let launchedProcess: import('node:child_process').ChildProcess | undefined;
+    if (args.flags.open || config.dev?.open === true) {
+      const { launchDevBrowser } = await import('../../core/launcher/index.js');
+      const profileBase = config.dev?.profileDir
+        ? resolve(root, config.dev.profileDir)
+        : resolve(root, '.extforge', 'profile');
+      const profileDir = join(profileBase, browser);
+      const distDir = join(root, config.build?.outDir ?? 'dist', browser);
+      const result = await launchDevBrowser({
+        browser: browser as any,
+        projectRoot: root,
+        distDir,
+        profileDir,
+        binary: config.dev?.browserBinary,
+        startUrls: config.dev?.startUrls,
+      });
+      if (result.launched) {
+        launchedProcess = result.process;
+        log.success(`Opened ${browser} with the extension loaded (profile: ${profileDir})`);
+      } else {
+        log.warn(result.warning ?? `Could not launch ${browser} automatically.`);
+        log.info(`Load unpacked from: ${distDir}`);
+      }
+    }
+
     const shutdown = async () => {
       log.info('Shutting down...');
+      if (launchedProcess && !launchedProcess.killed) {
+        launchedProcess.kill();
+      }
       await server.stop();
       process.exit(0);
     };

@@ -82,6 +82,9 @@ export const extForgeConfigSchema = z
         debounce: z.number().int().nonnegative().optional(),
         open: z.boolean().optional(),
         strictCompat: z.boolean().optional(),
+        browserBinary: z.string().optional(),
+        profileDir: z.string().optional(),
+        startUrls: z.array(z.string()).optional(),
       })
       .optional(),
     framework: frameworkSchema.optional(),
