@@ -1,17 +1,35 @@
 /**
  * Dev-server browser launcher.
  *
- * Resolves a local Chrome/Chromium/Edge binary (or the `web-ext` CLI for
- * Firefox) and launches it with the freshly built extension already
- * installed, using a persistent profile directory so logins, devtools
- * layout and pinned toolbar position survive a `dev` restart.
+ * Resolves a local Chrome, Edge or Firefox binary and launches it with the
+ * freshly built extension already installed, using a persistent profile
+ * directory so logins, devtools layout and pinned toolbar position survive a
+ * `dev` restart.
+ *
+ * Installing is done over each browser's own debugging protocol rather than
+ * with a command-line switch, because the switch no longer exists on one and
+ * never existed on the other:
+ *
+ * - **Chromium** — `Extensions.loadUnpacked` over a CDP pipe. Chrome 137
+ *   removed `--load-extension` from branded builds, where it is now accepted
+ *   and silently ignored: a browser opens looking perfectly normal with no
+ *   extension in it. The old switch remains as a fallback for Chrome 125 and
+ *   older, which have no `Extensions.loadUnpacked`.
+ * - **Firefox** — `installTemporaryAddon` over RDP. There has never been a
+ *   flag for this; a temporary add-on is also the only kind that can be
+ *   unsigned.
+ *
+ * Both are what `web-ext` does. Doing it here rather than shelling out to it
+ * means `dev --open` works with no extra dependency to install.
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { delimiter, join } from 'node:path';
 import type { Browser } from '../manifest/index.js';
+import { CDP_PIPE_STDIO, CdpPipe, isUnknownCdpMethod } from './cdp-pipe.js';
+import { FIREFOX_DEV_PREFS, FirefoxBidi, renderUserJs } from './firefox-bidi.js';
 
 const CHROME_LINUX_NAMES = [
   'google-chrome-stable',
@@ -54,6 +72,45 @@ function firstExisting(paths: string[]): string | undefined {
   return paths.find((p) => existsSync(p));
 }
 
+const FIREFOX_LINUX_NAMES = ['firefox', 'firefox-esr', 'firefox-developer-edition'];
+const FIREFOX_MAC_PATHS = [
+  '/Applications/Firefox.app/Contents/MacOS/firefox',
+  '/Applications/Firefox Developer Edition.app/Contents/MacOS/firefox',
+];
+const FIREFOX_WIN_PATHS = [
+  'C:\\Program Files\\Mozilla Firefox\\firefox.exe',
+  'C:\\Program Files (x86)\\Mozilla Firefox\\firefox.exe',
+];
+
+/** Resolve a local Firefox binary, or undefined if none is found. */
+export function resolveFirefoxBinary(override?: string): string | undefined {
+  if (override) return existsSync(override) ? override : undefined;
+  if (process.platform === 'darwin') return firstExisting(FIREFOX_MAC_PATHS);
+  if (process.platform === 'win32') return firstExisting(FIREFOX_WIN_PATHS);
+  return findOnPath(FIREFOX_LINUX_NAMES);
+}
+
+/**
+ * An unused loopback port.
+ *
+ * Asked of the OS rather than picked, because a hardcoded one collides the
+ * moment two projects run `dev` at once — and the collision surfaces as a
+ * browser that will not accept the add-on, which reads as this feature being
+ * broken rather than as a busy port.
+ */
+async function freePort(): Promise<number> {
+  const { createServer } = await import('node:net');
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
 /** Resolve a local Chrome/Chromium binary, or undefined if none is found. */
 export function resolveChromeBinary(override?: string): string | undefined {
   if (override) return existsSync(override) ? override : undefined;
@@ -71,43 +128,15 @@ export function resolveEdgeBinary(override?: string): string | undefined {
   return findOnPath(EDGE_LINUX_NAMES);
 }
 
-/** Resolve the `web-ext` CLI: a project-local install first, then PATH. */
-export function resolveWebExtBinary(projectRoot: string, override?: string): string | undefined {
-  if (override) return existsSync(override) ? override : undefined;
-  const binName = process.platform === 'win32' ? 'web-ext.cmd' : 'web-ext';
-  const local = join(projectRoot, 'node_modules', '.bin', binName);
-  if (existsSync(local)) return local;
-  return findOnPath([binName]);
-}
-
-/**
- * Since the fix for CVE-2024-27980, `child_process.spawn()` rejects
- * `.cmd`/`.bat` targets with `EINVAL` unless `shell` is truthy — and adding
- * `shell: true` would reopen a command-injection surface, since `distDir`,
- * `profileDir` and `startUrls` all flow into the spawned args. So on
- * Windows, resolve the project-local install's actual JS entrypoint and run
- * it directly through `process.execPath` instead of the `.cmd` shim.
- */
-function resolveWebExtSpawnTarget(
-  projectRoot: string,
-  webExt: string,
-): { command: string; prefixArgs: string[] } {
-  if (process.platform === 'win32' && webExt.toLowerCase().endsWith('.cmd')) {
-    const jsEntry = join(projectRoot, 'node_modules', 'web-ext', 'bin', 'web-ext.js');
-    if (existsSync(jsEntry)) return { command: process.execPath, prefixArgs: [jsEntry] };
-  }
-  return { command: webExt, prefixArgs: [] };
-}
-
 export interface LaunchDevBrowserOptions {
   browser: Browser;
-  /** Project root — used to resolve a project-local `web-ext` install. */
+  /** Project root. Reserved for resolving project-local tooling. */
   projectRoot: string;
   /** Directory containing the built, unpacked extension (`dist/<browser>`). */
   distDir: string;
   /** Persistent profile directory, created if it doesn't exist. */
   profileDir: string;
-  /** Override the auto-detected binary (or `web-ext`, for Firefox). */
+  /** Override the auto-detected browser binary. */
   binary?: string;
   /** URLs to open in new tabs on launch. */
   startUrls?: string[];
@@ -142,6 +171,14 @@ export interface LaunchDevBrowserResult {
   warning?: string;
   /** The CDP port actually passed to the browser, when one was. */
   debugPort?: number;
+  /**
+   * The id the browser gave the installed extension.
+   *
+   * Reported because "the browser opened" is not the same claim as "the
+   * extension is in it", and for months the two looked identical from
+   * outside. An id is the browser confirming it took the thing.
+   */
+  installedId?: string;
   /**
    * Set when the launch worked but something about it is worth saying —
    * a debug port asked for on a browser that cannot honour it, say. Distinct
@@ -180,47 +217,83 @@ export async function launchDevBrowser(
   }
 
   if (browser === 'firefox') {
-    const webExt = resolveWebExtBinary(projectRoot, binary);
-    if (!webExt) {
+    const firefox = resolveFirefoxBinary(binary);
+    if (!firefox) {
       return {
         launched: false,
         warning:
-          'web-ext not found (checked node_modules/.bin and PATH). Install it with ' +
-          '`npm i -D web-ext` to enable --open for Firefox.',
+          'No Firefox binary found. Set dev.browserBinary in extforge.config, or install Firefox.',
       };
     }
+
+    /*
+     * Firefox loads an unsigned add-on exactly one way: over a debugging
+     * connection, as a *temporary* add-on. There is no command-line switch
+     * for it.
+     *
+     * It has two debugging servers and only one of them still works.
+     * `-start-debugger-server` — the devtools RDP server, and what `web-ext`
+     * drives — is still listed in Firefox 155's `--help` and its port never
+     * opens, with or without `devtools.debugger.remote-enabled`. Anything
+     * built on it fails silently, which is the same trap as Chrome's
+     * `--load-extension`. The Remote Agent speaks WebDriver BiDi and has
+     * `webExtension.install`, so that is what this uses.
+     *
+     * The preferences go in before launch: a fresh profile otherwise stops
+     * to ask about the default browser and show an onboarding tour, in a
+     * window nobody is sitting in front of.
+     */
+    try {
+      await writeFile(join(profileDir, 'user.js'), renderUserJs(FIREFOX_DEV_PREFS), 'utf8');
+    } catch (err) {
+      return {
+        launched: false,
+        warning: `Could not write Firefox preferences into ${profileDir}: ${String(err)}`,
+      };
+    }
+
+    // Its own port, distinct from `debugPort`: that one is CDP and Chromium's.
+    const agentPort = await freePort();
     const args = [
-      'run',
-      '--source-dir',
-      distDir,
-      '--firefox-profile',
+      '--remote-debugging-port',
+      String(agentPort),
+      '-profile',
       profileDir,
-      '--keep-profile-changes',
-      '--no-input',
+      // A new instance, rather than handing the URLs to a Firefox already
+      // running on somebody's real profile.
+      '-no-remote',
+      ...startUrls.filter((u) => !u.startsWith('-')),
     ];
-    const safeUrls = startUrls.filter((u) => !u.startsWith('-'));
-    for (const url of safeUrls) args.push('--start-url', url);
-    const { command, prefixArgs } = resolveWebExtSpawnTarget(projectRoot, webExt);
+
     try {
       const child = await new Promise<ChildProcess>((resolve, reject) => {
-        const p = spawn(command, [...prefixArgs, ...args], { stdio: 'ignore' });
+        const p = spawn(firefox, args, { stdio: 'ignore' });
         p.once('spawn', () => resolve(p));
         p.once('error', reject);
       });
+      const bidi = await FirefoxBidi.connect(
+        agentPort,
+        30_000,
+        () => child.exitCode !== null || child.signalCode !== null,
+      );
+      let installedId: string | undefined;
+      try {
+        installedId = await bidi.installAddon(distDir);
+      } finally {
+        bidi.close();
+      }
       return {
         launched: true,
-        binary: webExt,
+        binary: firefox,
         process: child,
-        // Not silently dropped: somebody who asked for a port is about to
-        // try to connect to it, and "nothing is listening" is a much worse
-        // message than this one.
+        installedId,
         notice: debugPort
-          ? 'debugPort is Chromium-only and was ignored: Firefox is launched through web-ext, ' +
-            'which manages its own remote-debugging setup.'
+          ? 'debugPort is a Chromium option and was ignored: Firefox speaks its own debugging ' +
+            'protocol, not CDP.'
           : undefined,
       };
     } catch (err) {
-      return { launched: false, warning: `Failed to launch Firefox via web-ext: ${String(err)}` };
+      return { launched: false, warning: `Failed to launch Firefox: ${String(err)}` };
     }
   }
 
@@ -234,36 +307,95 @@ export async function launchDevBrowser(
   }
 
   const safeUrls = startUrls.filter((u) => !u.startsWith('-'));
-  const args = [
-    `--load-extension=${distDir}`,
-    `--disable-extensions-except=${distDir}`,
-    `--user-data-dir=${profileDir}`,
-    '--no-first-run',
-    '--no-default-browser-check',
-  ];
 
-  if (debugPort !== undefined) {
-    args.push(`--remote-debugging-port=${debugPort}`);
-    /*
-     * Bound to loopback, always.
-     *
-     * The CDP endpoint has no authentication: whatever reaches it can drive
-     * the browser, read every page in it and use whatever that profile is
-     * logged into. Chromium defaults this to localhost, and saying so here
-     * means the guarantee survives a future change of default rather than
-     * resting on one.
-     */
-    args.push('--remote-debugging-address=127.0.0.1');
-  }
+  /**
+   * Builds the command line. `legacy` is the Chrome-125-and-older path.
+   */
+  const buildArgs = (legacy: boolean): string[] => {
+    const out = [`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check'];
+    if (legacy) {
+      out.push(`--load-extension=${distDir}`, `--disable-extensions-except=${distDir}`);
+    } else {
+      // The pipe carries `Extensions.loadUnpacked`; the switch is what makes
+      // Chrome accept it. Neither opens a network port.
+      out.push('--remote-debugging-pipe', '--enable-unsafe-extension-debugging');
+      /*
+       * Otherwise every site sees the developer as a bot.
+       *
+       * `--remote-debugging-pipe` sets `navigator.webdriver = true`, and
+       * plenty of sites change what they serve — or refuse to serve at all —
+       * when they see it. That is a bad trade for a tool whose whole purpose
+       * is inspecting real pages: the browser would be quietly showing you a
+       * different site from the one your users get.
+       *
+       * `web-ext` does the same.
+       */
+      out.push('--disable-blink-features=AutomationControlled');
+    }
+    if (debugPort !== undefined) {
+      out.push(`--remote-debugging-port=${debugPort}`);
+      /*
+       * Bound to loopback, always.
+       *
+       * The port has no authentication: whatever reaches it can drive the
+       * browser, read every page in it and use whatever that profile is
+       * logged into. Chromium defaults this to localhost, and saying so
+       * means the guarantee survives a change of default.
+       */
+      out.push('--remote-debugging-address=127.0.0.1');
+    }
+    out.push(...safeUrls);
+    return out;
+  };
 
-  args.push(...safeUrls);
-  try {
-    const child = await new Promise<ChildProcess>((resolve, reject) => {
-      const p = spawn(resolved, args, { stdio: 'ignore' });
+  const spawnBrowser = (args: string[], legacy: boolean): Promise<ChildProcess> =>
+    new Promise((resolve, reject) => {
+      const p = spawn(resolved, args, {
+        // fds 3 and 4 are the CDP pipe. The legacy path needs neither.
+        stdio: legacy ? 'ignore' : [...CDP_PIPE_STDIO],
+      });
       p.once('spawn', () => resolve(p));
       p.once('error', reject);
     });
-    return { launched: true, binary: resolved, process: child, debugPort };
+
+  /*
+   * Install over CDP, and fall back only where that is not available.
+   *
+   * `--load-extension` was removed from branded Chrome in 137. It is still
+   * accepted and simply ignored, so the failure is a browser that opens
+   * looking perfectly normal with no extension in it — which is why this
+   * tries the modern path first and treats the old flag as the exception.
+   */
+  try {
+    const child = await spawnBrowser(buildArgs(false), false);
+    const cdp = new CdpPipe(child);
+    try {
+      const result = (await cdp.send('Extensions.loadUnpacked', { path: distDir })) as {
+        id?: string;
+      } | null;
+      cdp.close();
+      return {
+        launched: true,
+        binary: resolved,
+        process: child,
+        debugPort,
+        installedId: result?.id,
+      };
+    } catch (err) {
+      cdp.close();
+      if (!isUnknownCdpMethod(err)) {
+        child.kill();
+        return {
+          launched: false,
+          warning: `Failed to install the extension over CDP: ${String(err)}`,
+        };
+      }
+      // Chrome 125 or older: no `Extensions.loadUnpacked`, but `--load-extension`
+      // still works there. Relaunch with it.
+      child.kill();
+      const legacyChild = await spawnBrowser(buildArgs(true), true);
+      return { launched: true, binary: resolved, process: legacyChild, debugPort };
+    }
   } catch (err) {
     return { launched: false, warning: `Failed to launch ${browser}: ${String(err)}` };
   }

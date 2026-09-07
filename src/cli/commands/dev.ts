@@ -123,6 +123,9 @@ export const dev = defineCommand({
       if (result.launched) {
         launchedProcess = result.process;
         log.success(`Opened ${browser} with the extension loaded (profile: ${profileDir})`);
+        if (result.installedId) {
+          log.info(`Installed extension: ${result.installedId}`);
+        }
         if (result.debugPort !== undefined) {
           // The endpoint, spelled out. It is what a script needs to connect
           // and it is the fastest way to see the port is actually open.
