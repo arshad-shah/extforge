@@ -111,6 +111,27 @@ export interface LaunchDevBrowserOptions {
   binary?: string;
   /** URLs to open in new tabs on launch. */
   startUrls?: string[];
+  /**
+   * Open a CDP endpoint on this port, so the launched browser can be driven.
+   *
+   * `--open` gives a developer a browser with the extension in it. This gives
+   * a *script* one: Playwright and Puppeteer both attach over CDP, and
+   * without a port there is no way to reach the browser ExtForge started —
+   * so anything automated has to launch a second one and reproduce the
+   * profile, the flags and the extension path by hand.
+   *
+   * What that buys is the tests, screenshots and recordings running against
+   * the same browser the developer is looking at, with the same profile and
+   * the same logged-in state.
+   *
+   * Chromium only. Firefox is launched through `web-ext`, which owns its own
+   * remote-debugging plumbing, and Safari cannot be scripted this way at all.
+   *
+   * **This port is unauthenticated.** Anything that can reach it can drive
+   * the browser and read what it can read, so it is bound to loopback and
+   * left off unless asked for.
+   */
+  debugPort?: number;
 }
 
 export interface LaunchDevBrowserResult {
@@ -119,6 +140,14 @@ export interface LaunchDevBrowserResult {
   process?: ChildProcess;
   /** Set when `launched` is false — why, and what to do about it. */
   warning?: string;
+  /** The CDP port actually passed to the browser, when one was. */
+  debugPort?: number;
+  /**
+   * Set when the launch worked but something about it is worth saying —
+   * a debug port asked for on a browser that cannot honour it, say. Distinct
+   * from `warning`, which means nothing was launched at all.
+   */
+  notice?: string;
 }
 
 /**
@@ -130,7 +159,7 @@ export interface LaunchDevBrowserResult {
 export async function launchDevBrowser(
   options: LaunchDevBrowserOptions,
 ): Promise<LaunchDevBrowserResult> {
-  const { browser, projectRoot, distDir, profileDir, binary, startUrls = [] } = options;
+  const { browser, projectRoot, distDir, profileDir, binary, startUrls = [], debugPort } = options;
 
   if (browser === 'safari') {
     return {
@@ -178,7 +207,18 @@ export async function launchDevBrowser(
         p.once('spawn', () => resolve(p));
         p.once('error', reject);
       });
-      return { launched: true, binary: webExt, process: child };
+      return {
+        launched: true,
+        binary: webExt,
+        process: child,
+        // Not silently dropped: somebody who asked for a port is about to
+        // try to connect to it, and "nothing is listening" is a much worse
+        // message than this one.
+        notice: debugPort
+          ? 'debugPort is Chromium-only and was ignored: Firefox is launched through web-ext, ' +
+            'which manages its own remote-debugging setup.'
+          : undefined,
+      };
     } catch (err) {
       return { launched: false, warning: `Failed to launch Firefox via web-ext: ${String(err)}` };
     }
@@ -200,15 +240,30 @@ export async function launchDevBrowser(
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
     '--no-default-browser-check',
-    ...safeUrls,
   ];
+
+  if (debugPort !== undefined) {
+    args.push(`--remote-debugging-port=${debugPort}`);
+    /*
+     * Bound to loopback, always.
+     *
+     * The CDP endpoint has no authentication: whatever reaches it can drive
+     * the browser, read every page in it and use whatever that profile is
+     * logged into. Chromium defaults this to localhost, and saying so here
+     * means the guarantee survives a future change of default rather than
+     * resting on one.
+     */
+    args.push('--remote-debugging-address=127.0.0.1');
+  }
+
+  args.push(...safeUrls);
   try {
     const child = await new Promise<ChildProcess>((resolve, reject) => {
       const p = spawn(resolved, args, { stdio: 'ignore' });
       p.once('spawn', () => resolve(p));
       p.once('error', reject);
     });
-    return { launched: true, binary: resolved, process: child };
+    return { launched: true, binary: resolved, process: child, debugPort };
   } catch (err) {
     return { launched: false, warning: `Failed to launch ${browser}: ${String(err)}` };
   }

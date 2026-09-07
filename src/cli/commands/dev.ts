@@ -17,6 +17,10 @@ export const dev = defineCommand({
       description: 'Launch a browser with the extension installed',
       default: false,
     },
+    'debug-port': {
+      type: 'string',
+      description: 'Open a CDP port on the launched browser so tools can drive it (Chromium only)',
+    },
   },
   async handler({ args }) {
     const { loadExtForgeConfig } = await import('../../core/config.js');
@@ -66,8 +70,38 @@ export const dev = defineCommand({
     });
     await server.start();
 
+    /*
+     * A CDP port for the browser `--open` starts.
+     *
+     * Without one there is no way to reach that browser, so anything
+     * automated — a Playwright run, a screenshot script — has to launch a
+     * second one and reproduce the profile, the flags and the extension path
+     * by hand. With it, the tests drive the same browser the developer is
+     * looking at.
+     *
+     * Only meaningful alongside `--open`; asking for it without one is a
+     * misunderstanding worth naming rather than ignoring.
+     */
+    const debugPortFlag = args.flags['debug-port'];
+    let debugPort: number | undefined;
+    if (debugPortFlag !== undefined) {
+      const parsed = Number(debugPortFlag);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+        log.error(`Invalid --debug-port: ${debugPortFlag}. Expected a port between 1 and 65535.`);
+        process.exit(1);
+      }
+      debugPort = parsed;
+    } else if (typeof config.dev?.debugPort === 'number') {
+      debugPort = config.dev.debugPort;
+    }
+
+    const willOpen = args.flags.open || config.dev?.open === true;
+    if (debugPort !== undefined && !willOpen) {
+      log.warn('--debug-port has no effect without --open: there is no browser to attach to.');
+    }
+
     let launchedProcess: import('node:child_process').ChildProcess | undefined;
-    if (args.flags.open || config.dev?.open === true) {
+    if (willOpen) {
       const { launchDevBrowser } = await import('../../core/launcher/index.js');
       const profileBase = config.dev?.profileDir
         ? resolve(root, config.dev.profileDir)
@@ -84,10 +118,17 @@ export const dev = defineCommand({
         profileDir,
         binary: config.dev?.browserBinary,
         startUrls: config.dev?.startUrls,
+        debugPort,
       });
       if (result.launched) {
         launchedProcess = result.process;
         log.success(`Opened ${browser} with the extension loaded (profile: ${profileDir})`);
+        if (result.debugPort !== undefined) {
+          // The endpoint, spelled out. It is what a script needs to connect
+          // and it is the fastest way to see the port is actually open.
+          log.info(`CDP endpoint: http://127.0.0.1:${result.debugPort}`);
+        }
+        if (result.notice) log.warn(result.notice);
       } else {
         log.warn(result.warning ?? `Could not launch ${browser} automatically.`);
         log.info(`Load unpacked from: ${distDir}`);
