@@ -53,11 +53,13 @@ export function i18nModule(): ExtForgeModule {
         );
       }
 
-      if (defaultMessages) {
-        ctx.addTypeDeclaration(generateDts(defaultMessages));
-      }
+const effectiveDefaultLocale = defaultMessages ? defaultLocale : [...locales.keys()].sort()[0];
 
-      ctx.extendManifest({ default_locale: defaultLocale });
+if (defaultMessages) {
+  ctx.addTypeDeclaration(generateDts(defaultMessages));
+}
+
+ctx.extendManifest({ default_locale: effectiveDefaultLocale });
     },
   };
 }
