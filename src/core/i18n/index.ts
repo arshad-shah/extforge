@@ -29,7 +29,7 @@ interface ChromeI18n {
 
 /** Dot-path key → chrome message key (Chrome only allows `[A-Za-z0-9_]`). */
 function chromeKey(key: string): string {
-  return key.replace(/\./g, '_');
+  return key.replace(/[^A-Za-z0-9_]/g, '_');
 }
 
 /**
