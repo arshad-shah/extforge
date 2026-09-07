@@ -28,6 +28,7 @@ import {
   type Browser,
   generateManifest,
 } from '../manifest/index.js';
+import type { ModuleRegistry } from '../modules/registry.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
@@ -450,6 +451,22 @@ export async function build(
     log.warn(
       `Ignoring build.esbuild ${reservedEsbuildKeys.length === 1 ? 'option' : 'options'} managed by ExtForge: ${reservedEsbuildKeys.join(', ')}`,
     );
+  }
+
+  // Modules may contribute type declarations and/or a runtime-import barrel;
+  // both are project-root artifacts (not per-browser), so write them once
+  // here rather than into `outDir`. Harmless to re-run per browser build —
+  // content is deterministic and small.
+  const moduleRegistry = (config as { __moduleRegistry?: ModuleRegistry }).__moduleRegistry;
+  if (moduleRegistry) {
+    const dtsContent = moduleRegistry.getTypeDeclarationsFile();
+    const runtimeContent = moduleRegistry.getRuntimeImportsFile();
+    if (dtsContent || runtimeContent) {
+      const genDir = join(root, '.extforge');
+      mkdirSync(genDir, { recursive: true });
+      if (dtsContent) writeFileSync(join(genDir, 'modules.d.ts'), dtsContent);
+      if (runtimeContent) writeFileSync(join(genDir, 'modules.ts'), runtimeContent);
+    }
   }
 
   // Wipe the per-browser output directory before every PRODUCTION build so a

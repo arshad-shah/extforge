@@ -19,6 +19,10 @@
       "import": "./dist/core/plugins/index.js",
       "types": "./dist/core/plugins/index.d.ts"
     },
+    "./modules": {
+      "import": "./dist/core/modules/index.js",
+      "types": "./dist/core/modules/index.d.ts"
+    },
     "./testing": {
       "import": "./dist/core/testing/index.js",
       "types": "./dist/core/testing/index.d.ts"

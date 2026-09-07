@@ -12,7 +12,7 @@ export { CSS_PRESETS, isCssPreset, resolveCssProcessor } from './builder/css.js'
 export type { BuildOptions, BuildResult } from './builder/index.js';
 // Builder
 export { build, buildAll, createBuildContext } from './builder/index.js';
-export type { ExtForgeConfig, ExtForgePlugin } from './config.js';
+export type { ExtForgeConfig, ExtForgeModule, ExtForgePlugin, ModuleSpecifier } from './config.js';
 export { DEFAULT_CONFIG, defineConfig, loadExtForgeConfig } from './config.js';
 export type { HMRServer, HMRServerOptions, HMRUpdate, HMRUpdateType } from './hmr/index.js';
 // HMR

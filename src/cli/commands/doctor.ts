@@ -18,6 +18,7 @@ export const doctor = defineCommand({
     const { browserOverridesCheck } = await import('../../core/doctor/checks/browser-overrides.js');
     const { scriptsPresentCheck } = await import('../../core/doctor/checks/scripts-present.js');
     const { compatCheck } = await import('../../core/doctor/checks/compat.js');
+    const { modulesActiveCheck } = await import('../../core/doctor/checks/modules-active.js');
     const { createLogger, LogLevel } = await import('../../core/logger/index.js');
 
     const checks = [
@@ -30,6 +31,7 @@ export const doctor = defineCommand({
       browserOverridesCheck,
       scriptsPresentCheck,
       compatCheck,
+      modulesActiveCheck,
     ];
     const report = await runDoctor(checks, { cwd: process.cwd() });
 

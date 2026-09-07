@@ -10,11 +10,12 @@
  * rc-file merging. Those are not used by ExtForge.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as esbuild from 'esbuild';
+import { ERROR_CODES } from '../errors/codes.js';
 import { ExtForgeError } from '../errors/index.js';
 
 /** Extensions probed for `<name>.config.<ext>`, in priority order (first match wins). */
@@ -159,6 +160,60 @@ export async function loadConfigModule<T = unknown>(file: string, cwd: string): 
       message: err instanceof Error ? err.message : String(err),
       file,
       hint: 'Check your extforge.config for runtime errors during evaluation.',
+      cause: err,
+    });
+  }
+}
+
+function isPathSpecifier(specifier: string): boolean {
+  return (
+    specifier.startsWith('.') || specifier.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(specifier)
+  );
+}
+
+/**
+ * Resolve a local module specifier (no extension required) against
+ * `CONFIG_EXTENSIONS`, trying `<path>.<ext>` then `<path>/index.<ext>` —
+ * mirrors how bundlers resolve extension-less relative imports.
+ */
+function resolveModuleFile(specifier: string, cwd: string): string {
+  const base = resolve(toAbs(cwd), specifier);
+  if (existsSync(base) && !statSync(base).isDirectory()) return base;
+  for (const ext of CONFIG_EXTENSIONS) {
+    const withExt = `${base}.${ext}`;
+    if (existsSync(withExt)) return withExt;
+    const indexFile = join(base, `index.${ext}`);
+    if (existsSync(indexFile)) return indexFile;
+  }
+  throw new ExtForgeError({
+    code: ERROR_CODES.EXT_MODULE_NOT_FOUND,
+    message: `Could not resolve module "${specifier}" from ${cwd}`,
+    hint: 'Check the path is correct relative to the project root.',
+  });
+}
+
+/**
+ * Load a `modules: [...]` string entry: a local path (compiled the same way
+ * as the config file, so local modules may be TypeScript) or a bare package
+ * specifier (loaded via a plain dynamic `import`, since published packages
+ * ship pre-compiled JS).
+ */
+export async function loadModuleSpecifier<T = unknown>(
+  specifier: string,
+  cwd: string,
+): Promise<T> {
+  if (isPathSpecifier(specifier)) {
+    const file = resolveModuleFile(specifier, cwd);
+    return await loadConfigModule<T>(file, cwd);
+  }
+  try {
+    return pickDefault<T>(await import(specifier));
+  } catch (err) {
+    if (err instanceof ExtForgeError) throw err;
+    throw new ExtForgeError({
+      code: ERROR_CODES.EXT_MODULE_NOT_FOUND,
+      message: `Could not load module "${specifier}": ${err instanceof Error ? err.message : String(err)}`,
+      hint: 'Make sure the package is installed and listed in your dependencies.',
       cause: err,
     });
   }
