@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0
+
+### Minor Changes
+
+- [#123](https://github.com/arshad-shah/extforge/pull/123) [`4a93cb0`](https://github.com/arshad-shah/extforge/commit/4a93cb0b212288257b465cd4011ce8ba440039a3) Thanks [@arshad-shah](https://github.com/arshad-shah)! - `dev --open` now installs the extension over each browser's debugging protocol instead of a command-line switch, because the switches no longer work: Chrome 137 removed `--load-extension` from branded builds (accepted, ignored, no message), and Firefox has never had one. Chromium uses `Extensions.loadUnpacked` over a CDP pipe, Firefox uses `webExtension.install` over WebDriver BiDi, and both report the id the browser assigned. No new dependency. Adds `dev --debug-port` for attaching Playwright or Puppeteer to the same browser.
+
+- [#123](https://github.com/arshad-shah/extforge/pull/123) [`4a93cb0`](https://github.com/arshad-shah/extforge/commit/4a93cb0b212288257b465cd4011ce8ba440039a3) Thanks [@arshad-shah](https://github.com/arshad-shah)! - `extforge dev --open --debug-port <port>` opens a CDP endpoint on the launched browser, so Playwright, Puppeteer or any CDP client can drive the same browser the developer is looking at — same profile, same logged-in state, same extension build — instead of launching a second one and reproducing the flags by hand. Also settable as `dev.debugPort`. Chromium only; the endpoint is unauthenticated and is bound to 127.0.0.1.
+
 ## 1.3.0
 
 ### Minor Changes
