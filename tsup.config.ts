@@ -7,6 +7,7 @@ export default defineConfig({
     'core/index': 'src/core/index.ts',
     'core/logger/index': 'src/core/logger/index.ts',
     'core/plugins/index': 'src/core/plugins/index.ts',
+    'core/modules/index': 'src/core/modules/index.ts',
     'core/compat/index': 'src/core/compat/index.ts',
     'core/testing/index': 'src/core/testing/index.ts',
     'core/testing/vitest': 'src/core/testing/vitest.ts',

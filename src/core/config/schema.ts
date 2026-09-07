@@ -87,6 +87,7 @@ export const extForgeConfigSchema = z
     framework: frameworkSchema.optional(),
     css: cssSchema.optional(),
     plugins: z.array(z.unknown()).optional(),
+    modules: z.array(z.unknown()).optional(),
   })
   .passthrough();
 

@@ -19,6 +19,10 @@
       "import": "./dist/core/plugins/index.js",
       "types": "./dist/core/plugins/index.d.ts"
     },
+    "./modules": {
+      "import": "./dist/core/modules/index.js",
+      "types": "./dist/core/modules/index.d.ts"
+    },
     "./testing": {
       "import": "./dist/core/testing/index.js",
       "types": "./dist/core/testing/index.d.ts"
@@ -59,7 +63,7 @@
     "test:e2e": "pnpm -C tests-e2e build:fixtures && pnpm -C tests-e2e test",
     "test:e2e:install": "pnpm -C tests-e2e install-browsers",
     "examples:build": "pnpm -r --filter \"@extforge-example/*\" build",
-    "lint": "biome check src scripts tests",
+    "lint": "biome check --max-diagnostics=200 src scripts tests",
     "format": "biome check --write src scripts tests",
     "typecheck": "tsc --noEmit",
     "check:cross-browser": "tsx scripts/check-cross-browser.ts",

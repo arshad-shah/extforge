@@ -6,15 +6,25 @@ import { resolve } from 'node:path';
 import { configFileSource, loadConfig, objectSource } from '@arshad-shah/config-kit';
 import type { ZodError, z } from 'zod';
 import { formatZodError } from './config/format-errors.js';
-import { CONFIG_EXTENSIONS, loadConfigModule, resolveConfigFile } from './config/loader.js';
+import {
+  CONFIG_EXTENSIONS,
+  loadConfigModule,
+  loadModuleSpecifier,
+  resolveConfigFile,
+} from './config/loader.js';
 import { extForgeConfigSchema } from './config/schema.js';
+import { ERROR_CODES } from './errors/codes.js';
+import { ExtForgeError } from './errors/index.js';
 import { createLogger } from './logger/index.js';
 import type { ManifestConfig } from './manifest/index.js';
+import { ModuleRegistry } from './modules/registry.js';
 import { presetReact } from './plugins/preset-react.js';
 import { PluginRunner } from './plugins/runner.js';
 
+export type { ExtForgeModule, ModuleSpecifier } from './modules/types.js';
 export type { ExtForgePlugin } from './plugins/types.js';
 
+import type { ExtForgeModule, ModuleSpecifier } from './modules/types.js';
 import type { ExtForgePlugin } from './plugins/types.js';
 
 // ─── Config shape (derived from Zod schema — single source of truth) ─────────
@@ -23,8 +33,11 @@ export type ExtForgeConfig = z.infer<typeof extForgeConfigSchema> & {
   // These fields are not strictly modeled in the schema today; declared here so callers see them.
   manifest?: ManifestConfig;
   plugins?: ExtForgePlugin[];
+  modules?: ModuleSpecifier[];
   /** @internal Plugin runner attached by loadExtForgeConfig. Not part of the public API. */
   __pluginRunner?: PluginRunner;
+  /** @internal Module registry attached by loadExtForgeConfig. Not part of the public API. */
+  __moduleRegistry?: ModuleRegistry;
 };
 
 // ─── Defaults ────────────────────────────────────────────────────────────────
@@ -98,11 +111,42 @@ export async function loadExtForgeConfig(
     merged.browsers = Array.from(new Set(merged.browsers));
   }
 
-  // Build the plugin list: built-ins first (so user plugins can override), then user plugins.
+  // Resolve `modules: [...]` — string entries may be a bare package name or a
+  // local path; object entries are already-imported modules. Each module is
+  // adapted into a plugin via ModuleRegistry so it flows through the same
+  // build-time wiring (entries, manifest transforms, emitted files) as
+  // hand-written plugins.
+  const moduleRegistry = new ModuleRegistry();
+  const moduleSpecifiers = (merged.modules ?? []) as ModuleSpecifier[];
+  const modulePlugins: ExtForgePlugin[] = [];
+  const moduleNames = new Set<string>();
+  for (const spec of moduleSpecifiers) {
+    const mod =
+      typeof spec === 'string' ? await loadModuleSpecifier<ExtForgeModule>(spec, cwd) : spec;
+    if (!mod || typeof mod.name !== 'string' || typeof mod.setup !== 'function') {
+      throw new ExtForgeError({
+        code: ERROR_CODES.EXT_MODULE_INVALID,
+        message: `Module "${typeof spec === 'string' ? spec : (mod as { name?: string })?.name || '<unknown>'}" is not a valid ExtForge module.`,
+        hint: 'A module must have a `name` string and a `setup(ctx)` function — wrap it in `defineModule({ ... })`.',
+      });
+    }
+    if (moduleNames.has(mod.name)) {
+      throw new ExtForgeError({
+        code: ERROR_CODES.EXT_MODULE_INVALID,
+        message: `Duplicate module name "${mod.name}". Module names must be unique.`,
+        hint: 'Give each module a unique `name` so diagnostics and doctor output are deterministic.',
+      });
+    }
+    moduleNames.add(mod.name);
+    modulePlugins.push(moduleRegistry.toPlugin(mod));
+  }
+
+  // Build the plugin list: built-ins, then modules (in declared order), then
+  // user plugins — the execution-order contract for hooks/manifest patches.
   const userPlugins = (merged.plugins ?? []) as ExtForgePlugin[];
   const builtins: ExtForgePlugin[] = [];
   if (merged.framework === 'react') builtins.push(presetReact());
-  const allPlugins = [...builtins, ...userPlugins];
+  const allPlugins = [...builtins, ...modulePlugins, ...userPlugins];
 
   // addEntry / emitFile are provided by the runner itself when it builds each
   // plugin's context, so they're not passed here.
@@ -120,6 +164,12 @@ export async function loadExtForgeConfig(
 
   Object.defineProperty(merged, '__pluginRunner', {
     value: runner,
+    enumerable: false,
+    writable: false,
+    configurable: false,
+  });
+  Object.defineProperty(merged, '__moduleRegistry', {
+    value: moduleRegistry,
     enumerable: false,
     writable: false,
     configurable: false,

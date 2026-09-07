@@ -56,4 +56,8 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
     description:
       'List of ExtForge plugins. Both the V1 shape and the legacy thin shape are accepted.',
   },
+  modules: {
+    description:
+      'List of ExtForge modules — a superset of plugins that can also add entrypoints, extend the manifest, and contribute types/runtime code. Accepts module objects, package names, or local paths. Runs after built-in presets and before `plugins`. See `extforge/modules`.',
+  },
 };

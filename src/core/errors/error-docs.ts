@@ -88,4 +88,20 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     howToFix:
       'The error message names the plugin and the hook. Look at that plugin source. If it is a third-party plugin, file an issue against it.',
   },
+  EXT_MODULE_NOT_FOUND: {
+    title: 'Module could not be resolved',
+    description: 'A string entry in `modules: [...]` could not be resolved to a file or package.',
+    whenYouSeeThis:
+      'A typo in the module specifier, a local module path that does not exist, or a package that is not installed.',
+    howToFix:
+      'Check the spelling of the specifier, that a local path is relative to the project root, and that the package is listed in your dependencies.',
+  },
+  EXT_MODULE_INVALID: {
+    title: 'Module has an invalid shape',
+    description: 'An entry in `modules: [...]` resolved, but is not a valid ExtForge module.',
+    whenYouSeeThis:
+      'The resolved value is missing a `name` string or a `setup()` function — for example the module did not export the expected object shape.',
+    howToFix:
+      'Ensure the module default export is an object like `{ name: string, setup(ctx) { ... } }`. Using `defineModule({ ... })` is recommended for type inference.',
+  },
 };

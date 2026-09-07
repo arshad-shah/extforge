@@ -1,5 +1,6 @@
 node_modules/
 dist/
+.extforge/
 packages/
 .DS_Store
 *.log
