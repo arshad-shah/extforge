@@ -21,8 +21,8 @@ import { ModuleRegistry } from './modules/registry.js';
 import { presetReact } from './plugins/preset-react.js';
 import { PluginRunner } from './plugins/runner.js';
 
-export type { ExtForgePlugin } from './plugins/types.js';
 export type { ExtForgeModule, ModuleSpecifier } from './modules/types.js';
+export type { ExtForgePlugin } from './plugins/types.js';
 
 import type { ExtForgeModule, ModuleSpecifier } from './modules/types.js';
 import type { ExtForgePlugin } from './plugins/types.js';

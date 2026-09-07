@@ -12,8 +12,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { build } from '../src/core/builder/index.js';
 import { loadExtForgeConfig } from '../src/core/config.js';
 import { modulesActiveCheck } from '../src/core/doctor/checks/modules-active.js';
-import type { ModuleRegistry } from '../src/core/modules/registry.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
+import type { ModuleRegistry } from '../src/core/modules/registry.js';
 
 const silent = createLogger({ level: LogLevel.Silent });
 
