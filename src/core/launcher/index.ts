@@ -144,8 +144,16 @@ export async function launchDevBrowser(
       '--no-input',
     ];
     for (const url of startUrls) args.push('--start-url', url);
-    const child = spawn(webExt, args, { stdio: 'ignore' });
-    return { launched: true, binary: webExt, process: child };
+    try {
+      const child = await new Promise<ChildProcess>((resolve, reject) => {
+        const p = spawn(webExt, args, { stdio: 'ignore' });
+        p.once('spawn', () => resolve(p));
+        p.once('error', reject);
+      });
+      return { launched: true, binary: webExt, process: child };
+    } catch (err) {
+      return { launched: false, warning: `Failed to launch Firefox via web-ext: ${String(err)}` };
+    }
   }
 
   const resolved = browser === 'edge' ? resolveEdgeBinary(binary) : resolveChromeBinary(binary);
