@@ -113,7 +113,6 @@ export async function launchDevBrowser(
   options: LaunchDevBrowserOptions,
 ): Promise<LaunchDevBrowserResult> {
   const { browser, projectRoot, distDir, profileDir, binary, startUrls = [] } = options;
-  await mkdir(profileDir, { recursive: true });
 
   if (browser === 'safari') {
     return {
@@ -121,6 +120,15 @@ export async function launchDevBrowser(
       warning:
         'Safari extensions cannot be auto-launched. Load the built extension via ' +
         'Xcode, or enable it under Safari > Settings > Extensions.',
+    };
+  }
+
+  try {
+    await mkdir(profileDir, { recursive: true });
+  } catch (err) {
+    return {
+      launched: false,
+      warning: `Failed to create profile directory at ${profileDir}: ${String(err)}`,
     };
   }
 
