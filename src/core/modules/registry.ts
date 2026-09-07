@@ -74,8 +74,17 @@ export class ModuleRegistry {
           },
           addRuntimeImport: (name: string, from: string) => {
             record.runtimeImports.set(name, from);
+            const existing = this.runtimeImports.find((r) => r.name === name);
+            if (existing) {
+              if (existing.from !== from) {
+                throw new Error(
+                  `Runtime import "${name}" already registered from ${JSON.stringify(existing.from)}; cannot re-register from ${JSON.stringify(from)}`,
+                );
+              }
+              return;
+            }
             this.runtimeImports.push({ name, from });
-          },
+          }
         };
         await mod.setup(moduleCtx);
       },
