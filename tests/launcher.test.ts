@@ -115,65 +115,6 @@ function recordingBinary(relPath: string, argvFile: string): string {
   return p;
 }
 
-/**
- * A fake Firefox that speaks just enough RDP to accept an add-on.
- *
- * It reads its own `--start-debugger-server <port>` argument, listens there,
- * and answers the three packets the launcher sends: the greeting, `getRoot`
- * and `installTemporaryAddon`. A stub that merely exits would leave the
- * launcher waiting for a connection that never comes — which is the failure
- * this test is here to catch.
- */
-function fakeFirefox(relPath: string): string {
-  const isWin = process.platform === 'win32';
-  const jsPath = join(dir, `${relPath}.mjs`);
-  mkdirSync(dirname(jsPath), { recursive: true });
-  writeFileSync(
-    jsPath,
-    `
-import { createServer } from 'node:net';
-const args = process.argv.slice(2);
-const port = Number(args[args.indexOf('--start-debugger-server') + 1]);
-const send = (sock, obj) => {
-  const body = Buffer.from(JSON.stringify(obj), 'utf8');
-  sock.write(String(body.length) + ':');
-  sock.write(body);
-};
-createServer((sock) => {
-  // Firefox greets before it is asked anything.
-  send(sock, { from: 'root', applicationType: 'browser' });
-  let buf = Buffer.alloc(0);
-  sock.on('data', (chunk) => {
-    buf = Buffer.concat([buf, chunk]);
-    for (;;) {
-      const colon = buf.indexOf(0x3a);
-      if (colon === -1) return;
-      const len = Number.parseInt(buf.subarray(0, colon).toString('ascii'), 10);
-      if (buf.length < colon + 1 + len) return;
-      const msg = JSON.parse(buf.subarray(colon + 1, colon + 1 + len).toString('utf8'));
-      buf = buf.subarray(colon + 1 + len);
-      if (msg.type === 'getRoot') send(sock, { from: 'root', addonsActor: 'addons1' });
-      else if (msg.type === 'installTemporaryAddon')
-        send(sock, { from: 'addons1', addon: { id: 'fake@extforge' } });
-      else send(sock, { from: msg.to });
-    }
-  });
-}).listen(port, '127.0.0.1');
-setTimeout(() => {}, 8000);
-`,
-  );
-  const target = isWin ? `${relPath}.cmd` : relPath;
-  const p = join(dir, target);
-  writeFileSync(
-    p,
-    isWin
-      ? `@echo off\r\n"${process.execPath}" "${jsPath}" %*\r\n`
-      : `#!/bin/sh\nexec "${process.execPath}" "${jsPath}" "$@"\n`,
-  );
-  if (!isWin) chmodSync(p, 0o755);
-  return p;
-}
-
 describe('resolveChromeBinary / resolveEdgeBinary', () => {
   it('accepts an explicit override that exists', () => {
     const bin = fakeBinary('my-chrome');
