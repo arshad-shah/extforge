@@ -44,8 +44,6 @@ export function useStorage<T>(
   const [isLoading, setLoading] = useState(true);
   const mountedRef = useRef(true);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `defaultValue` is
-  // deliberately excluded — changing it must not re-fetch storage.
   useEffect(() => {
     mountedRef.current = true;
     void (async () => {

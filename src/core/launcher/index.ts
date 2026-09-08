@@ -196,7 +196,7 @@ export interface LaunchDevBrowserResult {
 export async function launchDevBrowser(
   options: LaunchDevBrowserOptions,
 ): Promise<LaunchDevBrowserResult> {
-  const { browser, projectRoot, distDir, profileDir, binary, startUrls = [], debugPort } = options;
+  const { browser, distDir, profileDir, binary, startUrls = [], debugPort } = options;
 
   if (browser === 'safari') {
     return {
