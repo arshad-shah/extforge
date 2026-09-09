@@ -50,6 +50,10 @@
     "./env": {
       "import": "./dist/core/env/index.js",
       "types": "./dist/core/env/index.d.ts"
+    },
+    "./i18n": {
+      "import": "./dist/core/i18n/index.js",
+      "types": "./dist/core/i18n/index.d.ts"
     }
   },
   "main": "./dist/core/index.js",
@@ -86,6 +90,7 @@
     "@arshad-shah/config-kit": "^2.0.0",
     "@arshad-shah/log-kit": "^1.1.0",
     "esbuild": "^0.28.2",
+    "js-yaml": "^4.3.1",
     "ws": "^8.21.3",
     "zod": "^4.5.4"
   },
@@ -96,6 +101,7 @@
     "@mdn/browser-compat-data": "^8.0.13",
     "@swc/core": "^1.16.1",
     "@types/chrome": "^0.2.7",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",

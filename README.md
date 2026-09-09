@@ -49,6 +49,7 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 - **`extforge/messaging`** — typed RPC over `chrome.runtime`. `defineHandler` / `sendMessage` with full inference via the augmentable `MessageMap` interface. Plus typed Ports API.
 - **`extforge/csui`** — Content Script UI. Drop a file at `src/contents/*.csui.tsx`, `export default defineCSUI({matches: [...]}, render)`, and ExtForge auto-discovers it, registers it in the manifest, and mounts it inside a Shadow DOM at runtime.
 - **`extforge/env`** — `.env` loading with Vite-style precedence. `EXTFORGE_PUBLIC_*` keys are inlined into bundles via esbuild's `define`.
+- **`extforge/i18n`** — typed `chrome.i18n`. `locales/<lang>.yml` compiles to `_locales/<lang>/messages.json`; `t('popup.title')` is typed and arity-checked via the augmentable `MessageKeys` interface. `extforge doctor` flags locales missing keys present in the default locale.
 - **`extforge/testing`** — `chrome.*` fakes for runtime/storage/tabs/action/scripting plus a vitest preset.
 - **`extforge/logger`** — structured logger used by the CLI. Exposes scoped loggers, timers, and a JSON transport for piping CI output into log aggregators.
 

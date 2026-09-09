@@ -15,6 +15,7 @@ import {
 import { extForgeConfigSchema } from './config/schema.js';
 import { ERROR_CODES } from './errors/codes.js';
 import { ExtForgeError } from './errors/index.js';
+import { i18nModule } from './i18n/module.js';
 import { createLogger } from './logger/index.js';
 import type { ManifestConfig } from './manifest/index.js';
 import { ModuleRegistry } from './modules/registry.js';
@@ -146,6 +147,7 @@ export async function loadExtForgeConfig(
   const userPlugins = (merged.plugins ?? []) as ExtForgePlugin[];
   const builtins: ExtForgePlugin[] = [];
   if (merged.framework === 'react') builtins.push(presetReact());
+  if (merged.i18n) builtins.push(moduleRegistry.toPlugin(i18nModule()));
   const allPlugins = [...builtins, ...modulePlugins, ...userPlugins];
 
   // addEntry / emitFile are provided by the runner itself when it builds each
