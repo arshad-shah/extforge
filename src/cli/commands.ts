@@ -14,6 +14,7 @@ import { dev } from './commands/dev.js';
 import { doctor } from './commands/doctor.js';
 import { icons } from './commands/icons.js';
 import { init } from './commands/init.js';
+import { migrateLayout } from './commands/migrate-layout.js';
 import { pkg } from './commands/package.js';
 import { upgrade } from './commands/upgrade.js';
 import { validate } from './commands/validate.js';
@@ -23,5 +24,5 @@ export const main = defineCommand({
   name: 'extforge',
   version: getVersion(),
   description: 'The build system for Manifest V3 browser extensions',
-  commands: [init, dev, build, validate, doctor, upgrade, pkg, icons],
+  commands: [init, dev, build, validate, doctor, upgrade, pkg, icons, migrateLayout],
 });

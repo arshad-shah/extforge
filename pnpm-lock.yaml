@@ -125,6 +125,16 @@ importers:
         specifier: ^0.2.9
         version: 0.2.9
 
+  examples/named-layout:
+    dependencies:
+      extforge:
+        specifier: workspace:*
+        version: link:../..
+    devDependencies:
+      '@types/chrome':
+        specifier: ^0.2.9
+        version: 0.2.9
+
   examples/react-csui:
     dependencies:
       extforge:

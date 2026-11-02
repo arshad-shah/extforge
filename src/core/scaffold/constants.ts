@@ -69,10 +69,13 @@ export const BASE_DIRS = [
   'tests',
 ] as const;
 
+/**
+ * Page features get their own folder in the named layout (src/popup/index.html),
+ * so components beside them get React Fast Refresh. Background and content are
+ * single files directly in src/.
+ */
 export const FEATURE_DIRS: Record<string, string> = {
-  popup: 'src/ui/popup',
-  options: 'src/ui/options',
-  sidepanel: 'src/ui/sidepanel',
-  background: 'src/background',
-  content: 'src/content',
+  popup: 'src/popup',
+  options: 'src/options',
+  sidepanel: 'src/sidepanel',
 } as const;

@@ -211,40 +211,16 @@ function buildExtForgeConfig(a: ScaffoldAnswers): string {
     ? `      host: ['https://*/*', 'http://*/*'],`
     : `      host: [],`;
 
+  // Named layout: entry paths are not written here. ExtForge finds
+  // src/background.ts, src/popup/index.html, src/content.ts and the rest, and
+  // generates the manifest's entries from them.
   const sections: string[] = [];
-
   if (a.features.includes('popup')) {
     sections.push(`
     action: {
-      defaultPopup: 'ui/popup/index.html',
       defaultIcon: { '16': 'icons/icon-16.png', '32': 'icons/icon-32.png' },
       defaultTitle: '${a.name}',
     },`);
-  }
-  if (a.features.includes('background')) {
-    sections.push(`
-    background: { entrypoint: 'background/index.js' },`);
-  }
-  if (a.features.includes('content')) {
-    sections.push(`
-    contentScripts: [{
-      matches: ['<all_urls>'],
-      js: ['content/index.js'],
-      css: ['styles/content.css'],
-      runAt: 'document_idle',
-      // allFrames: true,        // also inject into iframes
-      // matchAboutBlank: true,  // …and into about:blank frames
-      // excludeMatches: ['https://example.com/admin/*'],
-      // world: 'MAIN',          // run in the page's own JS realm
-    }],`);
-  }
-  if (a.features.includes('options')) {
-    sections.push(`
-    optionsPage: 'ui/options/index.html',`);
-  }
-  if (a.features.includes('sidepanel')) {
-    sections.push(`
-    sidePanel: { defaultPath: 'ui/sidepanel/index.html' },`);
   }
 
   return `import { defineConfig } from 'extforge';
@@ -408,36 +384,32 @@ export async function scaffold(
       loadTemplateRaw('error-boundary.tsx.tpl'),
     );
   }
-  if (answers.features.includes('popup')) {
+  // Pages: src/<page>/index.html plus its script, in the page's own folder.
+  const script = answers.framework === 'react' ? 'index.tsx' : 'index.ts';
+  const pages: Array<[feature: string, title: string]> = [
+    ['popup', answers.name],
+    ['options', `${answers.name} - Options`],
+    ['sidepanel', `${answers.name} - Side Panel`],
+  ];
+  for (const [feature, title] of pages) {
+    if (!answers.features.includes(feature)) continue;
     writeFileSync(
-      join(projectDir, 'src/ui/popup/index.html'),
-      loadTemplate('popup.html.tpl', vars),
+      join(projectDir, `src/${feature}/index.html`),
+      loadTemplate('popup.html.tpl', { NAME: title, SCRIPT: `./${script}` }),
     );
-    if (answers.framework === 'react')
+    if (answers.framework === 'react' || answers.framework === 'vanilla')
       writeFileSync(
-        join(projectDir, 'src/ui/popup/index.tsx'),
-        loadTemplate('popup.tsx.tpl', vars),
+        join(projectDir, `src/${feature}/${script}`),
+        loadTemplate(answers.framework === 'react' ? 'popup.tsx.tpl' : 'popup.ts.tpl', {
+          ...vars,
+          NAME: title,
+        }),
       );
-    else if (answers.framework === 'vanilla')
-      writeFileSync(join(projectDir, 'src/ui/popup/index.ts'), loadTemplate('popup.ts.tpl', vars));
   }
   if (answers.features.includes('background'))
-    writeFileSync(
-      join(projectDir, 'src/background/index.ts'),
-      loadTemplateRaw('background.ts.tpl'),
-    );
+    writeFileSync(join(projectDir, 'src/background.ts'), loadTemplateRaw('background.ts.tpl'));
   if (answers.features.includes('content'))
-    writeFileSync(join(projectDir, 'src/content/index.ts'), loadTemplateRaw('content.ts.tpl'));
-  if (answers.features.includes('options'))
-    writeFileSync(
-      join(projectDir, 'src/ui/options/index.html'),
-      loadTemplate('popup.html.tpl', { NAME: `${answers.name} - Options` }),
-    );
-  if (answers.features.includes('sidepanel'))
-    writeFileSync(
-      join(projectDir, 'src/ui/sidepanel/index.html'),
-      loadTemplate('popup.html.tpl', { NAME: `${answers.name} - Side Panel` }),
-    );
+    writeFileSync(join(projectDir, 'src/content.ts'), loadTemplateRaw('content.ts.tpl'));
 
   log.timeEnd('scaffold', 'Scaffolded project');
 

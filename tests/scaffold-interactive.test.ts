@@ -69,8 +69,8 @@ describe('scaffold gatherAnswers (interactive)', () => {
     expect(result).toBe(projectDir);
     // Default initial values: framework=react (index 0), css=tailwind (index 0),
     // browsers={chrome,firefox}, features={popup,background}.
-    expect(existsSync(join(projectDir, 'src/ui/popup/index.tsx'))).toBe(true);
-    expect(existsSync(join(projectDir, 'src/background/index.ts'))).toBe(true);
+    expect(existsSync(join(projectDir, 'src/popup/index.tsx'))).toBe(true);
+    expect(existsSync(join(projectDir, 'src/background.ts'))).toBe(true);
     // package.json contains the requested name (sanitised).
     const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
     expect(pkg.name).toBe('my-ext');
