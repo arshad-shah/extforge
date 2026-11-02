@@ -16,12 +16,26 @@ import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import * as esbuild from 'esbuild';
 import { type CompatIssue, checkSourceCompat } from '../compat/index.js';
 import type { ExtForgeConfig } from '../config.js';
-import { type CSUIDiscovery, discoverCSUI } from '../csui/discovery.js';
+import { type CSUIDiscovery } from '../csui/discovery.js';
+import {
+  discoverEntryPoints,
+  discoverInjectedEntries,
+  discoverLegacyEntrypoints,
+  type Entrypoint,
+  entryPointsFor,
+  partitionEntriesForFormat,
+} from '../entrypoints/index.js';
 import { loadEnv, publicEnvToDefine } from '../env/index.js';
 import { ExtForgeError } from '../errors/index.js';
 import { refreshPlugin } from '../hmr/swc/refresh-plugin.js';
 import { loadTemplateRaw as loadHmrTemplateRaw } from '../hmr/template-loader.js';
-import { createLogger, formatDuration, formatFileSize, type Logger } from '../logger/index.js';
+import {
+  createLogger,
+  formatDuration,
+  formatFileSize,
+  type Logger,
+  LogLevel,
+} from '../logger/index.js';
 import {
   ALL_BROWSERS,
   applyInjectedDefaults,
@@ -34,14 +48,7 @@ import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
 import { walkSources } from '../util/walk-sources.js';
 import { validateProject } from '../validator/index.js';
-import {
-  ENTRY_SCANS,
-  ESBUILD_LOADERS,
-  ESBUILD_TARGETS,
-  HTML_DIRS,
-  ICON_SIZES,
-  INJECTED_DIR,
-} from './constants.js';
+import { ESBUILD_LOADERS, ESBUILD_TARGETS, HTML_DIRS, ICON_SIZES } from './constants.js';
 import { type CssTransformContext, processStylesheet, resolveCssProcessor } from './css.js';
 import { applyEsbuildOverrides, collectReservedEsbuildKeys } from './esbuild-overrides.js';
 
@@ -83,11 +90,22 @@ function makeHMRBanner(opts: BuildOptions): { js: string } | undefined {
 export function buildContentScriptMap(
   projectRoot: string,
   config: ExtForgeConfig,
+  entrypoints?: Entrypoint[],
 ): Map<string, number> {
   const cs = config.manifest?.contentScripts ?? [];
   const map = new Map<string, number>();
+  if (cs.length === 0) return map;
+  // contentScripts[].js names the *built* file (`content/index.js`), while the
+  // builder and HMR look entries up by source path. Resolve one to the other
+  // through the entry that produces it; a source path in `js` still works.
+  const eps =
+    entrypoints ??
+    discoverLegacyEntrypoints(join(projectRoot, 'src'), createLogger({ level: LogLevel.Silent }));
+  const byOutput = new Map(eps.map((e) => [`${e.name}.js`, e.input]));
   cs.forEach((entry, idx) => {
     for (const rel of entry.js ?? []) {
+      const source = byOutput.get(rel.replace(/^\.\//, '').split('\\').join('/'));
+      if (source) map.set(source, idx);
       map.set(resolve(projectRoot, rel), idx);
     }
   });
@@ -103,80 +121,8 @@ export interface BuildResult {
 }
 
 // ─── Entry point discovery ───────────────────────────────────────────────────
-
-function discoverEntryPoints(srcDir: string): Record<string, string> {
-  const entries: Record<string, string> = {};
-  for (const { subPath, outputKey } of ENTRY_SCANS) {
-    for (const ext of ['.ts', '.tsx']) {
-      const direct = join(srcDir, subPath + ext);
-      const index = join(srcDir, subPath, `index${ext}`);
-      if (existsSync(direct)) {
-        entries[outputKey] = direct;
-        break;
-      }
-      if (existsSync(index)) {
-        entries[outputKey] = index;
-        break;
-      }
-    }
-  }
-  return entries;
-}
-
-export function discoverInjectedEntries(srcDir: string, log: Logger): Record<string, string> {
-  const entries: Record<string, string> = {};
-  const dir = join(srcDir, INJECTED_DIR);
-  const looseTs = join(srcDir, 'injected.ts');
-  const looseTsx = join(srcDir, 'injected.tsx');
-
-  if (existsSync(dir) && statSync(dir).isDirectory()) {
-    if (existsSync(looseTs) || existsSync(looseTsx)) {
-      log.warn(
-        'Both src/injected/ and src/injected.ts(x) exist; using directory mode and ignoring the loose file.',
-      );
-    }
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (!e.isFile()) continue;
-      const m = /^(.+)\.tsx?$/.exec(e.name);
-      if (!m) continue;
-      entries[`injected/${m[1]}`] = join(dir, e.name);
-    }
-    return entries;
-  }
-
-  if (existsSync(looseTs)) {
-    entries.injected = looseTs;
-    return entries;
-  }
-  if (existsSync(looseTsx)) {
-    entries.injected = looseTsx;
-    return entries;
-  }
-  return entries;
-}
-
-/**
- * Split discovered entries into ESM and IIFE buckets.
- * MV3 requires content scripts to be IIFE; injected scripts must be IIFE because
- * they're loaded into page context via a <script src> tag (no module semantics).
- * Background and UI entries remain ESM.
- *
- * Pure function — does not mutate inputs.
- */
-export function partitionEntriesForFormat(
-  allEntries: Record<string, string>,
-  injectedEntries: Record<string, string>,
-): { esmEntries: Record<string, string>; iifeEntries: Record<string, string> } {
-  const esmEntries: Record<string, string> = { ...allEntries };
-  const iifeEntries: Record<string, string> = { ...injectedEntries };
-
-  if (esmEntries['content/index']) {
-    iifeEntries['content/index'] = esmEntries['content/index'];
-    delete esmEntries['content/index'];
-  }
-
-  return { esmEntries, iifeEntries };
-}
+// Lives in ../entrypoints; re-exported here so existing imports keep working.
+export { discoverInjectedEntries, partitionEntriesForFormat };
 
 // ─── Asset copying ───────────────────────────────────────────────────────────
 
@@ -493,17 +439,16 @@ export async function build(
 
   log.info(`Building for ${opts.browser}...`);
 
-  const allEntries = discoverEntryPoints(srcDir);
-  const injectedEntries = discoverInjectedEntries(srcDir, log);
-  const { esmEntries, iifeEntries } = partitionEntriesForFormat(allEntries, injectedEntries);
-
-  // CSUI discovery: every src/contents/*.csui.{ts,tsx} becomes an IIFE entry
-  // and (if matches: are statically extractable) auto-augments the manifest's
-  // content_scripts.
-  const csuiEntries = discoverCSUI(srcDir);
-  for (const c of csuiEntries) {
-    iifeEntries[c.entryKey] = c.file;
-  }
+  // One list of entrypoints; formats, CSUI options and injected scripts all come from it.
+  // CSUI entries auto-augment the manifest's content_scripts when their
+  // `matches` can be extracted statically.
+  const entrypoints = discoverLegacyEntrypoints(srcDir, log);
+  const esmEntries = entryPointsFor(entrypoints, 'esm');
+  const iifeEntries = entryPointsFor(entrypoints, 'iife');
+  const injectedEntries = Object.fromEntries(
+    entrypoints.filter((e) => e.kind === 'injected').map((e) => [e.name, e.input]),
+  );
+  const csuiEntries = entrypoints.flatMap((e) => (e.csui ? [e.csui] : []));
 
   // Synthetic entries contributed by plugins via ctx.addEntry(). Paths may be
   // absolute or root-relative; routed into the ESM or IIFE pass by `format`.
@@ -576,7 +521,7 @@ export async function build(
 
   // ─── IIFE pass (content + injected) ────────────────────────────────────────
   if (Object.keys(iifeEntries).length > 0) {
-    const csMap = buildContentScriptMap(root, config);
+    const csMap = buildContentScriptMap(root, config, entrypoints);
     const sharedOpts = makeSharedEsbuildOptions(root, { ...opts, outDir }, config);
 
     // Separate content-script entries (need per-entry scriptId banner in dev)
@@ -808,7 +753,10 @@ export async function createBuildContext(
   const log = logger ?? createLogger({ scope: 'builder' });
   const srcDir = join(root, 'src');
   const outDir = opts.outDir ?? join(root, 'dist', opts.browser);
-  const entries = discoverEntryPoints(srcDir);
+  // ESM entries only. Content, CSUI and injected scripts must be classic
+  // scripts with per-entry banners, which this shared context can't produce;
+  // the HMR server rebuilds them with a full build() instead.
+  const entries = entryPointsFor(discoverLegacyEntrypoints(srcDir, log), 'esm');
 
   // `build.esbuild` is a pass-through, but a handful of options belong to the
   // builder. Warn once per build; applyEsbuildOverrides drops them silently on
