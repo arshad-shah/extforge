@@ -23,6 +23,7 @@ import {
   callMainPlugin,
   discoverEntrypoints,
   rewritePageHtml,
+  unsupportedEntries,
   usesLegacyLayout,
 } from '../entrypoints/discover.js';
 import {
@@ -632,9 +633,15 @@ export async function build(
   }
 
   if (config.manifest) {
-    const manifestConfig = generated
-      ? applyDiscoveredEntries(config.manifest, entrypoints, log)
-      : config.manifest;
+    let manifestConfig: Parameters<typeof generateManifest>[0] = config.manifest;
+    if (generated) {
+      try {
+        manifestConfig = applyDiscoveredEntries(config.manifest, entrypoints, log);
+      } catch (err) {
+        throw new ExtForgeError({ code: 'EXT_MANIFEST_INVALID', message: (err as Error).message });
+      }
+      for (const w of unsupportedEntries(entrypoints, opts.browser)) log.warn(w);
+    }
     let manifest: ManifestObject = generateManifest(manifestConfig, opts.browser) as ManifestObject;
     applyInjectedDefaults(manifest as Record<string, unknown>, manifestConfig, injectedEntries);
     augmentManifestWithCSUI(manifest as Record<string, unknown>, csuiEntries, log);

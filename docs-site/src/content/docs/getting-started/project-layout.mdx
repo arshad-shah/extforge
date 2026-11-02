@@ -17,11 +17,22 @@ src/
   popup.html               → popup.html + popup.js (action.default_popup)
   options/index.html       → options.html + options.js (options_page / options_ui)
   sidepanel.html           → sidepanel.html (side_panel; Firefox: sidebar_action)
+  devtools.html            → devtools.html (devtools_page)
+  newtab.html              → newtab.html (chrome_url_overrides; also history / bookmarks)
+  offscreen.html           → offscreen.html (no manifest key; open with chrome.offscreen)
+  audio.offscreen.html     → audio.html (another offscreen document)
+  frame.sandbox.html       → frame.html (sandbox.pages, Chrome and Edge)
+  welcome.html             → welcome.html (unlisted page: open it with runtime.getURL)
   content.ts               → content-scripts/content.js
   github.content.ts        → content-scripts/github.js
   youtube.content/index.ts → content-scripts/youtube.js
+  widget.csui.tsx          → content-scripts/widget.js (Shadow-DOM UI, see CSUI)
+  hook.injected.ts         → injected/hook.js (page's main world, web-accessible)
+  scrape.unlisted.ts       → scrape.js (classic script, e.g. for scripting.executeScript)
   lib/, components/ …      → ordinary code, imported by the entries
 ```
+
+Any page also works as `<name>/index.html`, and any suffixed script as `<name>.<suffix>/index.ts`. Entries a browser can't use (a `history` override or sandbox page on Firefox, an offscreen document on Firefox or Safari, the side panel on Safari) are still built, but left out of that browser's manifest with a warning. Chrome allows only one URL override per extension, so declaring two fails the build. So do two entries that would write the same file, such as `welcome.html` and `welcome.unlisted.ts`.
 
 - **Pages** (`popup`, `options`, `sidepanel`) are an HTML file, `<name>.html` or `<name>/index.html`. ExtForge bundles each `<script type="module" src="…">` it loads (`./popup.ts` works directly) and rewrites the tag to point at the built file.
 - **Content scripts** declare their options in the file. The build reads them without running the file, adds the `content_scripts` entry, and calls `main()` when the script is injected:
@@ -43,7 +54,7 @@ src/
 - **The manifest is generated** from what's found. Anything you set in `config.manifest` (name, permissions, icons, `action.defaultTitle` …) is kept, and keys you set yourself win.
 - Two files claiming one entry (`popup.html` and `popup/index.html`) fail the build, naming both.
 
-**Which layout a project uses.** The legacy layout stays in effect while `extforge.config.ts` writes entry paths (`background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath`, `contentScripts[].js`), or while `src/ui/` or `src/content/` exists. Nothing about those builds changes. To move a project over, rename the files into the named layout and delete those keys. A migration guide and an `extforge migrate-layout` command are coming. Injected scripts (`src/injected/`) and CSUI (`src/contents/*.csui.tsx`) work the same in both layouts.
+**Which layout a project uses.** The legacy layout stays in effect while `extforge.config.ts` writes entry paths (`background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath`, `contentScripts[].js`), or while `src/ui/` or `src/content/` exists. Nothing about those builds changes. To move a project over, rename the files into the named layout and delete those keys. A migration guide and an `extforge migrate-layout` command are coming. The `src/injected/` and `src/contents/` folders keep working in both layouts.
 
 <Aside type="note">
 In the named layout, `extforge dev` rebuilds and reloads on every change. React Fast Refresh in the named layout is still to come; it works in the legacy layout today.

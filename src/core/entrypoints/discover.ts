@@ -1,25 +1,40 @@
 /**
- * Generated-mode discovery (#96 phase 2): entrypoints found in `src/` by name.
+ * Generated-mode discovery (#96): entrypoints found in `src/` by name.
  *
- * Only reserved names, entry suffixes and pages count, so ordinary code in
- * `src/` (`lib/index.ts`, `components/…`) is never mistaken for an entry:
+ * Only reserved names, entry suffixes and HTML directly in `src/` count, so
+ * ordinary code (`lib/index.ts`, `components/…`) is never mistaken for an entry.
  *
- *   background.ts | background/index.ts           → background.js
- *   popup|options|sidepanel: <n>.html | <n>/index.html  → <n>.html + <n>.js
- *   content.ts                                     → content-scripts/content.js
- *   <x>.content.ts | <x>.content/index.ts          → content-scripts/<x>.js
+ *   background.ts | background/index.ts              → background.js
+ *   popup|options|sidepanel|devtools|newtab|history|bookmarks
+ *     <n>.html | <n>/index.html                       → <n>.html + <n>.js
+ *   offscreen.html | <x>.offscreen.html | …/index.html → <x>.html (no manifest key)
+ *   <x>.sandbox.html | <x>.sandbox/index.html        → <x>.html, sandbox.pages
+ *   any other <x>.html in src/                       → <x>.html (unlisted page)
+ *   content.ts | <x>.content.ts | <x>.content/index.ts → content-scripts/<x>.js
+ *   <x>.csui.tsx                                     → content-scripts/<x>.js (CSUI)
+ *   <x>.injected.ts                                  → injected/<x>.js (main world)
+ *   <x>.unlisted.ts | <x>.unlisted/index.ts          → <x>.js (classic script, no manifest key)
  *
- * Injected scripts and CSUI keep their current discovery and output keys
- * until phase 3. See docs/superpowers/specs/2026-11-02-entrypoint-discovery-design.md.
+ * The folders `src/injected/` and `src/contents/` keep working with their
+ * existing output keys. See docs/superpowers/specs/2026-11-02-entrypoint-discovery-design.md.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
-import { extractContentScriptOptions } from '../csui/discovery.js';
+import { describeCSUI, extractContentScriptOptions } from '../csui/discovery.js';
 import type { Logger } from '../logger/index.js';
-import type { ManifestConfig } from '../manifest/types.js';
+import { BROWSER_FEATURES } from '../manifest/constants.js';
+import type { Browser, ManifestConfig } from '../manifest/types.js';
 import { discoverInjectedEntries, discoverLegacyEntrypoints, type Entrypoint } from './index.js';
 
-export const PAGE_KINDS = ['popup', 'options', 'sidepanel'] as const;
+export const PAGE_KINDS = [
+  'popup',
+  'options',
+  'sidepanel',
+  'devtools',
+  'newtab',
+  'history',
+  'bookmarks',
+] as const;
 export type PageKind = (typeof PAGE_KINDS)[number];
 
 /** A page's module scripts, resolved to source files, and the output names they get. */
@@ -93,80 +108,144 @@ export function pageScripts(htmlPath: string, pageName: string): PageScript[] {
   return scripts;
 }
 
-/** Every generated-mode entrypoint in `srcDir`. Throws when two files claim one entry. */
+/** Every generated-mode entrypoint in `srcDir`. Throws when two files claim one entry or output. */
 export function discoverEntrypoints(srcDir: string, log: Logger): Entrypoint[] {
   const out: Entrypoint[] = [];
   const rel = (p: string) => relative(srcDir, p);
-  const claim = (kind: string, found: string[]): string | undefined => {
+  const claim = (what: string, found: string[]): string | undefined => {
     if (found.length > 1) {
       throw new Error(
-        `Two files define the ${kind} entrypoint: ${found.map(rel).join(' and ')}. Keep one.`,
+        `Two files define the ${what} entrypoint: ${found.map(rel).join(' and ')}. Keep one.`,
       );
     }
     return found[0];
   };
+  const listing = existsSync(srcDir) ? readdirSync(srcDir, { withFileTypes: true }) : [];
+  const files = listing.filter((e) => e.isFile()).map((e) => e.name);
+  const dirs = listing.filter((e) => e.isDirectory()).map((e) => e.name);
+  const indexIn = (dir: string, exts: string[]) =>
+    firstExisting(withExts(join(srcDir, dir, 'index'), exts));
 
-  const background = claim(
+  // Collect candidates by entry key, so any duplicate claim is reported.
+  const candidates = new Map<string, { kind: Entrypoint['kind']; name: string; files: string[] }>();
+  const add = (key: string, kind: Entrypoint['kind'], name: string, file: string | undefined) => {
+    if (!file) return;
+    const c = candidates.get(key) ?? { kind, name, files: [] };
+    c.files.push(file);
+    candidates.set(key, c);
+  };
+
+  add(
     'background',
-    [
-      firstExisting(withExts(join(srcDir, 'background'), ['.ts', '.tsx'])),
-      firstExisting(withExts(join(srcDir, 'background', 'index'), ['.ts', '.tsx'])),
-    ].filter((p): p is string => p !== undefined),
+    'background',
+    'background',
+    firstExisting(withExts(join(srcDir, 'background'), ['.ts', '.tsx'])),
   );
-  if (background)
-    out.push({ name: 'background', kind: 'background', input: background, format: 'esm' });
+  add('background', 'background', 'background', indexIn('background', ['.ts', '.tsx']));
+  add(
+    'content',
+    'content',
+    'content',
+    firstExisting(withExts(join(srcDir, 'content'), ['.ts', '.tsx'])),
+  );
 
-  for (const kind of PAGE_KINDS) {
-    const html = claim(
-      kind,
-      [join(srcDir, `${kind}.html`), join(srcDir, kind, 'index.html')].filter((p) => existsSync(p)),
-    );
-    if (!html) continue;
-    const scripts = pageScripts(html, kind);
-    if (scripts.length === 0) {
-      log.warn(
-        `${rel(html)} has no <script type="module" src="…"> that resolves to a file in src/.`,
-      );
-    }
-    out.push({
-      name: kind,
-      kind,
-      input: html,
-      format: 'esm',
-      page: { html, scripts },
-    });
+  const reservedPages = new Set<string>([...PAGE_KINDS, 'offscreen']);
+  for (const kind of [...PAGE_KINDS, 'offscreen'] as const) {
+    if (files.includes(`${kind}.html`)) add(kind, kind, kind, join(srcDir, `${kind}.html`));
+    if (dirs.includes(kind) && existsSync(join(srcDir, kind, 'index.html')))
+      add(kind, kind, kind, join(srcDir, kind, 'index.html'));
   }
 
-  // Content scripts: content.ts, <x>.content.ts, <x>.content/index.ts
-  const contentFiles = new Map<string, string[]>();
-  const addContent = (name: string, file: string) =>
-    contentFiles.set(name, [...(contentFiles.get(name) ?? []), file]);
-  const plainContent = firstExisting(withExts(join(srcDir, 'content'), ['.ts', '.tsx']));
-  if (plainContent) addContent('content', plainContent);
-  for (const e of existsSync(srcDir) ? readdirSync(srcDir, { withFileTypes: true }) : []) {
-    const file = /^(.+)\.content\.(ts|tsx)$/.exec(e.name);
-    if (e.isFile() && file) addContent(file[1] as string, join(srcDir, e.name));
-    const folder = /^(.+)\.content$/.exec(e.name);
-    if (e.isDirectory() && folder) {
-      const index = firstExisting(withExts(join(srcDir, e.name, 'index'), ['.ts', '.tsx']));
-      if (index) addContent(folder[1] as string, index);
+  const SUFFIXES: Array<{ re: RegExp; kind: Entrypoint['kind']; html?: true; prefix?: string }> = [
+    { re: /^(.+)\.content$/, kind: 'content' },
+    { re: /^(.+)\.csui$/, kind: 'csui' },
+    { re: /^(.+)\.injected$/, kind: 'injected' },
+    { re: /^(.+)\.unlisted$/, kind: 'unlisted' },
+    { re: /^(.+)\.offscreen$/, kind: 'offscreen', html: true },
+    { re: /^(.+)\.sandbox$/, kind: 'sandbox', html: true },
+  ];
+  const claimedHtml = new Set<string>();
+  for (const name of files) {
+    const dot = name.lastIndexOf('.');
+    const stem = name.slice(0, dot);
+    const ext = name.slice(dot);
+    for (const s of SUFFIXES) {
+      const m = s.re.exec(stem);
+      if (!m) continue;
+      const isHtml = ext === '.html';
+      if (Boolean(s.html) !== isHtml || (!isHtml && !['.ts', '.tsx'].includes(ext))) continue;
+      add(`${s.kind}:${m[1]}`, s.kind, m[1] as string, join(srcDir, name));
+      if (isHtml) claimedHtml.add(name);
     }
   }
-  for (const [name, files] of [...contentFiles].sort(([a], [b]) => a.localeCompare(b))) {
-    const input = claim(`"${name}" content script`, files) as string;
-    out.push({
-      name: `content-scripts/${name}`,
-      kind: 'content',
-      input,
-      format: 'iife',
-      contentScript: extractContentScriptOptions(
-        readFileSync(input, 'utf8'),
-        'defineContentScript',
-      ),
-    });
+  for (const dir of dirs) {
+    for (const s of SUFFIXES) {
+      const m = s.re.exec(dir);
+      if (!m) continue;
+      const file = s.html
+        ? existsSync(join(srcDir, dir, 'index.html'))
+          ? join(srcDir, dir, 'index.html')
+          : undefined
+        : indexIn(dir, ['.ts', '.tsx']);
+      add(`${s.kind}:${m[1]}`, s.kind, m[1] as string, file);
+    }
+  }
+  // Any other HTML directly in src/ is an unlisted page.
+  for (const name of files) {
+    if (!name.endsWith('.html') || claimedHtml.has(name)) continue;
+    const stem = name.slice(0, -'.html'.length);
+    if (reservedPages.has(stem)) continue;
+    add(`page:${stem}`, 'page', stem, join(srcDir, name));
+  }
+  // A plain content.ts and a content.content.ts would both be "content".
+  const plain = candidates.get('content');
+  const named = candidates.get('content:content');
+  if (plain && named) {
+    plain.files.push(...named.files);
+    candidates.delete('content:content');
   }
 
-  // Injected and CSUI: unchanged until phase 3.
+  const PAGE_LIKE = new Set<Entrypoint['kind']>([...PAGE_KINDS, 'offscreen', 'sandbox', 'page']);
+  for (const [key, c] of [...candidates].sort(([a], [b]) => a.localeCompare(b))) {
+    const input = claim(key.includes(':') ? `${c.kind} "${c.name}"` : c.kind, c.files) as string;
+    if (PAGE_LIKE.has(c.kind)) {
+      const scripts = pageScripts(input, c.name);
+      if (scripts.length === 0 && c.kind !== 'sandbox') {
+        log.warn(
+          `${rel(input)} has no <script type="module" src="…"> that resolves to a file in src/.`,
+        );
+      }
+      out.push({
+        name: c.name,
+        kind: c.kind,
+        input,
+        format: 'esm',
+        page: { html: input, scripts },
+      });
+    } else if (c.kind === 'content') {
+      out.push({
+        name: `content-scripts/${c.name}`,
+        kind: 'content',
+        input,
+        format: 'iife',
+        contentScript: extractContentScriptOptions(
+          readFileSync(input, 'utf8'),
+          'defineContentScript',
+        ),
+      });
+    } else if (c.kind === 'csui') {
+      const csui = describeCSUI(input, `content-scripts/${c.name}`);
+      out.push({ name: csui.entryKey, kind: 'csui', input, format: 'iife', csui });
+    } else if (c.kind === 'injected') {
+      out.push({ name: `injected/${c.name}`, kind: 'injected', input, format: 'iife' });
+    } else if (c.kind === 'unlisted') {
+      out.push({ name: c.name, kind: 'unlisted', input, format: 'iife' });
+    } else {
+      out.push({ name: c.name, kind: c.kind, input, format: 'esm' });
+    }
+  }
+
+  // The src/injected/ and src/contents/ folders keep their output keys.
   for (const [name, input] of Object.entries(discoverInjectedEntries(srcDir, log))) {
     out.push({ name, kind: 'injected', input, format: 'iife' });
   }
@@ -174,7 +253,27 @@ export function discoverEntrypoints(srcDir: string, log: Logger): Entrypoint[] {
     if (e.kind === 'csui') out.push(e);
   }
 
+  assertUniqueOutputs(out, rel);
   return out.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Two entries writing the same file would overwrite each other; say which. */
+function assertUniqueOutputs(entrypoints: Entrypoint[], rel: (p: string) => string): void {
+  const owners = new Map<string, string>();
+  for (const e of entrypoints) {
+    const outputs = e.page
+      ? [`${e.name}.html`, ...e.page.scripts.map((s) => `${s.name}.js`)]
+      : [`${e.name}.js`];
+    for (const o of outputs) {
+      const prev = owners.get(o);
+      if (prev && prev !== e.input) {
+        throw new Error(
+          `${rel(prev)} and ${rel(e.input)} would both be built to ${o}. Rename one.`,
+        );
+      }
+      owners.set(o, e.input);
+    }
+  }
 }
 
 /**
@@ -192,6 +291,19 @@ export function manifestFromEntrypoints(
     if (e.kind === 'popup') patch.action = { defaultPopup: `${e.name}.html` };
     if (e.kind === 'options') patch.optionsPage = `${e.name}.html`;
     if (e.kind === 'sidepanel') patch.sidePanel = { defaultPath: `${e.name}.html` };
+    if (e.kind === 'devtools') patch.devtoolsPage = `${e.name}.html`;
+    if (e.kind === 'newtab' || e.kind === 'history' || e.kind === 'bookmarks') {
+      patch.chromeUrlOverrides = { ...patch.chromeUrlOverrides, [e.kind]: `${e.name}.html` };
+    }
+    if (e.kind === 'sandbox') {
+      patch.sandbox = { pages: [...(patch.sandbox?.pages ?? []), `${e.name}.html`] };
+    }
+  }
+  const overrides = Object.keys(patch.chromeUrlOverrides ?? {});
+  if (overrides.length > 1) {
+    throw new Error(
+      `An extension can override only one browser page, but src/ has ${overrides.map((o) => `${o}.html`).join(' and ')}. Keep one.`,
+    );
   }
   const scripts = entrypoints.filter((e) => e.kind === 'content');
   const contentScripts: NonNullable<ManifestConfig['contentScripts']> = [];
@@ -256,6 +368,15 @@ export function applyDiscoveredEntries(
     }),
     ...(found.optionsPage && !manifest.optionsPage && { optionsPage: found.optionsPage }),
     ...(found.sidePanel && !manifest.sidePanel?.defaultPath && { sidePanel: found.sidePanel }),
+    ...(found.devtoolsPage && !manifest.devtoolsPage && { devtoolsPage: found.devtoolsPage }),
+    ...(found.chromeUrlOverrides &&
+      !manifest.chromeUrlOverrides && { chromeUrlOverrides: found.chromeUrlOverrides }),
+    ...(found.sandbox && {
+      sandbox: {
+        ...manifest.sandbox,
+        pages: [...(manifest.sandbox?.pages ?? []), ...found.sandbox.pages],
+      },
+    }),
     ...(found.contentScripts && {
       contentScripts: [...(manifest.contentScripts ?? []), ...found.contentScripts],
     }),
@@ -292,3 +413,33 @@ export const callMainPlugin = {
     }));
   },
 };
+
+/**
+ * Entries `browser` can't use, as warnings: they are still built, but the
+ * manifest for this browser leaves them out (or the API doesn't exist there).
+ */
+export function unsupportedEntries(entrypoints: Entrypoint[], browser: Browser): string[] {
+  const f = BROWSER_FEATURES[browser];
+  const out: string[] = [];
+  for (const e of entrypoints) {
+    const where = `${e.name}.html`;
+    if (
+      (e.kind === 'history' || e.kind === 'bookmarks' || e.kind === 'newtab') &&
+      !f.urlOverrides.includes(e.kind)
+    )
+      out.push(
+        `${where}: ${browser} doesn't support overriding the ${e.kind} page; left out of its manifest.`,
+      );
+    if (e.kind === 'sandbox' && !f.sandboxSupport)
+      out.push(
+        `${where}: ${browser} doesn't support manifest sandbox pages; left out of its manifest.`,
+      );
+    if (e.kind === 'offscreen' && (browser === 'firefox' || browser === 'safari'))
+      out.push(
+        `${where}: ${browser} has no chrome.offscreen API, so this document can't be opened there.`,
+      );
+    if (e.kind === 'sidepanel' && browser === 'safari')
+      out.push(`${where}: Safari has no side panel; left out of its manifest.`);
+  }
+  return out;
+}

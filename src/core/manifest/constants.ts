@@ -128,6 +128,10 @@ export const BROWSER_FEATURES: Record<
     optionsKey: 'options_page' | 'options_ui';
     sidePanelSupport: boolean;
     browserSpecificSettings: boolean;
+    /** `chrome_url_overrides` keys the browser accepts. */
+    urlOverrides: ReadonlyArray<'newtab' | 'history' | 'bookmarks'>;
+    /** Manifest `sandbox` pages. */
+    sandboxSupport: boolean;
   }
 > = {
   chrome: {
@@ -135,24 +139,32 @@ export const BROWSER_FEATURES: Record<
     optionsKey: 'options_page',
     sidePanelSupport: true,
     browserSpecificSettings: false,
+    urlOverrides: ['newtab', 'history', 'bookmarks'],
+    sandboxSupport: true,
   },
   firefox: {
     backgroundType: 'scripts',
     optionsKey: 'options_ui',
     sidePanelSupport: false,
     browserSpecificSettings: true,
+    urlOverrides: ['newtab'],
+    sandboxSupport: false,
   },
   safari: {
     backgroundType: 'service_worker',
     optionsKey: 'options_ui',
     sidePanelSupport: false,
     browserSpecificSettings: false,
+    urlOverrides: ['newtab'],
+    sandboxSupport: false,
   },
   edge: {
     backgroundType: 'service_worker',
     optionsKey: 'options_page',
     sidePanelSupport: true,
     browserSpecificSettings: false,
+    urlOverrides: ['newtab', 'history', 'bookmarks'],
+    sandboxSupport: true,
   },
 };
 

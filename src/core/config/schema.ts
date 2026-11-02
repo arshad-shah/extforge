@@ -53,12 +53,23 @@ export const contentScriptSchema = z
   .passthrough();
 
 /**
- * The manifest block. Only `contentScripts` is described — everything else
+ * The manifest block. Only the keys below are described; everything else
  * passes through untouched, exactly as it did when this was `z.unknown()`.
  */
 export const manifestSchema = z
   .object({
     contentScripts: z.array(contentScriptSchema).optional(),
+    devtoolsPage: z.string().optional(),
+    chromeUrlOverrides: z
+      .object({
+        newtab: z.string().optional(),
+        history: z.string().optional(),
+        bookmarks: z.string().optional(),
+      })
+      .optional(),
+    sandbox: z
+      .object({ pages: z.array(z.string()), contentSecurityPolicy: z.string().optional() })
+      .optional(),
   })
   .passthrough();
 

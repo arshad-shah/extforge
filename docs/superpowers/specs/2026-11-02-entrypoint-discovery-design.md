@@ -96,7 +96,7 @@ Each phase is a mergeable PR with tests. The old layout stays green throughout.
 
 1. **Discovery core:** the `Entrypoint` model, the legacy adapter, and the builder switched to the single list with no behaviour change. Fix content-script map keying so targeted HMR works. Thread `srcDir`/`outDir` through.
 2. **New layout plus manifest derivation:** `src/` discovery for background, popup, options, side panel and content scripts, `defineContentScript` with the static extractor, HTML rewriting, and config-overrides-discovery precedence.
-3. **The rest of the MV3 surface:** devtools, URL overrides, offscreen, sandbox, unlisted pages and scripts, injected, and CSUI under the new layout.
+3. **The rest of the MV3 surface (done in #158):** adds `ManifestConfig.devtoolsPage`, `chromeUrlOverrides` and `sandbox`, which legacy configs can use too, plus per-browser support warnings, a one-override rule and an output-collision check. devtools, URL overrides, offscreen, sandbox, unlisted pages and scripts, injected, and CSUI under the new layout.
 4. **Dev experience:** HMR classification by kind, scaffold (`extforge init` writes the new layout), examples, e2e, `extforge migrate-layout`, the deprecation warning, the migration guide and the project-layout docs rewrite (removing the false claims).
 
 ## Testing

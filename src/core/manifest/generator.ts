@@ -178,6 +178,29 @@ export function generateManifest(
       };
   }
 
+  // DevTools page
+  if (config.devtoolsPage) manifest.devtools_page = config.devtoolsPage;
+
+  // URL overrides: only the keys this browser accepts.
+  if (config.chromeUrlOverrides) {
+    const overrides = Object.fromEntries(
+      Object.entries(config.chromeUrlOverrides).filter(
+        ([key, page]) => page && (features.urlOverrides as readonly string[]).includes(key),
+      ),
+    );
+    if (Object.keys(overrides).length > 0) manifest.chrome_url_overrides = overrides;
+  }
+
+  // Sandbox pages
+  if (config.sandbox?.pages.length && features.sandboxSupport) {
+    manifest.sandbox = {
+      pages: config.sandbox.pages,
+      ...(config.sandbox.contentSecurityPolicy && {
+        content_security_policy: config.sandbox.contentSecurityPolicy,
+      }),
+    };
+  }
+
   // Web accessible resources
   if (config.webAccessibleResources)
     manifest.web_accessible_resources = config.webAccessibleResources;

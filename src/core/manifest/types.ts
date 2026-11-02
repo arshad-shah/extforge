@@ -72,6 +72,15 @@ export interface ManifestConfig {
   sidePanel?: {
     defaultPath?: string;
   };
+  /** Emitted as `devtools_page`. */
+  devtoolsPage?: string;
+  /**
+   * Emitted as `chrome_url_overrides`. Chrome and Edge allow one of the three;
+   * Firefox and Safari support `newtab` only (others are left out for them).
+   */
+  chromeUrlOverrides?: { newtab?: string; history?: string; bookmarks?: string };
+  /** Emitted as `sandbox` on Chrome and Edge, which are the only browsers that support it. */
+  sandbox?: { pages: string[]; contentSecurityPolicy?: string };
   icons?: Record<string, string>;
   /** Emitted as `default_locale`. Required by Chrome once `_locales/` exists. */
   defaultLocale?: string;
