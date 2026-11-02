@@ -56,8 +56,8 @@ Any page also works as `<name>/index.html`, and any suffixed script as `<name>.<
 
 **Which layout a project uses.** The legacy layout stays in effect while `extforge.config.ts` writes entry paths (`background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath`, `contentScripts[].js`), or while `src/ui/` or `src/content/` exists. Nothing about those builds changes. To move a project over, rename the files into the named layout and delete those keys. A migration guide and an `extforge migrate-layout` command are coming. The `src/injected/` and `src/contents/` folders keep working in both layouts.
 
-<Aside type="note">
-In the named layout, `extforge dev` rebuilds and reloads on every change. React Fast Refresh in the named layout is still to come; it works in the legacy layout today.
+<Aside type="tip">
+For React Fast Refresh, give a page its own folder (`src/options/index.html` plus its components beside it). Edits inside the folder hot-swap without a reload. See [HMR](/guides/hmr/).
 </Aside>
 
 ## Legacy layout

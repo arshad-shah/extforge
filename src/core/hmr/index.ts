@@ -32,9 +32,13 @@ function chunkHash(absPath: string): string | undefined {
 import type * as esbuild from 'esbuild';
 import { build, buildContentScriptMap, createBuildContext } from '../builder/index.js';
 import type { ExtForgeConfig } from '../config.js';
-import { usesLegacyLayout } from '../entrypoints/discover.js';
+import {
+  discoverEntrypoints,
+  fastRefreshTargets,
+  usesLegacyLayout,
+} from '../entrypoints/discover.js';
 import { ExtForgeError } from '../errors/index.js';
-import { createLogger, type Logger } from '../logger/index.js';
+import { createLogger, type Logger, LogLevel } from '../logger/index.js';
 import type { Browser } from '../manifest/index.js';
 import type { PluginRunner } from '../plugins/runner.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
@@ -305,10 +309,17 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
    * on Windows (where node:path emits `\`) and POSIX.
    */
   const tryClassifyV3 = (changes: Map<string, HMRUpdateType>): string[] | undefined => {
-    // Fast Refresh targets the legacy src/ui/<page>/index.js outputs. Generated
-    // mode pages are flat, so it reloads instead (until #96 phase 4).
-    if (generatedLayout) return undefined;
     const types = new Set(changes.values());
+    if (generatedLayout) {
+      if (types.has('manifest') || types.has('full-reload')) return undefined;
+      if (types.has('css') || types.has('assets') || !types.has('js')) return undefined;
+      const srcDir = join(projectRoot, 'src');
+      return fastRefreshTargets(
+        [...changes.keys()],
+        discoverEntrypoints(srcDir, createLogger({ level: LogLevel.Silent })),
+        srcDir,
+      );
+    }
     if (types.has('manifest') || types.has('full-reload')) return undefined;
     if (types.has('css') || types.has('assets')) return undefined;
     if (!types.has('js')) return undefined;
@@ -464,7 +475,6 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       contentScriptMap = buildContentScriptMap(projectRoot, config);
 
       try {
-        if (generatedLayout) throw new Error('generated layout: full rebuilds only');
         buildCtx = await createBuildContext(
           projectRoot,
           config,
@@ -472,7 +482,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
           log,
         );
       } catch {
-        if (!generatedLayout) log.warn('No incremental context — using full rebuilds');
+        log.warn('No incremental context — using full rebuilds');
         buildCtx = null;
       }
 
