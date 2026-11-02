@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { archiveFilename, packageBrowser } from '../src/cli/package-cmd.js';
+import { archiveFilename, packageBrowser, packagingNote } from '../src/cli/package-cmd.js';
 import { createLogger, LogLevel } from '../src/core/logger/index.js';
 
 const log = createLogger({ level: LogLevel.Silent });
@@ -74,5 +74,17 @@ describe('packageBrowser', () => {
     expect(existsSync(archive)).toBe(true);
     const buf = readFileSync(archive);
     expect(buf.readUInt32LE(0)).toBe(0x04034b50);
+  });
+});
+
+describe('packagingNote', () => {
+  it('warns that a Safari zip needs the Xcode converter before it can ship', () => {
+    const note = packagingNote('safari');
+    expect(note).toContain('safari-web-extension-converter');
+    expect(note).toContain('App Store Connect');
+  });
+
+  it('says nothing for browsers whose zip is the store upload', () => {
+    for (const b of ['chrome', 'firefox', 'edge']) expect(packagingNote(b)).toBeUndefined();
   });
 });

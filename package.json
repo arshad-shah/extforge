@@ -1,7 +1,7 @@
 {
   "name": "extforge",
   "version": "1.4.0",
-  "description": "Lightning-fast browser extension build system with first-class HMR, interactive scaffolding, and cross-browser support (Chrome, Firefox, Safari, Edge — Manifest V3).",
+  "description": "Lightning-fast Manifest V3 browser extension build system with first-class HMR, interactive scaffolding, and store-ready builds for Chrome, Edge and Firefox. Safari output is a ready-to-convert build you finish with Apple's Xcode converter.",
   "type": "module",
   "bin": {
     "extforge": "./dist/cli/index.js"
@@ -150,7 +150,6 @@
     "browser-extension",
     "chrome-extension",
     "firefox-addon",
-    "safari-extension",
     "edge-extension",
     "manifest-v3",
     "mv3",

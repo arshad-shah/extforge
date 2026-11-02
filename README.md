@@ -20,7 +20,18 @@
 
 ---
 
-ExtForge is a zero-config build system for Manifest V3 browser extensions. One config, every browser. esbuild-powered dev server with true 0-reload UI updates via React Fast Refresh. First-party packages for storage, messaging, and Shadow-DOM-mounted content UIs.
+ExtForge is a zero-config build system for Manifest V3 browser extensions. One config builds store-ready packages for Chrome, Edge and Firefox, plus a Safari build ready for Apple's Xcode converter. esbuild-powered dev server with true 0-reload UI updates via React Fast Refresh. First-party packages for storage, messaging, and Shadow-DOM-mounted content UIs.
+
+## Browser support <span id="browser-support"></span>
+
+| Browser | `extforge build` | `extforge dev --open` | `extforge package` |
+| --- | --- | --- | --- |
+| Chrome | ✅ | ✅ | ✅ store-ready `.zip` |
+| Edge | ✅ | ✅ | ✅ store-ready `.zip` |
+| Firefox | ✅ | ✅ temporary add-on | ✅ store-ready `.zip` |
+| Safari | ✅ Safari-flavoured MV3 build | — | ⚠️ `.zip` only. Wrap `dist/safari` with `xcrun safari-web-extension-converter` and ship through Xcode ([guide](https://extforge.arshadshah.com/guides/deployment/#safari)) |
+
+Native Safari packaging is tracked in [#102](https://github.com/arshad-shah/extforge/issues/102).
 
 ## Quick start <span id="quick-start"></span>
 
@@ -38,7 +49,7 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 ## What it does <span id="features"></span>
 
 ### Build & dev
-- **Cross-browser by default.** One config emits a manifest tailored to each browser. Browser-specific quirks handled automatically.
+- **Cross-browser by default.** One config emits a manifest tailored to each browser. Browser-specific quirks handled automatically. See [browser support](#browser-support) for what "supported" means per browser.
 - **True 0-reload UI updates.** SWC-powered React Fast Refresh for popup/options/sidepanel — components update with state preserved. Falls back gracefully (full reload) when `@swc/core` isn't installed.
 - **Versioned HMR protocol (v3).** Targeted module swaps for UI-only changes; full reload for manifest / background / content-script changes. CSS hot swap, infinite reconnect.
 - **Cross-browser API compat checking.** MDN BCD-driven — catches `chrome.tabGroups.update()` on Safari at build time, with per-line opt-out.

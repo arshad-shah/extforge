@@ -10,7 +10,7 @@ export const pkg = defineCommand({
     const { loadExtForgeConfig } = await import('../../core/config.js');
     const { createLogger } = await import('../../core/logger/index.js');
     const { ALL_BROWSERS } = await import('../../core/manifest/index.js');
-    const { archiveFilename, packageBrowser } = await import('../package-cmd.js');
+    const { archiveFilename, packageBrowser, packagingNote } = await import('../package-cmd.js');
 
     const log = createLogger({ scope: 'extforge' });
     const config = await loadExtForgeConfig(process.cwd());
@@ -30,6 +30,8 @@ export const pkg = defineCommand({
       try {
         await packageBrowser({ dist, archive, log });
         log.success(`Packaged ${b} → packages/${name}`);
+        const note = packagingNote(b);
+        if (note) log.warn(note);
       } catch (err) {
         log.error(`Failed to package ${b}: ${err instanceof Error ? err.message : String(err)}`);
       }
