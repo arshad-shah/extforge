@@ -117,6 +117,7 @@ export function generateManifest(
   };
 
   if (config.icons) manifest.icons = config.icons;
+  if (config.defaultLocale) manifest.default_locale = config.defaultLocale;
 
   // Action
   if (config.action) {

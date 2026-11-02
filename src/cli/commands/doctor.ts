@@ -19,6 +19,7 @@ export const doctor = defineCommand({
     const { scriptsPresentCheck } = await import('../../core/doctor/checks/scripts-present.js');
     const { compatCheck } = await import('../../core/doctor/checks/compat.js');
     const { modulesActiveCheck } = await import('../../core/doctor/checks/modules-active.js');
+    const { i18nLocalesCheck } = await import('../../core/doctor/checks/i18n-locales.js');
     const { createLogger, LogLevel } = await import('../../core/logger/index.js');
 
     const checks = [
@@ -32,6 +33,7 @@ export const doctor = defineCommand({
       scriptsPresentCheck,
       compatCheck,
       modulesActiveCheck,
+      i18nLocalesCheck,
     ];
     const report = await runDoctor(checks, { cwd: process.cwd() });
 
