@@ -54,6 +54,7 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 - **Versioned HMR protocol (v3).** Targeted module swaps for UI-only changes; full reload for manifest / background / content-script changes. CSS hot swap, infinite reconnect.
 - **Cross-browser API compat checking.** MDN BCD-driven — catches `chrome.tabGroups.update()` on Safari at build time, with per-line opt-out.
 - **Production-ready packaging.** `extforge package` produces store-ready `.zip` archives.
+- **Bundle-size budgets.** Every build prints each entrypoint's size, `build.budgets` fails a production build that grows past a limit (with the top contributors), and `extforge build --analyze` writes a clickable treemap.
 
 ### First-party runtime packages
 - **`extforge/storage`** + **`extforge/storage/react`** — typed `chrome.storage` wrapper with watch API and `useStorage()` hook. localStorage fallback for non-extension contexts.

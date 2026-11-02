@@ -19,7 +19,32 @@ Or target a single browser:
 extforge build --browser chrome
 ```
 
-Outputs land in `dist/chrome/`, `dist/firefox/`, etc.
+Outputs land in `dist/chrome/`, `dist/firefox/`, etc. Each build prints the size of every entrypoint. That size includes the shared chunks the entrypoint imports statically, because they load with it.
+
+### Bundle-size budgets
+
+Set a maximum size per entrypoint. A production build that goes over fails with [`EXT_BUDGET_EXCEEDED`](/reference/errors/ext_budget_exceeded/) and lists the biggest contributors:
+
+```ts
+export default defineConfig({
+  build: {
+    budgets: {
+      'content/index': '50kb', // exact entry name (output path without extension)
+      'content/*': '80kb',     // * matches within one folder, ** across folders
+      '**': '500kb',           // default for everything else
+    },
+  },
+});
+```
+
+- **Values:** a number of bytes, or a string such as `'50kb'` or `'1.5mb'`. Units are 1024-based, matching the build output.
+- **Matching:** an exact entry name wins. Otherwise the first matching pattern, in the order you wrote them, applies.
+- **What counts:** chunks loaded with `import()` don't count against the entry, so lazy-loading is a way to get under budget.
+- **Dev builds:** `extforge dev` builds include HMR code and aren't minified, so budgets are never enforced there.
+
+<Aside type="tip" title="See what's inside">
+`extforge build --analyze` writes `dist/.extforge/stats-<browser>.html`, a treemap you can click into from entrypoint to package to file. It also writes `meta-<browser>.json`, the raw esbuild metafile, which works with [esbuild's analyzer](https://esbuild.github.io/analyze/).
+</Aside>
 
 ---
 

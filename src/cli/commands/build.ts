@@ -10,6 +10,11 @@ export const build = defineCommand({
     strict: { type: 'boolean', description: 'Treat compat warnings as errors', default: false },
     quiet: { type: 'boolean', description: 'Suppress info-level output', default: false },
     json: { type: 'boolean', description: 'Emit machine-readable JSON', default: false },
+    analyze: {
+      type: 'boolean',
+      description: 'Write a bundle treemap to dist/.extforge/stats-<browser>.html',
+      default: false,
+    },
   },
   async handler({ args }) {
     const { buildAll, build: buildOne } = await import('../../core/builder/index.js');
@@ -27,6 +32,7 @@ export const build = defineCommand({
     const isDev = args.flags.dev;
     const sm = args.flags.sourcemap || isDev;
     const strictCompat = args.flags.strict;
+    const analyze = args.flags.analyze;
     const browser = args.flags.browser as string | undefined;
 
     if (browser) {
@@ -37,7 +43,7 @@ export const build = defineCommand({
       const r = await buildOne(
         process.cwd(),
         config,
-        { browser: browser as any, dev: isDev, sourcemap: sm, strictCompat },
+        { browser: browser as any, dev: isDev, sourcemap: sm, strictCompat, analyze },
         log,
       );
       if (r.errors.length > 0) process.exit(1);
@@ -45,7 +51,7 @@ export const build = defineCommand({
       const results = await buildAll(
         process.cwd(),
         config,
-        { dev: isDev, sourcemap: sm, strictCompat },
+        { dev: isDev, sourcemap: sm, strictCompat, analyze },
         log,
       );
       if (results.some((r) => r.errors.length > 0)) process.exit(1);

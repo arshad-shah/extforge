@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { parseSize } from '../builder/budgets.js';
 import type { CssTransform } from '../builder/css.js';
 
 export const browserSchema = z.enum(['chrome', 'firefox', 'edge', 'safari']);
@@ -89,6 +90,24 @@ export const extForgeConfigSchema = z
         srcDir: z.string().optional(),
         sourcemap: z.boolean().optional(),
         esbuild: z.record(z.string(), z.unknown()).optional(),
+        /**
+         * Maximum size per entrypoint, keyed by output name without extension
+         * (`content/index`) or a glob (`content/*`, `**`). Values are bytes or
+         * strings like `'50kb'`. An exact name beats a glob; otherwise the first
+         * matching glob wins. Production builds over budget fail.
+         */
+        budgets: z
+          .record(
+            z.string(),
+            z.union([z.string(), z.number()]).superRefine((value, ctx) => {
+              try {
+                parseSize(value);
+              } catch (err) {
+                ctx.addIssue({ code: 'custom', message: (err as Error).message });
+              }
+            }),
+          )
+          .optional(),
       })
       .optional(),
     dev: z
