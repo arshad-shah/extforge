@@ -68,6 +68,15 @@ export const ERROR_DOCS: Record<ErrorCode, ErrorDoc> = {
     howToFix:
       'Either gate the call behind a runtime check, drop the unsupported browser from `browsers`, or suppress per-line with `// extforge-ignore-compat: <reason>`.',
   },
+  EXT_BUDGET_EXCEEDED: {
+    title: 'Entrypoint is over its size budget',
+    description:
+      'A production build produced an entrypoint larger than the limit set for it in `build.budgets`.',
+    whenYouSeeThis:
+      'A content script that used to be 40 KB now pulls in a large dependency and builds to 400 KB.',
+    howToFix:
+      'The error lists the biggest contributors. Drop or lazy-load the large import (dynamically imported chunks do not count against the entry), or raise the budget if the growth is intended. Run `extforge build --analyze` for a treemap.',
+  },
   EXT_HMR_PORT_IN_USE: {
     title: 'HMR port is in use',
     description: 'Another process is bound to the configured HMR port.',

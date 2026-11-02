@@ -1,0 +1,14 @@
+---
+title: EXT_BUDGET_EXCEEDED
+description: Entrypoint is over its size budget
+---
+
+`EXT_BUDGET_EXCEEDED` — A production build produced an entrypoint larger than the limit set for it in `build.budgets`.
+
+## When you see this
+
+A content script that used to be 40 KB now pulls in a large dependency and builds to 400 KB.
+
+## How to fix
+
+The error lists the biggest contributors. Drop or lazy-load the large import (dynamically imported chunks do not count against the entry), or raise the budget if the growth is intended. Run `extforge build --analyze` for a treemap.

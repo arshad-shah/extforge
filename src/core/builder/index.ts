@@ -34,6 +34,8 @@ import type { EntryDescriptor, ManifestObject } from '../plugins/types.js';
 import { loadTemplate } from '../scaffold/template-loader.js';
 import { walkSources } from '../util/walk-sources.js';
 import { validateProject } from '../validator/index.js';
+import { writeAnalysis } from './analyze.js';
+import { checkBudgets, collectEntrySizes, type EntrySize, resolveBudget } from './budgets.js';
 import {
   ENTRY_SCANS,
   ESBUILD_LOADERS,
@@ -56,6 +58,8 @@ export interface BuildOptions {
   hmrPort?: number;
   hmrHost?: string;
   strictCompat?: boolean;
+  /** Write a treemap and the raw metafile for each browser to `<outDir>/../.extforge/`. */
+  analyze?: boolean;
   /** Internal: set by buildAll after running the one-time compat scan. */
   _skipCompatScan?: boolean;
 }
@@ -99,6 +103,8 @@ export interface BuildResult {
   outDir: string;
   duration: number;
   files: Array<{ path: string; size: number }>;
+  /** JS size per entrypoint, including the chunks it imports statically. */
+  entries: EntrySize[];
   errors: string[];
 }
 
@@ -516,7 +522,7 @@ export async function build(
   if (Object.keys(esmEntries).length === 0 && Object.keys(iifeEntries).length === 0) {
     errors.push('No entry points found in src/');
     log.error('No entry points discovered');
-    return { browser: opts.browser, outDir, duration: 0, files: [], errors };
+    return { browser: opts.browser, outDir, duration: 0, files: [], entries: [], errors };
   }
 
   // ─── Compat scan ─────────────────────────────────────────────────────────────
@@ -559,6 +565,8 @@ export async function build(
   // ─── Main ESM pass (background, UI) ────────────────────────────────────────
   // Fire onBuildEntry per-entry (last-write-wins for shared esbuild options).
   let result: esbuild.BuildResult | undefined;
+  // Every esbuild pass's metafile: sizes, budgets and --analyze need them all.
+  const metafiles: esbuild.Metafile[] = [];
   if (Object.keys(esmEntries).length > 0) {
     const baseEsmConfig = makeBuildConfig(root, { ...opts, outDir }, esmEntries, config);
     const mergedEntryOptions: Record<string, unknown> = {};
@@ -566,9 +574,10 @@ export async function build(
       const returned = await runEntryHook({}, name, file, 'esm', false, runner);
       Object.assign(mergedEntryOptions, returned);
     }
-    const finalEsmConfig = { ...baseEsmConfig, ...mergedEntryOptions };
+    const finalEsmConfig = { ...baseEsmConfig, ...mergedEntryOptions, metafile: true };
     try {
       result = await esbuild.build(finalEsmConfig as esbuild.BuildOptions);
+      if (result.metafile) metafiles.push(result.metafile);
     } catch (err) {
       throwAsBuildError(err);
     }
@@ -600,14 +609,16 @@ export async function build(
       const bannerJs = [csBanner, hmrBanner?.js].filter(Boolean).join('');
       const entryOpts = await runEntryHook({ ...sharedOpts }, key, absPath, 'iife', true, runner);
       try {
-        await esbuild.build({
+        const cs = await esbuild.build({
           ...entryOpts,
           entryPoints: { [key]: absPath },
           outdir: outDir,
           format: 'iife',
           splitting: false,
+          metafile: true,
           ...(bannerJs ? { banner: { js: bannerJs } } : {}),
         } as esbuild.BuildOptions);
+        if (cs.metafile) metafiles.push(cs.metafile);
       } catch (err) {
         throwAsBuildError(err, `IIFE build failed for content script (${key})`);
       }
@@ -623,14 +634,16 @@ export async function build(
         Object.assign(mergedNonCsOpts, returned);
       }
       try {
-        await esbuild.build({
+        const injected = await esbuild.build({
           ...mergedNonCsOpts,
           entryPoints: nonCsIifeEntries,
           outdir: outDir,
           format: 'iife',
           splitting: false,
+          metafile: true,
           ...(hmrBanner ? { banner: hmrBanner } : {}),
         } as esbuild.BuildOptions);
+        if (injected.metafile) metafiles.push(injected.metafile);
       } catch (err) {
         throwAsBuildError(err, 'IIFE build failed');
       }
@@ -686,9 +699,39 @@ export async function build(
   }
 
   const files: Array<{ path: string; size: number }> = [];
-  if (result?.metafile) {
-    for (const [p, m] of Object.entries(result.metafile.outputs))
-      files.push({ path: p, size: m.bytes });
+  for (const meta of metafiles) {
+    for (const [p, m] of Object.entries(meta.outputs)) files.push({ path: p, size: m.bytes });
+  }
+
+  const entries = collectEntrySizes(metafiles, outDir);
+  const budgets = config.build?.budgets;
+  for (const line of formatEntrySizes(entries, budgets)) log.info(line);
+
+  if (opts.analyze) {
+    const written = writeAnalysis(
+      resolve(outDir, '..', '.extforge'),
+      opts.browser,
+      entries,
+      metafiles,
+    );
+    log.info(`Analysis for ${opts.browser} → ${written.html}`);
+  }
+
+  // Budgets guard what ships. Dev builds carry HMR code and no minification,
+  // so they are measured but never fail.
+  if (budgets && !opts.dev) {
+    const violations = checkBudgets(entries, budgets);
+    if (violations.length > 0) {
+      const lines = violations.flatMap((v) => [
+        `${v.name}: ${formatFileSize(v.bytes)}, budget ${formatFileSize(v.limit)} (${v.pattern}), over by ${formatFileSize(v.over)}`,
+        ...v.top.map((i) => `    ${formatFileSize(i.bytes).padStart(9)}  ${i.path}`),
+      ]);
+      throw new ExtForgeError({
+        code: 'EXT_BUDGET_EXCEEDED',
+        message: `${opts.browser}: ${violations.length} entrypoint(s) over budget\n  ${lines.join('\n  ')}`,
+        hint: 'Drop or lazy-load the biggest contributors, or raise the budget in build.budgets. `extforge build --analyze` writes a treemap.',
+      });
+    }
   }
 
   const duration = performance.now() - start;
@@ -696,9 +739,31 @@ export async function build(
   log.success(
     `Built ${opts.browser} → ${outDir} (${files.length} files, ${formatFileSize(total)}) in ${formatDuration(duration)}`,
   );
-  const buildResult: BuildResult = { browser: opts.browser, outDir, duration, files, errors };
+  const buildResult: BuildResult = {
+    browser: opts.browser,
+    outDir,
+    duration,
+    files,
+    entries,
+    errors,
+  };
   await runner?.fireBuildEnd(buildResult);
   return buildResult;
+}
+
+/** One line per entrypoint: name, size and the budget it is held to, if any. */
+export function formatEntrySizes(
+  entries: EntrySize[],
+  budgets?: Record<string, string | number>,
+): string[] {
+  const width = Math.max(0, ...entries.map((e) => e.name.length));
+  return entries.map((e) => {
+    const budget = budgets ? resolveBudget(e.name, budgets) : undefined;
+    const size = formatFileSize(e.bytes).padStart(9);
+    if (!budget) return `  ${e.name.padEnd(width)}  ${size}`;
+    const mark = e.bytes > budget.limit ? '✗' : '✓';
+    return `  ${e.name.padEnd(width)}  ${size}  ${mark} budget ${formatFileSize(budget.limit)}`;
+  });
 }
 
 export async function buildAll(
