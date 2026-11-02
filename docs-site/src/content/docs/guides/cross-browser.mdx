@@ -7,6 +7,10 @@ import { Aside, Tabs, TabItem } from '@astrojs/starlight/components';
 
 ExtForge produces a separate output directory for each declared browser. The same source compiles to `dist/chrome/`, `dist/firefox/`, `dist/edge/`, and `dist/safari/` — each with its own `manifest.json` generated from your shared config plus per-browser overrides.
 
+<Aside type="caution" title="What Safari support means today">
+For Chrome, Edge and Firefox, `extforge package` produces the archive you upload to the store. For Safari, ExtForge stops at a Safari-flavoured MV3 build in `dist/safari/`. Shipping it still needs Apple's `xcrun safari-web-extension-converter`, Xcode on macOS and an Apple Developer account. See [Deployment → Safari](/guides/deployment/#safari). Native Safari packaging is tracked in [#102](https://github.com/arshad-shah/extforge/issues/102).
+</Aside>
+
 ---
 
 ## Declaring browsers

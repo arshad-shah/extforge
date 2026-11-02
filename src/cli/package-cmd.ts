@@ -26,6 +26,21 @@ export function archiveFilename(
   return `${safeName}-${safeBrowser}-v${safeVersion}.zip`;
 }
 
+/**
+ * A note to print after packaging a browser whose archive is not the thing
+ * you submit to its store. Today that is Safari: ExtForge emits a
+ * Safari-ready MV3 build, but the App Store needs it wrapped in an Xcode
+ * project by Apple's converter first. Returns `undefined` for every other browser.
+ */
+export function packagingNote(browser: string): string | undefined {
+  if (browser !== 'safari') return undefined;
+  return (
+    'Safari: this .zip is not submittable on its own. Wrap dist/safari with ' +
+    '`xcrun safari-web-extension-converter` (macOS + Xcode) and ship it through ' +
+    'App Store Connect. See https://extforge.arshadshah.com/guides/deployment/#safari'
+  );
+}
+
 export interface PackageBrowserOptions {
   /** Absolute path to the per-browser build output (e.g. dist/chrome). */
   dist: string;
