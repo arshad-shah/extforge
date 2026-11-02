@@ -44,7 +44,8 @@ Equivalent to setting `dev.strictCompat: true` in config for dev mode, or passin
 | Code | Meaning |
 |---|---|
 | `0` | Success. All builds or checks passed. |
-| `1` | Error. Build failed, config invalid, or doctor has at least one `fail` result. |
+| `1` | Error. Build failed, config invalid, doctor has at least one `fail` result, or `diff --fail-on` found a blocking change. |
+| `2` | `extforge diff` couldn't run: an unknown ref, or no manifest at the given path. |
 | `130` | SIGINT received (Ctrl-C). The dev server or build was interrupted by the user. |
 | `143` | SIGTERM received. The process was terminated externally. |
 
