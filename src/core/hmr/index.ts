@@ -340,8 +340,12 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
     const files = Array.from(changes.keys()).map((f) => toPosix(relative(projectRoot, f)));
     const rebuildStart = performance.now();
 
+    // The incremental context holds ESM entries only, so use it just for
+    // UI-only edits (the Fast Refresh path). Anything else may touch a content,
+    // CSUI or injected script, the manifest or HTML, so do a full build.
+    const uiOnly = tryClassifyV3(changes) !== undefined;
     try {
-      if (buildCtx) await buildCtx.rebuild();
+      if (buildCtx && uiOnly) await buildCtx.rebuild();
       else
         await build(
           projectRoot,
