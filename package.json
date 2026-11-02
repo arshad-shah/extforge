@@ -23,6 +23,10 @@
       "import": "./dist/core/modules/index.js",
       "types": "./dist/core/modules/index.d.ts"
     },
+    "./i18n": {
+      "import": "./dist/core/i18n/index.js",
+      "types": "./dist/core/i18n/index.d.ts"
+    },
     "./testing": {
       "import": "./dist/core/testing/index.js",
       "types": "./dist/core/testing/index.d.ts"
@@ -86,6 +90,7 @@
     "@arshad-shah/config-kit": "^2.0.0",
     "@arshad-shah/log-kit": "^1.1.0",
     "esbuild": "^0.28.2",
+    "js-yaml": "^4.3.1",
     "ws": "^8.22.1",
     "zod": "^4.6.7"
   },
@@ -96,6 +101,7 @@
     "@mdn/browser-compat-data": "^8.1.7",
     "@swc/core": "^1.16.21",
     "@types/chrome": "^0.2.9",
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

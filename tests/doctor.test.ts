@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { browserOverridesCheck } from '../src/core/doctor/checks/browser-overrides.js';
 import { configValidCheck } from '../src/core/doctor/checks/config-valid.js';
 import { distGitignoredCheck } from '../src/core/doctor/checks/dist-gitignored.js';
+import { i18nLocalesCheck } from '../src/core/doctor/checks/i18n-locales.js';
 import { iconsPresentCheck } from '../src/core/doctor/checks/icons-present.js';
 import { nodeVersionCheck } from '../src/core/doctor/checks/node-version.js';
 import { permissionsKnownCheck } from '../src/core/doctor/checks/permissions-known.js';
@@ -271,5 +272,66 @@ describe('compatCheck', () => {
     const { compatCheck } = await import('../src/core/doctor/checks/compat.js');
     const r = await compatCheck.run({ cwd });
     expect(r.status).toBe('warn');
+  });
+});
+
+describe('i18nLocalesCheck', () => {
+  it('reports info when i18n is not configured', async () => {
+    const cwd = tempDir();
+    writeFileSync(
+      join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], manifest: { name: "x", version: "0.0.1" } }',
+    );
+    const r = await i18nLocalesCheck.run({ cwd });
+    expect(r.status).toBe('info');
+  });
+
+  it('warns when no locale files are found', async () => {
+    const cwd = tempDir();
+    writeFileSync(
+      join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], i18n: {}, manifest: { name: "x", version: "0.0.1" } }',
+    );
+    const r = await i18nLocalesCheck.run({ cwd });
+    expect(r.status).toBe('warn');
+  });
+
+  it('fails when the default locale has no matching file', async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, 'locales'));
+    writeFileSync(join(cwd, 'locales/fr.yml'), 'title: "Bonjour"\n');
+    writeFileSync(
+      join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], i18n: { defaultLocale: "en" }, manifest: { name: "x", version: "0.0.1" } }',
+    );
+    const r = await i18nLocalesCheck.run({ cwd });
+    expect(r.status).toBe('fail');
+  });
+
+  it('warns when a non-default locale is missing keys', async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, 'locales'));
+    writeFileSync(join(cwd, 'locales/en.yml'), 'popup:\n  title: "Title"\n  greeting: "Hi, $1"\n');
+    writeFileSync(join(cwd, 'locales/fr.yml'), 'popup:\n  title: "Titre"\n');
+    writeFileSync(
+      join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], i18n: { defaultLocale: "en" }, manifest: { name: "x", version: "0.0.1" } }',
+    );
+    const r = await i18nLocalesCheck.run({ cwd });
+    expect(r.status).toBe('warn');
+    expect(r.message).toContain('popup.greeting');
+  });
+
+  it('passes when all locales are in sync', async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, 'locales'));
+    writeFileSync(join(cwd, 'locales/en.yml'), 'title: "Title"\n');
+    writeFileSync(join(cwd, 'locales/fr.yml'), 'title: "Titre"\n');
+    writeFileSync(
+      join(cwd, 'extforge.config.ts'),
+      'export default { browsers: ["chrome"], i18n: { defaultLocale: "en" }, manifest: { name: "x", version: "0.0.1" } }',
+    );
+    const r = await i18nLocalesCheck.run({ cwd });
+    expect(r.status).toBe('pass');
   });
 });

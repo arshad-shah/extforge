@@ -16,6 +16,7 @@ export default defineConfig({
     'core/messaging/index': 'src/core/messaging/index.ts',
     'core/csui/index': 'src/core/csui/index.ts',
     'core/env/index': 'src/core/env/index.ts',
+    'core/i18n/index': 'src/core/i18n/index.ts',
   },
   format: ['esm'],
   dts: true,

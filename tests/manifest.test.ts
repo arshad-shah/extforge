@@ -104,6 +104,17 @@ describe('Manifest Engine', () => {
         const icons = manifest.icons as Record<string, string>;
         expect(icons['128']).toBe('icons/icon-128.png');
       });
+
+      it('should omit default_locale when unset', () => {
+        expect(manifest.default_locale).toBeUndefined();
+      });
+    });
+
+    describe('When defaultLocale is set', () => {
+      it('should emit default_locale', () => {
+        const manifest = generateManifest({ ...validConfig, defaultLocale: 'en' }, 'chrome');
+        expect(manifest.default_locale).toBe('en');
+      });
     });
 
     describe('When generating for Firefox', () => {
