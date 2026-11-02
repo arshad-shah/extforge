@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import ErrorBoundary from '../../components/ErrorBoundary';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 window.addEventListener('error', (e) => console.error('[Popup] Uncaught error:', e.error ?? e.message));
 window.addEventListener('unhandledrejection', (e) => console.error('[Popup] Unhandled rejection:', e.reason));

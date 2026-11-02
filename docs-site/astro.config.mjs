@@ -38,6 +38,7 @@ export default defineConfig({
             { label: 'Testing', slug: 'guides/testing' },
             { label: 'Deployment', slug: 'guides/deployment' },
             { label: 'Upgrading to v1', slug: 'guides/migration-v1' },
+            { label: 'Moving to the named layout', slug: 'guides/migrate-named-layout' },
             { label: 'Supply chain', slug: 'guides/supply-chain' },
           ],
         },

@@ -60,19 +60,40 @@ export const LEGACY_ONLY_DIRS = ['ui', 'content'] as const;
  * today's output paths, so nothing about its build changes.
  */
 export function usesLegacyLayout(manifest: ManifestConfig | undefined, srcDir: string): boolean {
-  if (!manifest) return true;
-  const handWritten = Boolean(
-    manifest.background?.entrypoint ||
-      manifest.action?.defaultPopup ||
-      manifest.optionsPage ||
-      manifest.sidePanel?.defaultPath ||
-      manifest.contentScripts?.some((c) => (c.js?.length ?? 0) > 0),
-  );
-  return (
-    handWritten ||
-    LEGACY_ONLY_DIRS.some(
-      (d) => existsSync(join(srcDir, d)) && statSync(join(srcDir, d)).isDirectory(),
-    )
+  return !manifest || legacyLayoutReasons(manifest, srcDir).length > 0;
+}
+
+/** What keeps a project on the legacy layout, for the deprecation warning. */
+export function legacyLayoutReasons(manifest: ManifestConfig, srcDir: string): string[] {
+  const reasons: string[] = [];
+  if (manifest.background?.entrypoint) reasons.push('manifest.background.entrypoint');
+  if (manifest.action?.defaultPopup) reasons.push('manifest.action.defaultPopup');
+  if (manifest.optionsPage) reasons.push('manifest.optionsPage');
+  if (manifest.sidePanel?.defaultPath) reasons.push('manifest.sidePanel.defaultPath');
+  if (manifest.contentScripts?.some((c) => (c.js?.length ?? 0) > 0))
+    reasons.push('manifest.contentScripts[].js');
+  for (const d of LEGACY_ONLY_DIRS) {
+    if (existsSync(join(srcDir, d)) && statSync(join(srcDir, d)).isDirectory())
+      reasons.push(`src/${d}/`);
+  }
+  return reasons;
+}
+
+let warnedLegacyLayout = false;
+
+/** Warn once per process that the legacy layout is deprecated, naming what keeps the project on it. */
+export function warnLegacyLayout(
+  manifest: ManifestConfig | undefined,
+  srcDir: string,
+  log: Logger,
+): void {
+  if (warnedLegacyLayout || !manifest) return;
+  const reasons = legacyLayoutReasons(manifest, srcDir);
+  if (reasons.length === 0) return;
+  warnedLegacyLayout = true;
+  log.warn(
+    `This project uses the legacy entrypoint layout (${reasons.join(', ')}). It keeps working for all of 1.x and is removed in 2.0. ` +
+      'Run `extforge migrate-layout` to see the changes, or read https://extforge.arshadshah.com/guides/migrate-named-layout/',
   );
 }
 
@@ -335,7 +356,11 @@ export function manifestFromEntrypoints(
 }
 
 /** The page's HTML with each module script's src pointing at its built output. */
-export function rewritePageHtml(html: string, scripts: PageScript[]): string {
+export function rewritePageHtml(
+  html: string,
+  scripts: PageScript[],
+  location?: { htmlPath: string; srcDir: string },
+): string {
   let out = html;
   for (const s of scripts) {
     out = out.replace(
@@ -343,7 +368,25 @@ export function rewritePageHtml(html: string, scripts: PageScript[]): string {
       `$1./${s.name}.js$2`,
     );
   }
-  return out;
+  if (!location) return out;
+  // The page is written to the output root, so a relative <link href> that
+  // points into src/ (`../styles/globals.css`) is rewritten to the same path
+  // under the output root, where stylesheets are built.
+  return out.replace(
+    /(<link\b[^>]*?\bhref\s*=\s*)(["'])([^"']+)\2/gi,
+    (whole, head: string, q: string, href: string) => {
+      if (
+        /^([a-z]+:)?\/\//i.test(href) ||
+        href.startsWith('/') ||
+        href.startsWith('#') ||
+        href.startsWith('data:')
+      )
+        return whole;
+      const target = relative(location.srcDir, resolve(dirname(location.htmlPath), href));
+      if (target.startsWith('..') || isAbsolute(target)) return whole;
+      return `${head}${q}./${target.split('\\').join('/')}${q}`;
+    },
+  );
 }
 
 /**

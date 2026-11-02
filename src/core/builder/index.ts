@@ -26,6 +26,7 @@ import {
   rewritePageHtml,
   unsupportedEntries,
   usesLegacyLayout,
+  warnLegacyLayout,
 } from '../entrypoints/discover.js';
 import {
   discoverEntryPoints,
@@ -462,6 +463,7 @@ export async function build(
   // Configs that hand-write entry paths keep today's layout and output keys;
   // the rest get entries discovered by name, flat outputs and a generated manifest.
   const generated = !usesLegacyLayout(config.manifest, srcDir);
+  if (!generated) warnLegacyLayout(config.manifest, srcDir, log);
   let entrypoints: Entrypoint[];
   try {
     entrypoints = generated
@@ -665,7 +667,10 @@ export async function build(
       mkdirSync(outDir, { recursive: true });
       writeFileSync(
         join(outDir, `${e.name}.html`),
-        rewritePageHtml(readFileSync(e.page.html, 'utf8'), e.page.scripts),
+        rewritePageHtml(readFileSync(e.page.html, 'utf8'), e.page.scripts, {
+          htmlPath: e.page.html,
+          srcDir,
+        }),
       );
     }
   } else copyHTML(srcDir, outDir, log);

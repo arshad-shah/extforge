@@ -30,6 +30,7 @@ describe('extforge CLI command tree', () => {
       'doctor',
       'icons',
       'init',
+      'migrate-layout',
       'package',
       'upgrade',
       'validate',

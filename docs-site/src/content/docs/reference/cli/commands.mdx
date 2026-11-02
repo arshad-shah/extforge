@@ -223,6 +223,22 @@ Summary  pass: 7  warn: 1  fail: 1
 
 ---
 
+## `migrate-layout`
+
+Move a legacy project (`src/ui/…`, `src/content/…`, entry paths in the config) to the [named layout](/getting-started/project-layout/).
+
+```sh
+extforge migrate-layout [--write]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--write` | `false` | Apply the plan. Without it, the command only prints what it would do. |
+
+It moves `src/ui/<page>/` to `src/<page>/` and `src/content/index.ts` to `src/content.ts` (adding `defineContentScript()` with the configured options). It rewrites the relative paths that cross moved folders, removes the entry keys from `extforge.config.ts`, and reloads the config to confirm. It exits `1` and changes nothing when part of the move can't be done safely. See [Moving to the named layout](/guides/migrate-named-layout/).
+
+---
+
 ## `package`
 
 Create `.zip` archives of built extensions for store submission.

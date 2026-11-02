@@ -1,0 +1,61 @@
+---
+title: Moving to the named layout
+description: Move a project from src/ui, src/content and hand-written entry paths to entrypoints found by name in src/, with extforge migrate-layout or by hand.
+---
+
+import { Aside } from '@astrojs/starlight/components';
+
+In the [named layout](/getting-started/project-layout/), entrypoints are found by name in `src/` and the manifest's entries are generated for you. The legacy layout (`src/ui/<page>/`, `src/content/`, entry paths written in `extforge.config.ts`) keeps working for **all of 1.x** and is removed in 2.0. Until you move, each build prints one deprecation warning that names what keeps the project on the legacy layout.
+
+## With `extforge migrate-layout`
+
+Commit first so you can review the diff, then:
+
+```sh
+extforge migrate-layout          # prints the plan, changes nothing
+extforge migrate-layout --write  # applies it
+extforge build                   # check the generated manifest
+```
+
+It does four things:
+
+- **Pages:** moves `src/ui/popup/`, `src/ui/options/` and `src/ui/sidepanel/` to `src/popup/`, `src/options/` and `src/sidepanel/`. Pages keep their own folders, so React Fast Refresh keeps working for everything inside them.
+- **Content script:** moves `src/content/index.ts` to `src/content.ts`, and adds `export default defineContentScript({ matches, … })` with the options your config had. Your code is left as it is and still runs when the script is injected. `main()` can stay empty or take the code over later.
+- **Paths:** rewrites relative imports, page `<script>`/`<link>` paths and CSS `@import`s that cross the moved folders, so they point at the same files.
+- **Config:** removes `background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath` and `contentScripts` from `extforge.config.ts`, then reloads the config to confirm. If the config is written in a way it can't edit safely, it leaves the config untouched and lists the keys to delete.
+
+`src/background/index.ts`, `src/injected/` and `src/contents/` don't need to move.
+
+<Aside type="caution">
+It stops and changes nothing when it can't do the move safely: a content script with `css`, several `js` files in one entry, more than one content script, a `src/content/` folder with more than `index.ts`, or a target such as `src/popup/` that already exists. The message says which. Those steps are quick by hand, below.
+</Aside>
+
+## By hand
+
+1. **Pages:** move `src/ui/<page>/` to `src/<page>/` (or a single `src/<page>.html` with its script beside it), and fix relative imports that changed depth. The HTML can load its script by source name (`./index.tsx`); ExtForge rewrites the tag.
+2. **Content scripts:** make each one `src/<name>.content.ts` (or `src/<name>.content/index.ts`) and declare its options in the file:
+
+   ```ts
+   import { defineContentScript } from 'extforge/entrypoints';
+
+   export default defineContentScript({
+     matches: ['https://example.com/*'],
+     runAt: 'document_idle',
+     main() {
+       // your code
+     },
+   });
+   ```
+3. **Config:** delete `background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath` and every `contentScripts` entry that lists `js`. Keep everything else (name, permissions, icons, `action.defaultTitle`, …).
+4. **Build and compare:** run `extforge build`. Output paths are now flat (`popup.html`, `background.js`, `content-scripts/<name>.js`). If a plugin's `onManifestTransform` or your own code refers to the old paths (`ui/popup/index.html`), update those references.
+
+## What changes in the output
+
+| Legacy | Named layout |
+|---|---|
+| `background/index.js` | `background.js` |
+| `ui/popup/index.html`, `ui/popup/index.js` | `popup.html`, `popup.js` |
+| `ui/options/index.html` | `options.html` |
+| `content/index.js` | `content-scripts/content.js` |
+
+`injected/<name>.js` and CSUI from `src/contents/` (`contents/<name>.js`) are unchanged.

@@ -245,3 +245,21 @@ describe('validator with named entrypoints', () => {
     }
   });
 });
+
+describe('page stylesheet links', () => {
+  it('rewrites a relative link into src/ to the same path under the output root', async () => {
+    const { rewritePageHtml } = await import('../src/core/entrypoints/discover.js');
+    const src = '/p/src';
+    const html =
+      '<link rel="stylesheet" href="../styles/globals.css"><link href="https://cdn/x.css" rel="stylesheet"><link rel="icon" href="../../outside.png">';
+    expect(rewritePageHtml(html, [], { htmlPath: '/p/src/popup/index.html', srcDir: src })).toBe(
+      '<link rel="stylesheet" href="./styles/globals.css"><link href="https://cdn/x.css" rel="stylesheet"><link rel="icon" href="../../outside.png">',
+    );
+    expect(
+      rewritePageHtml('<link rel="stylesheet" href="./styles/a.css">', [], {
+        htmlPath: '/p/src/popup.html',
+        srcDir: src,
+      }),
+    ).toBe('<link rel="stylesheet" href="./styles/a.css">');
+  });
+});

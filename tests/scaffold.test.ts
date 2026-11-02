@@ -39,7 +39,7 @@ describe('Scaffold Engine', () => {
       // We can't pass framework via defaults — go through gatherAnswers instead.
       // Simpler verification: just confirm the React default produced index.tsx
       // so we know the branch is reachable.
-      expect(existsSync(join(projectDir, 'src/ui/popup/index.tsx'))).toBe(true);
+      expect(existsSync(join(projectDir, 'src/popup/index.tsx'))).toBe(true);
     });
   });
 
@@ -152,23 +152,25 @@ describe('Scaffold Engine', () => {
     });
 
     describe('When checking the source directory', () => {
-      it('should create src/background/index.ts', () => {
-        const bg = readFileSync(join(projectDir, 'src/background/index.ts'), 'utf-8');
+      it('should create src/background.ts', () => {
+        const bg = readFileSync(join(projectDir, 'src/background.ts'), 'utf-8');
         expect(bg).toContain('onInstalled');
         expect(bg).toContain('onMessage');
       });
 
-      it('should create src/ui/popup/index.tsx', () => {
-        expect(existsSync(join(projectDir, 'src/ui/popup/index.tsx'))).toBe(true);
-        const popup = readFileSync(join(projectDir, 'src/ui/popup/index.tsx'), 'utf-8');
+      it('should create src/popup/index.tsx', () => {
+        expect(existsSync(join(projectDir, 'src/popup/index.tsx'))).toBe(true);
+        const popup = readFileSync(join(projectDir, 'src/popup/index.tsx'), 'utf-8');
         expect(popup).toContain('createRoot');
         expect(popup).toContain('test-ext');
       });
 
-      it('should create src/ui/popup/index.html', () => {
-        const html = readFileSync(join(projectDir, 'src/ui/popup/index.html'), 'utf-8');
+      it('should create src/popup/index.html', () => {
+        const html = readFileSync(join(projectDir, 'src/popup/index.html'), 'utf-8');
         expect(html).toContain('<!DOCTYPE html>');
         expect(html).toContain('id="root"');
+        expect(html).toContain('src="./index.tsx"');
+        expect(html).toContain('href="../styles/globals.css"');
       });
 
       it('should create global CSS with Tailwind directives', () => {
@@ -243,16 +245,17 @@ describe('Scaffold Engine', () => {
       expect(config).toContain("'activeTab'");
     });
 
-    it('should set up popup action', () => {
+    it('keeps the popup title and icon in action, but not its path', () => {
       const config = readFileSync(join(projectDir, 'extforge.config.ts'), 'utf-8');
-      expect(config).toContain('defaultPopup');
-      expect(config).toContain('ui/popup/index.html');
+      expect(config).toContain('defaultTitle');
+      expect(config).not.toContain('defaultPopup');
     });
 
-    it('should set up background entrypoint', () => {
+    it('writes no entry paths, so the project uses the named layout', () => {
       const config = readFileSync(join(projectDir, 'extforge.config.ts'), 'utf-8');
-      expect(config).toContain('background');
-      expect(config).toContain('background/index.js');
+      for (const key of ['entrypoint', 'defaultPopup', 'optionsPage', 'defaultPath', 'js: [']) {
+        expect(config).not.toContain(key);
+      }
     });
   });
 });
