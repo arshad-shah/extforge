@@ -4,7 +4,8 @@
 
 import { existsSync, readdirSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { createLogger, type Logger } from '../logger/index.js';
+import { discoverEntrypoints } from '../entrypoints/discover.js';
+import { createLogger, type Logger, LogLevel } from '../logger/index.js';
 import { validateManifestConfig } from '../manifest/generator.js';
 import type { ManifestConfig } from '../manifest/types.js';
 import { ENTRY_DIRS, REQUIRED_DIRS, REQUIRED_FILES } from './constants.js';
@@ -52,15 +53,20 @@ function checkStructure(root: string): ValidationIssue[] {
 
   const hasEntry = ENTRY_DIRS.some((d) => existsSync(join(root, d)));
   if (existsSync(join(root, 'src')) && !hasEntry) {
-    const bgFile =
-      existsSync(join(root, 'src/background.ts')) ||
-      existsSync(join(root, 'src/background/index.ts'));
-    if (!bgFile)
+    // Entries named in src/ count too (background.ts, popup.html, <x>.content.ts…).
+    let named = false;
+    try {
+      named =
+        discoverEntrypoints(join(root, 'src'), createLogger({ level: LogLevel.Silent })).length > 0;
+    } catch {
+      named = true; // a naming conflict is reported by the build, not as "no entrypoints"
+    }
+    if (!named)
       issues.push({
         severity: 'warning',
         code: 'NO_ENTRYPOINTS',
-        message: 'No entrypoint directories found',
-        fix: 'Create at least one of: src/background/, src/content/, src/ui/popup/',
+        message: 'No entrypoints found',
+        fix: 'Add src/background.ts, src/popup.html, or a src/<name>.content.ts content script.',
       });
   }
   return issues;

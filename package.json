@@ -51,6 +51,10 @@
       "import": "./dist/core/csui/index.js",
       "types": "./dist/core/csui/index.d.ts"
     },
+    "./entrypoints": {
+      "import": "./dist/core/entrypoints/define.js",
+      "types": "./dist/core/entrypoints/define.d.ts"
+    },
     "./env": {
       "import": "./dist/core/env/index.js",
       "types": "./dist/core/env/index.d.ts"

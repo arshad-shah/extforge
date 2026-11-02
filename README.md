@@ -49,6 +49,7 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 ## What it does <span id="features"></span>
 
 ### Build & dev
+- **Entrypoints by name.** `src/background.ts`, `src/popup.html`, `src/github.content.ts` with `defineContentScript({ matches, main })`, and the manifest is generated for you. Configs that write entry paths by hand keep working unchanged. See [project layout](https://extforge.arshadshah.com/getting-started/project-layout/).
 - **Cross-browser by default.** One config emits a manifest tailored to each browser. Browser-specific quirks handled automatically. See [browser support](#browser-support) for what "supported" means per browser.
 - **True 0-reload UI updates.** SWC-powered React Fast Refresh for popup/options/sidepanel — components update with state preserved. Falls back gracefully (full reload) when `@swc/core` isn't installed.
 - **Versioned HMR protocol (v3).** Targeted module swaps for UI-only changes; full reload for manifest / background / content-script changes. CSS hot swap, infinite reconnect.
