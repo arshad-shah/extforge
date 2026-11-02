@@ -24,7 +24,18 @@ export type EntrypointKind =
   | 'options'
   | 'sidepanel'
   | 'injected'
-  | 'csui';
+  | 'csui'
+  // Generated mode only:
+  | 'devtools'
+  | 'newtab'
+  | 'history'
+  | 'bookmarks'
+  | 'offscreen'
+  | 'sandbox'
+  /** An HTML page with no manifest key (opened by URL, e.g. chrome.runtime.getURL). */
+  | 'page'
+  /** A classic script with no manifest key (e.g. for chrome.scripting.executeScript). */
+  | 'unlisted';
 
 export interface Entrypoint {
   /** Output key: the built file's path in the browser's outDir, without extension. */

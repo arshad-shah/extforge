@@ -87,43 +87,46 @@ export function discoverCSUI(srcDir: string): CSUIDiscovery[] {
     const entryKey = `contents/${baseName}`;
     if (seen.has(entryKey)) continue;
     seen.add(entryKey);
-    const outputJsPath = `${entryKey}.js`;
-
-    const source = readFileSync(file, 'utf8');
-    const excludeMatches = extractExcludeMatches(source);
-    const runAt = extractRunAt(source);
-    const allFrames = extractAllFrames(source);
-    const matchAboutBlank = extractMatchAboutBlank(source);
-    const world = extractWorld(source);
-
-    // `matches` is deliberately not in this list — the builder already emits a
-    // dedicated (and more actionable) warning when it can't be extracted.
-    const unresolvedOptions = (
-      [
-        ['excludeMatches', excludeMatches],
-        ['runAt', runAt],
-        ['allFrames', allFrames],
-        ['matchAboutBlank', matchAboutBlank],
-        ['world', world],
-      ] as const
-    )
-      .filter(([key, value]) => value === undefined && isOptionDeclared(source, key))
-      .map(([key]) => key as string);
-
-    out.push({
-      file,
-      entryKey,
-      outputJsPath,
-      matches: extractMatches(source),
-      excludeMatches,
-      runAt,
-      allFrames,
-      matchAboutBlank,
-      world,
-      ...(unresolvedOptions.length > 0 && { unresolvedOptions }),
-    });
+    out.push(describeCSUI(file, entryKey));
   }
   return out;
+}
+
+/** One CSUI file's discovery record, emitted at `<entryKey>.js`. */
+export function describeCSUI(file: string, entryKey: string): CSUIDiscovery {
+  const source = readFileSync(file, 'utf8');
+  const excludeMatches = extractExcludeMatches(source);
+  const runAt = extractRunAt(source);
+  const allFrames = extractAllFrames(source);
+  const matchAboutBlank = extractMatchAboutBlank(source);
+  const world = extractWorld(source);
+
+  // `matches` is deliberately not in this list — the builder already emits a
+  // dedicated (and more actionable) warning when it can't be extracted.
+  const unresolvedOptions = (
+    [
+      ['excludeMatches', excludeMatches],
+      ['runAt', runAt],
+      ['allFrames', allFrames],
+      ['matchAboutBlank', matchAboutBlank],
+      ['world', world],
+    ] as const
+  )
+    .filter(([key, value]) => value === undefined && isOptionDeclared(source, key))
+    .map(([key]) => key as string);
+
+  return {
+    file,
+    entryKey,
+    outputJsPath: `${entryKey}.js`,
+    matches: extractMatches(source),
+    excludeMatches,
+    runAt,
+    allFrames,
+    matchAboutBlank,
+    world,
+    ...(unresolvedOptions.length > 0 && { unresolvedOptions }),
+  };
 }
 
 // ─── Static option extraction ────────────────────────────────────────────────

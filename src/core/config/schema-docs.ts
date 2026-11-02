@@ -21,6 +21,18 @@ export const SCHEMA_DOCS: Record<string, FieldDoc> = {
     description:
       "Content-script declarations. Each entry maps to one `content_scripts` object: `matches`, `excludeMatches`, `js`, `css`, `runAt`, `allFrames`, `matchAboutBlank` and `world` are emitted as `matches`, `exclude_matches`, `js`, `css`, `run_at`, `all_frames`, `match_about_blank` and `world`. Only `run_at` has a default (`document_idle`) — every other optional key is left out of the manifest when unset, so the browser default applies. `world: 'MAIN'` raises the Firefox build's `strict_min_version` to 128.0, the first Firefox that honours the key.",
   },
+  'manifest.devtoolsPage': {
+    description:
+      'Emitted as `devtools_page`, the page that creates DevTools panels. In the named layout, `src/devtools.html` sets it for you.',
+  },
+  'manifest.chromeUrlOverrides': {
+    description:
+      'Emitted as `chrome_url_overrides`: `{ newtab | history | bookmarks: "page.html" }`. Chrome and Edge allow one override per extension; Firefox and Safari support `newtab` only, and other keys are left out of their manifests. In the named layout, `src/newtab.html` (or `history`, `bookmarks`) sets it for you.',
+  },
+  'manifest.sandbox': {
+    description:
+      'Emitted as `sandbox` on Chrome and Edge only (other browsers have no manifest sandbox): `pages` run in a sandboxed origin, with an optional `contentSecurityPolicy`. In the named layout, `src/<name>.sandbox.html` adds a page for you.',
+  },
   'build.outDir': { description: 'Output directory for builds.', defaultValue: '"dist"' },
   'build.srcDir': { description: 'Source directory.', defaultValue: '"src"' },
   'build.sourcemap': { description: 'Emit source maps.', defaultValue: 'false' },
