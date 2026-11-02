@@ -59,7 +59,17 @@ That's it. ExtForge auto-detects `@swc/core`, switches the dev pipeline to run J
 
 ❌ Module-level side effects (top-level `console.log`, `localStorage.setItem`)
 ❌ Non-component exports — those force a full reload
-❌ Anything outside the `src/ui/*` tree — content scripts, background, manifest
+❌ Anything outside a page's own files: content scripts, background, manifest, and shared code such as `src/lib/` (it may also be used by the background or a content script, so it rebuilds and reloads everything)
+
+A file counts as a page's own when it is one of the page's scripts, or sits inside the page's folder:
+
+| Layout | Hot-swapped |
+|---|---|
+| Named: `src/popup.html` + `src/popup.ts` | `src/popup.ts` |
+| Named: `src/options/index.html` | anything under `src/options/` |
+| Legacy: `src/ui/popup/` | anything under `src/ui/popup/` |
+
+To get Fast Refresh for a page's components, keep them in the page's folder. Editing one content script reloads only that script in both layouts.
 
 ### Protocol envelope (v3)
 

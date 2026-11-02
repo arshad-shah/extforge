@@ -21,6 +21,7 @@ import {
   applyDiscoveredEntries,
   CALL_MAIN_SUFFIX,
   callMainPlugin,
+  contentScriptIds,
   discoverEntrypoints,
   rewritePageHtml,
   unsupportedEntries,
@@ -101,6 +102,13 @@ export function buildContentScriptMap(
   config: ExtForgeConfig,
   entrypoints?: Entrypoint[],
 ): Map<string, number> {
+  // Named layout: ids come from the discovered content and CSUI scripts.
+  if (!usesLegacyLayout(config.manifest, join(projectRoot, 'src'))) {
+    return contentScriptIds(
+      entrypoints ??
+        discoverEntrypoints(join(projectRoot, 'src'), createLogger({ level: LogLevel.Silent })),
+    );
+  }
   const cs = config.manifest?.contentScripts ?? [];
   const map = new Map<string, number>();
   if (cs.length === 0) return map;
@@ -803,7 +811,10 @@ export async function createBuildContext(
   // ESM entries only. Content, CSUI and injected scripts must be classic
   // scripts with per-entry banners, which this shared context can't produce;
   // the HMR server rebuilds them with a full build() instead.
-  const entries = entryPointsFor(discoverLegacyEntrypoints(srcDir, log), 'esm');
+  const discovered = usesLegacyLayout(config.manifest, srcDir)
+    ? discoverLegacyEntrypoints(srcDir, log)
+    : discoverEntrypoints(srcDir, log);
+  const entries = entryPointsFor(discovered, 'esm');
 
   // `build.esbuild` is a pass-through, but a handful of options belong to the
   // builder. Warn once per build; applyEsbuildOverrides drops them silently on

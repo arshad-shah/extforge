@@ -19,7 +19,7 @@
  * existing output keys. See docs/superpowers/specs/2026-11-02-entrypoint-discovery-design.md.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { describeCSUI, extractContentScriptOptions } from '../csui/discovery.js';
 import type { Logger } from '../logger/index.js';
 import { BROWSER_FEATURES } from '../manifest/constants.js';
@@ -442,4 +442,44 @@ export function unsupportedEntries(entrypoints: Entrypoint[], browser: Browser):
       out.push(`${where}: Safari has no side panel; left out of its manifest.`);
   }
   return out;
+}
+
+/**
+ * Built scripts a change can hot-swap with React Fast Refresh, or `undefined`
+ * when it needs a full rebuild and reload. A file qualifies when it is one of
+ * a page's own scripts or sits inside a page's folder (`src/popup/` for
+ * `src/popup/index.html`), the named-layout version of the legacy `src/ui/<page>/`
+ * rule. Shared code (`src/lib/`, `src/components/`) may also be used by the
+ * background or a content script, so it always rebuilds everything.
+ */
+export function fastRefreshTargets(
+  changedFiles: string[],
+  entrypoints: Entrypoint[],
+  srcDir: string,
+): string[] | undefined {
+  const pages = entrypoints.filter((e) => e.page && e.page.scripts.length > 0);
+  const targets = new Set<string>();
+  for (const file of changedFiles) {
+    const owners = pages.filter((p) => {
+      const page = p.page as NonNullable<Entrypoint['page']>;
+      if (page.scripts.some((s) => s.input === file)) return true;
+      // A page with its own folder (src/popup/index.html) owns everything in it.
+      const dir = dirname(page.html);
+      const hasFolder = dir !== srcDir && basename(page.html) === 'index.html';
+      const rel = relative(dir, file);
+      return hasFolder && !rel.startsWith('..') && !isAbsolute(rel);
+    });
+    if (owners.length === 0) return undefined;
+    for (const o of owners) for (const s of o.page?.scripts ?? []) targets.add(`${s.name}.js`);
+  }
+  return targets.size > 0 ? [...targets].sort() : undefined;
+}
+
+/** Script ids for named-layout content and CSUI scripts: their order in discovery. */
+export function contentScriptIds(entrypoints: Entrypoint[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const e of entrypoints) {
+    if (e.kind === 'content' || e.kind === 'csui') map.set(e.input, map.size);
+  }
+  return map;
 }
