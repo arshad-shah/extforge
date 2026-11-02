@@ -5,9 +5,53 @@ description: The conventional directory structure ExtForge expects and what each
 
 import { Aside } from '@astrojs/starlight/components';
 
-ExtForge discovers entry points by convention. If your files are in the right place, no explicit config is needed. This page documents the full layout so you know where to put things.
+ExtForge discovers entry points by convention. This page documents both layouts: the **named layout** (new in this release), where entrypoints are found by name in `src/` and the manifest is generated for you, and the **legacy layout** (`src/ui/…`, `src/content/…` plus entry paths written in `extforge.config.ts`), which keeps working unchanged through every 1.x release.
 
-## At the project root
+## Named layout (recommended for new projects)
+
+Put entrypoints directly in `src/` under these names. Only these names count, so shared code such as `src/lib/` or `src/components/` is never mistaken for an entry.
+
+```
+src/
+  background.ts            → background.js (service worker; Firefox: background.scripts)
+  popup.html               → popup.html + popup.js (action.default_popup)
+  options/index.html       → options.html + options.js (options_page / options_ui)
+  sidepanel.html           → sidepanel.html (side_panel; Firefox: sidebar_action)
+  content.ts               → content-scripts/content.js
+  github.content.ts        → content-scripts/github.js
+  youtube.content/index.ts → content-scripts/youtube.js
+  lib/, components/ …      → ordinary code, imported by the entries
+```
+
+- **Pages** (`popup`, `options`, `sidepanel`) are an HTML file, `<name>.html` or `<name>/index.html`. ExtForge bundles each `<script type="module" src="…">` it loads (`./popup.ts` works directly) and rewrites the tag to point at the built file.
+- **Content scripts** declare their options in the file. The build reads them without running the file, adds the `content_scripts` entry, and calls `main()` when the script is injected:
+
+  ```ts
+  // src/github.content.ts
+  import { defineContentScript } from 'extforge/entrypoints';
+
+  export default defineContentScript({
+    matches: ['https://github.com/*'],
+    runAt: 'document_idle', // also: excludeMatches, allFrames, matchAboutBlank, world
+    main() {
+      console.log('on github');
+    },
+  });
+  ```
+
+  Options must be literal values. A content script without `matches` is still built but left out of the manifest, with a warning.
+- **The manifest is generated** from what's found. Anything you set in `config.manifest` (name, permissions, icons, `action.defaultTitle` …) is kept, and keys you set yourself win.
+- Two files claiming one entry (`popup.html` and `popup/index.html`) fail the build, naming both.
+
+**Which layout a project uses.** The legacy layout stays in effect while `extforge.config.ts` writes entry paths (`background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath`, `contentScripts[].js`), or while `src/ui/` or `src/content/` exists. Nothing about those builds changes. To move a project over, rename the files into the named layout and delete those keys. A migration guide and an `extforge migrate-layout` command are coming. Injected scripts (`src/injected/`) and CSUI (`src/contents/*.csui.tsx`) work the same in both layouts.
+
+<Aside type="note">
+In the named layout, `extforge dev` rebuilds and reloads on every change. React Fast Refresh in the named layout is still to come; it works in the legacy layout today.
+</Aside>
+
+## Legacy layout
+
+### At the project root
 
 ```
 my-extension/
@@ -24,7 +68,7 @@ my-extension/
 
 **`dist/`** is recreated on every build. Add it to `.gitignore` (the scaffold does this automatically).
 
-## Inside `src/`
+### Inside `src/`
 
 ```
 src/
@@ -136,13 +180,12 @@ Each browser gets its own output directory. The manifests differ by browser — 
 |---|---|
 | `src/background/index.ts` | Service worker |
 | `src/content/index.ts` | Content script (IIFE) |
-| `src/content/*.ts` | Multiple content scripts |
 | `src/injected.ts` | Injected script (IIFE, web-accessible) |
 | `src/injected/*.ts` | Multiple injected scripts |
-| `src/ui/popup/index.html` | `action.default_popup` |
-| `src/ui/options/index.html` | `options_page` |
-| `src/ui/sidepanel/index.html` | `side_panel.default_path` (Chrome only) |
+| `src/ui/popup/index.html` | Copied to `dist/<browser>/ui/popup/` |
+| `src/ui/options/index.html` | Copied to `dist/<browser>/ui/options/` |
+| `src/ui/sidepanel/index.html` | Copied to `dist/<browser>/ui/sidepanel/` |
 | `icons/icon-*.png` | Manifest icon sizes |
 | `public/**` | Copied to `dist/<browser>/` |
 
-To override any of these defaults — change entry paths, add multiple content scripts with different match patterns, or opt out of a feature — use `extforge.config.ts`. See the [configuration guide](/guides/configuration/).
+In the legacy layout these are built, but the manifest only lists what `extforge.config.ts` declares: `background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath` and `contentScripts`, written as built paths such as `ui/popup/index.html`. Only one content script, `src/content/index.ts`, is discovered. For several content scripts, use the named layout. See the [configuration guide](/guides/configuration/).

@@ -32,6 +32,7 @@ function chunkHash(absPath: string): string | undefined {
 import type * as esbuild from 'esbuild';
 import { build, buildContentScriptMap, createBuildContext } from '../builder/index.js';
 import type { ExtForgeConfig } from '../config.js';
+import { usesLegacyLayout } from '../entrypoints/discover.js';
 import { ExtForgeError } from '../errors/index.js';
 import { createLogger, type Logger } from '../logger/index.js';
 import type { Browser } from '../manifest/index.js';
@@ -221,6 +222,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
   let wss: WebSocketServer | null = null;
   let watcher: Watcher | null = null;
   let buildCtx: esbuild.BuildContext | null = null;
+  const generatedLayout = !usesLegacyLayout(config.manifest, join(projectRoot, 'src'));
   let resolvedPort = options.port ?? DEFAULT_HMR_PORT;
   let contentScriptMap: Map<string, number> = new Map();
 
@@ -303,6 +305,9 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
    * on Windows (where node:path emits `\`) and POSIX.
    */
   const tryClassifyV3 = (changes: Map<string, HMRUpdateType>): string[] | undefined => {
+    // Fast Refresh targets the legacy src/ui/<page>/index.js outputs. Generated
+    // mode pages are flat, so it reloads instead (until #96 phase 4).
+    if (generatedLayout) return undefined;
     const types = new Set(changes.values());
     if (types.has('manifest') || types.has('full-reload')) return undefined;
     if (types.has('css') || types.has('assets')) return undefined;
@@ -459,6 +464,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
       contentScriptMap = buildContentScriptMap(projectRoot, config);
 
       try {
+        if (generatedLayout) throw new Error('generated layout: full rebuilds only');
         buildCtx = await createBuildContext(
           projectRoot,
           config,
@@ -466,7 +472,7 @@ export function createHMRServer(options: HMRServerOptions): HMRServer {
           log,
         );
       } catch {
-        log.warn('No incremental context — using full rebuilds');
+        if (!generatedLayout) log.warn('No incremental context — using full rebuilds');
         buildCtx = null;
       }
 

@@ -9,8 +9,13 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENTRY_SCANS, INJECTED_DIR } from '../builder/constants.js';
-import { type CSUIDiscovery, discoverCSUI } from '../csui/discovery.js';
+import {
+  type ContentScriptStaticOptions,
+  type CSUIDiscovery,
+  discoverCSUI,
+} from '../csui/discovery.js';
 import type { Logger } from '../logger/index.js';
+import type { PageScript } from './discover.js';
 
 export type EntrypointKind =
   | 'background'
@@ -31,6 +36,10 @@ export interface Entrypoint {
   format: 'esm' | 'iife';
   /** Statically extracted options, for CSUI entries. */
   csui?: CSUIDiscovery;
+  /** Generated mode: options read from `defineContentScript()`. */
+  contentScript?: ContentScriptStaticOptions;
+  /** Generated mode: an HTML page; `input` is the HTML and `scripts` are what gets bundled. */
+  page?: { html: string; scripts: PageScript[] };
 }
 
 const KIND_BY_KEY: Record<string, EntrypointKind> = {
@@ -132,7 +141,12 @@ export function entryPointsFor(
   entrypoints: Entrypoint[],
   format: 'esm' | 'iife',
 ): Record<string, string> {
-  return Object.fromEntries(
-    entrypoints.filter((e) => e.format === format).map((e) => [e.name, e.input]),
-  );
+  const out: Record<string, string> = {};
+  for (const e of entrypoints) {
+    if (e.format !== format) continue;
+    // A page bundles the scripts its HTML loads, not the HTML itself.
+    if (e.page) for (const s of e.page.scripts) out[s.name] = s.input;
+    else out[e.name] = e.input;
+  }
+  return out;
 }

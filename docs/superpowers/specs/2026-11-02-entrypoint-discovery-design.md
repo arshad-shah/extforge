@@ -52,7 +52,7 @@ Rules:
 - A name that two files claim (`popup.html` and `popup/index.html`) is an error naming both.
 - **HTML is the entry for pages.** `<script type="module" src="./main.ts">` inside is rewritten to the built JS, so the script no longer has to sit next to the HTML under a fixed name.
 - Entries whose kind needs the API on a browser that lacks it are dropped with the existing compat warning (side panel on Safari, for example).
-- Legacy names are still recognised, as deprecated aliases: `ui/popup|options|sidepanel/index.html`, `content/index.ts`, `injected/*.ts`, `contents/*.csui.tsx`. `popup.html` and `ui/popup/index.html` existing together is an error.
+- Legacy folders (`ui/`, `content/`) keep a project in legacy mode rather than acting as aliases (see Compatibility).
 
 ## Inline per-entry config (#97) **(D2: inline vs. config)**
 
@@ -76,9 +76,8 @@ export default defineContentScript({
 
 Both layouts live in `src/` (D1), so no folder can say which one a project uses. What is actually deprecated is **hand-writing entry paths in `config.manifest`**, so that is the switch:
 
-- **Legacy output mode:** `config.manifest` sets any of `background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath` or `contentScripts[].js`. Every entry keeps today's output key (`background/index.js`, `ui/popup/index.html`, `content/index.js`), so those hand-written strings stay valid. Each build prints one deprecation warning naming the keys to delete, with a link to the migration guide.
-- **Generated mode:** none of those keys are set. Outputs are flat (D4) and the manifest is generated from discovery.
-- Legacy folder names work in both modes, with their own deprecation line.
+- **Legacy mode:** `config.manifest` sets any of `background.entrypoint`, `action.defaultPopup`, `optionsPage`, `sidePanel.defaultPath` or `contentScripts[].js`, **or** `src/ui/` or `src/content/` exists, or there is no `config.manifest`. The build is exactly today's. Phase 2 found why the folder check is needed: projects with legacy folders and no entry paths exist (for example, tests and projects that set entries through a plugin's `onManifestTransform` using the old output paths), and switching them would silently move their outputs. Phase 4 adds the deprecation warning.
+- **Generated mode:** everything else. Entries are found by name, outputs are flat (D4), and the manifest is generated. `src/injected/` and `src/contents/` don't force legacy mode, because their output paths are the same in both modes.
 - Both legacy behaviours are removed in 2.0. `extforge migrate-layout` renames the files and deletes the hand-written keys in one step.
 - **Plugin API:** `EntryDescriptor.name` stays the output key. New-layout keys differ (`content-scripts/youtube`), and that's documented in the plugin reference as part of the opt-in. `EntryDescriptor` gains an optional `kind`, which is additive and therefore minor.
 

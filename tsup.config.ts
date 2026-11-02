@@ -15,6 +15,7 @@ export default defineConfig({
     'core/storage/react': 'src/core/storage/react.ts',
     'core/messaging/index': 'src/core/messaging/index.ts',
     'core/csui/index': 'src/core/csui/index.ts',
+    'core/entrypoints/define': 'src/core/entrypoints/define.ts',
     'core/env/index': 'src/core/env/index.ts',
     'core/i18n/index': 'src/core/i18n/index.ts',
   },

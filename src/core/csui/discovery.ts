@@ -135,11 +135,11 @@ export function discoverCSUI(srcDir: string): CSUIDiscovery[] {
 // into it — from winning over the real option.
 
 /** Offset of the `{` opening the options literal of the `defineCSUI(` call. */
-function findOptionsStart(stripped: string): number | undefined {
+function findOptionsStart(stripped: string, fn = 'defineCSUI'): number | undefined {
   // Locate the *call site*: `defineCSUI` followed (after optional whitespace)
   // by `(`. Skips earlier hits like `import { defineCSUI }` where the next
   // token is `}` instead of `(`.
-  const callRe = /\bdefineCSUI\s*\(/g;
+  const callRe = new RegExp(`\\b${fn}\\s*\\(`, 'g');
   const callMatch = callRe.exec(stripped);
   if (!callMatch) return undefined;
   let i = callMatch.index + callMatch[0].length;
@@ -152,8 +152,12 @@ function findOptionsStart(stripped: string): number | undefined {
  * appears at brace depth 1 of the `defineCSUI` options literal. `undefined`
  * when the call, the literal, or the key isn't there.
  */
-function findOptionValueStart(stripped: string, key: string): number | undefined {
-  const optsStart = findOptionsStart(stripped);
+function findOptionValueStart(
+  stripped: string,
+  key: string,
+  fn = 'defineCSUI',
+): number | undefined {
+  const optsStart = findOptionsStart(stripped, fn);
   if (optsStart === undefined) return undefined;
 
   let depth = 0;
@@ -192,8 +196,8 @@ function findOptionValueStart(stripped: string, key: string): number | undefined
  * "the user didn't ask for it" apart from "the user asked for it and we
  * couldn't parse it", so the second case can be warned about loudly.
  */
-export function isOptionDeclared(source: string, key: string): boolean {
-  return findOptionValueStart(stripSource(source), key) !== undefined;
+export function isOptionDeclared(source: string, key: string, fn = 'defineCSUI'): boolean {
+  return findOptionValueStart(stripSource(source), key, fn) !== undefined;
 }
 
 /**
@@ -202,9 +206,13 @@ export function isOptionDeclared(source: string, key: string): boolean {
  * Returns `undefined` when the key is absent, the value isn't an array
  * literal, or the array holds no string literals.
  */
-function extractStringArrayOption(source: string, key: string): string[] | undefined {
+function extractStringArrayOption(
+  source: string,
+  key: string,
+  fn = 'defineCSUI',
+): string[] | undefined {
   const stripped = stripSource(source);
-  const start = findOptionValueStart(stripped, key);
+  const start = findOptionValueStart(stripped, key, fn);
   if (start === undefined || stripped[start] !== '[') return undefined;
 
   // Single-level array: string bodies are blanked in `stripped`, so the first
@@ -230,8 +238,9 @@ function extractStringLiteralOption<T extends string>(
   source: string,
   key: string,
   allowed: readonly T[],
+  fn = 'defineCSUI',
 ): T | undefined {
-  const start = findOptionValueStart(stripSource(source), key);
+  const start = findOptionValueStart(stripSource(source), key, fn);
   if (start === undefined) return undefined;
   // Read from the ORIGINAL source so we get the real characters, not the
   // spaces `stripSource` left behind.
@@ -244,9 +253,9 @@ function extractStringLiteralOption<T extends string>(
 }
 
 /** Extract a `true` / `false` literal option. */
-function extractBooleanOption(source: string, key: string): boolean | undefined {
+function extractBooleanOption(source: string, key: string, fn = 'defineCSUI'): boolean | undefined {
   const stripped = stripSource(source);
-  const start = findOptionValueStart(stripped, key);
+  const start = findOptionValueStart(stripped, key, fn);
   if (start === undefined) return undefined;
   // `\b`-style guard: `trueish` and `falsey` are identifiers, not literals.
   const rest = stripped.slice(start);
@@ -264,8 +273,8 @@ function extractBooleanOption(source: string, key: string): boolean | undefined 
  * Falls back to `undefined` (caller should warn / require a fallback) when
  * extraction fails.
  */
-export function extractMatches(source: string): string[] | undefined {
-  return extractStringArrayOption(source, 'matches');
+export function extractMatches(source: string, fn = 'defineCSUI'): string[] | undefined {
+  return extractStringArrayOption(source, 'matches', fn);
 }
 
 /**
@@ -273,8 +282,8 @@ export function extractMatches(source: string): string[] | undefined {
  * {@link extractMatches}. A declared-but-unreadable value is reported through
  * `CSUIDiscovery.unresolvedOptions` rather than dropped in silence.
  */
-export function extractExcludeMatches(source: string): string[] | undefined {
-  return extractStringArrayOption(source, 'excludeMatches');
+export function extractExcludeMatches(source: string, fn = 'defineCSUI'): string[] | undefined {
+  return extractStringArrayOption(source, 'excludeMatches', fn);
 }
 
 /**
@@ -283,21 +292,61 @@ export function extractExcludeMatches(source: string): string[] | undefined {
  * at brace depth 1 wins — a helper module's `const runAt = 'document_end'`
  * declared elsewhere in the file is ignored.
  */
-export function extractRunAt(source: string): CSUIDiscovery['runAt'] | undefined {
-  return extractStringLiteralOption(source, 'runAt', RUN_AT_VALUES);
+export function extractRunAt(
+  source: string,
+  fn = 'defineCSUI',
+): CSUIDiscovery['runAt'] | undefined {
+  return extractStringLiteralOption(source, 'runAt', RUN_AT_VALUES, fn);
 }
 
 /** Extract `world: 'MAIN' | 'ISOLATED'`. Depth-1 only, as above. */
-export function extractWorld(source: string): CSUIDiscovery['world'] | undefined {
-  return extractStringLiteralOption(source, 'world', WORLD_VALUES);
+export function extractWorld(
+  source: string,
+  fn = 'defineCSUI',
+): CSUIDiscovery['world'] | undefined {
+  return extractStringLiteralOption(source, 'world', WORLD_VALUES, fn);
 }
 
 /** Extract `allFrames: true | false`. Depth-1 only, as above. */
-export function extractAllFrames(source: string): boolean | undefined {
-  return extractBooleanOption(source, 'allFrames');
+export function extractAllFrames(source: string, fn = 'defineCSUI'): boolean | undefined {
+  return extractBooleanOption(source, 'allFrames', fn);
 }
 
 /** Extract `matchAboutBlank: true | false`. Depth-1 only, as above. */
-export function extractMatchAboutBlank(source: string): boolean | undefined {
-  return extractBooleanOption(source, 'matchAboutBlank');
+export function extractMatchAboutBlank(source: string, fn = 'defineCSUI'): boolean | undefined {
+  return extractBooleanOption(source, 'matchAboutBlank', fn);
+}
+
+export type ContentScriptStaticOptions = Pick<
+  CSUIDiscovery,
+  | 'matches'
+  | 'excludeMatches'
+  | 'runAt'
+  | 'allFrames'
+  | 'matchAboutBlank'
+  | 'world'
+  | 'unresolvedOptions'
+>;
+
+/**
+ * Every manifest-affecting option of the first `fn({ ... })` call in
+ * `source`, read statically. Options that are declared but can't be read
+ * (a variable, a spread) are listed in `unresolvedOptions`, `matches` included.
+ */
+export function extractContentScriptOptions(
+  source: string,
+  fn = 'defineCSUI',
+): ContentScriptStaticOptions {
+  const opts = {
+    matches: extractMatches(source, fn),
+    excludeMatches: extractExcludeMatches(source, fn),
+    runAt: extractRunAt(source, fn),
+    allFrames: extractAllFrames(source, fn),
+    matchAboutBlank: extractMatchAboutBlank(source, fn),
+    world: extractWorld(source, fn),
+  };
+  const unresolvedOptions = Object.entries(opts)
+    .filter(([key, value]) => value === undefined && isOptionDeclared(source, key, fn))
+    .map(([key]) => key);
+  return { ...opts, ...(unresolvedOptions.length > 0 && { unresolvedOptions }) };
 }

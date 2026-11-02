@@ -18,6 +18,14 @@ import { type CompatIssue, checkSourceCompat } from '../compat/index.js';
 import type { ExtForgeConfig } from '../config.js';
 import { type CSUIDiscovery } from '../csui/discovery.js';
 import {
+  applyDiscoveredEntries,
+  CALL_MAIN_SUFFIX,
+  callMainPlugin,
+  discoverEntrypoints,
+  rewritePageHtml,
+  usesLegacyLayout,
+} from '../entrypoints/discover.js';
+import {
   discoverEntryPoints,
   discoverInjectedEntries,
   discoverLegacyEntrypoints,
@@ -442,7 +450,22 @@ export async function build(
   // One list of entrypoints; formats, CSUI options and injected scripts all come from it.
   // CSUI entries auto-augment the manifest's content_scripts when their
   // `matches` can be extracted statically.
-  const entrypoints = discoverLegacyEntrypoints(srcDir, log);
+  // Configs that hand-write entry paths keep today's layout and output keys;
+  // the rest get entries discovered by name, flat outputs and a generated manifest.
+  const generated = !usesLegacyLayout(config.manifest, srcDir);
+  let entrypoints: Entrypoint[];
+  try {
+    entrypoints = generated
+      ? discoverEntrypoints(srcDir, log)
+      : discoverLegacyEntrypoints(srcDir, log);
+  } catch (err) {
+    throw new ExtForgeError({ code: 'EXT_BUILD_FAILED', message: (err as Error).message });
+  }
+  // defineContentScript() files are built through a wrapper that calls main().
+  const callsMain = new Set(
+    generated ? entrypoints.filter((e) => e.kind === 'content').map((e) => e.input) : [],
+  );
+  const entrySpec = (abs: string) => (callsMain.has(abs) ? `${abs}${CALL_MAIN_SUFFIX}` : abs);
   const esmEntries = entryPointsFor(entrypoints, 'esm');
   const iifeEntries = entryPointsFor(entrypoints, 'iife');
   const injectedEntries = Object.fromEntries(
@@ -547,7 +570,8 @@ export async function build(
       try {
         await esbuild.build({
           ...entryOpts,
-          entryPoints: { [key]: absPath },
+          plugins: [...((entryOpts.plugins as esbuild.Plugin[] | undefined) ?? []), callMainPlugin],
+          entryPoints: { [key]: entrySpec(absPath) },
           outdir: outDir,
           format: 'iife',
           splitting: false,
@@ -570,7 +594,13 @@ export async function build(
       try {
         await esbuild.build({
           ...mergedNonCsOpts,
-          entryPoints: nonCsIifeEntries,
+          plugins: [
+            ...((mergedNonCsOpts.plugins as esbuild.Plugin[] | undefined) ?? []),
+            callMainPlugin,
+          ],
+          entryPoints: Object.fromEntries(
+            Object.entries(nonCsIifeEntries).map(([k, abs]) => [k, entrySpec(abs)]),
+          ),
           outdir: outDir,
           format: 'iife',
           splitting: false,
@@ -602,18 +632,28 @@ export async function build(
   }
 
   if (config.manifest) {
-    let manifest: ManifestObject = generateManifest(
-      config.manifest,
-      opts.browser,
-    ) as ManifestObject;
-    applyInjectedDefaults(manifest as Record<string, unknown>, config.manifest, injectedEntries);
+    const manifestConfig = generated
+      ? applyDiscoveredEntries(config.manifest, entrypoints, log)
+      : config.manifest;
+    let manifest: ManifestObject = generateManifest(manifestConfig, opts.browser) as ManifestObject;
+    applyInjectedDefaults(manifest as Record<string, unknown>, manifestConfig, injectedEntries);
     augmentManifestWithCSUI(manifest as Record<string, unknown>, csuiEntries, log);
     if (runner) manifest = await runner.fireManifestTransform(manifest, opts.browser);
     mkdirSync(outDir, { recursive: true });
     writeFileSync(join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
   }
 
-  copyHTML(srcDir, outDir, log);
+  if (generated) {
+    // Pages: write the HTML next to its flat script output, pointing at it.
+    for (const e of entrypoints) {
+      if (!e.page) continue;
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(
+        join(outDir, `${e.name}.html`),
+        rewritePageHtml(readFileSync(e.page.html, 'utf8'), e.page.scripts),
+      );
+    }
+  } else copyHTML(srcDir, outDir, log);
   copyIcons(root, outDir, log);
   copyPublic(root, outDir, log);
 
