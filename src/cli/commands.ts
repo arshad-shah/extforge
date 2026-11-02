@@ -11,6 +11,7 @@ import { defineCommand } from '@arshad-shah/clif';
 import { getVersion } from '../core/version.js';
 import { build } from './commands/build.js';
 import { dev } from './commands/dev.js';
+import { diff } from './commands/diff.js';
 import { doctor } from './commands/doctor.js';
 import { icons } from './commands/icons.js';
 import { init } from './commands/init.js';
@@ -23,5 +24,5 @@ export const main = defineCommand({
   name: 'extforge',
   version: getVersion(),
   description: 'The build system for Manifest V3 browser extensions',
-  commands: [init, dev, build, validate, doctor, upgrade, pkg, icons],
+  commands: [init, dev, build, validate, doctor, diff, upgrade, pkg, icons],
 });

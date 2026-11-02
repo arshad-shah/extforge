@@ -223,6 +223,58 @@ Summary  pass: 7  warn: 1  fail: 1
 
 ---
 
+## `diff`
+
+Compare the built manifest against an earlier version and flag changes that disrupt existing users.
+
+### Synopsis
+
+```sh
+extforge diff --against <git ref | build dir | manifest.json> [--browser <name>] [--current <path>] [--fail-on prompt|review] [--allow-noted] [--json]
+```
+
+### Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--against` | (required) | What to compare with: a git tag, branch or commit, a build directory (`dist` or `dist/chrome`), or a `manifest.json`. |
+| `--browser` | first in `browsers` | Which browser's manifest to compare. |
+| `--current` | `dist` (`build.outDir`) | The new side. If there's no build there yet, `diff` builds the project first. |
+| `--fail-on` | (none) | Exit `1` if any change is at this level or worse: `prompt` or `review`. |
+| `--allow-noted` | `false` | With `--fail-on`, let a change through when a pending `.changeset/*.md` mentions it (for example the permission name). |
+| `--json` | `false` | Print the full report as JSON. |
+
+### What it does
+
+A git ref is checked out into a temporary worktree and built with your current ExtForge and installed dependencies, so plugins, modules and i18n shape both manifests the same way. The worktree is removed afterwards.
+
+Each change gets a level based on what existing users experience when the update ships:
+
+| Level | Meaning | Examples |
+|---|---|---|
+| `prompt` ⚠ | Chrome shows a new permission warning and disables the extension for existing users until they accept it. The store also looks harder at the update. | Adding `history`, `tabs` or `bookmarks`. New host access through `host_permissions` or content-script `matches`. |
+| `review` • | No prompt, but store reviewers will check it. | Adding a warning-free permission like `alarms` or `storage`. Optional permissions. `content_security_policy`, `web_accessible_resources`, `externally_connectable`. |
+| `info` | Routine. | Version bumps, removals, script or option changes. |
+
+A permission that isn't in ExtForge's list is assumed to prompt. New hosts don't count if `<all_urls>` (or another all-sites pattern) was already granted.
+
+### Example output
+
+```
+  Manifest changes for chrome vs v1.2.0:
+  + permissions: "history"  ⚠ new permission warning: users must re-accept
+  + host_permissions: "*://*.github.com/*"  ⚠ new host access: users must re-accept
+  + permissions: "alarms"  • no permission warning
+  - permissions: "bookmarks"  ✓ removal is safe
+  ~ version: "1.2.0" → "1.3.0"
+```
+
+### Exit codes
+
+`0` when there are no blocking changes, `1` when `--fail-on` finds one, and `2` when `diff` can't run (an unknown ref, or no manifest at the path).
+
+---
+
 ## `package`
 
 Create `.zip` archives of built extensions for store submission.

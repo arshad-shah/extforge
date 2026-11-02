@@ -23,6 +23,24 @@ Outputs land in `dist/chrome/`, `dist/firefox/`, etc.
 
 ---
 
+## Checking manifest changes before a release
+
+Adding a permission that comes with a warning disables your extension for every existing user until they accept the new prompt, and update numbers stall. `extforge diff` shows what changed since the last release, and how disruptive each change is:
+
+```sh
+extforge diff --against v1.2.0
+```
+
+In CI, fail the release when a change would prompt users, unless a pending changeset explains it:
+
+```sh
+extforge build && extforge diff --against "$(git describe --tags --abbrev=0)" --fail-on prompt --allow-noted
+```
+
+CI checkouts are often shallow. Fetch tags first (`actions/checkout` with `fetch-depth: 0`) so the ref resolves. See the [`diff` reference](/reference/cli/commands/#diff) for every level and flag.
+
+---
+
 ## Packaging with `extforge package`
 
 `extforge package` creates a `.zip` for each built browser into a `packages/` directory:

@@ -69,6 +69,7 @@ Open `chrome://extensions`, enable Developer mode, and **Load unpacked** from `d
 
 ### Extensibility
 - **Typed plugin API.** Hooks for config, manifest, build, CSS-transform, and dev-reload events. Legacy plugin shape still works.
+- **`extforge diff`** — compares the built manifest against a git tag or an earlier build and flags new permissions and host access that would make Chrome disable the extension until users re-accept. `--fail-on prompt --allow-noted` blocks a release unless a changeset mentions the change.
 - **`extforge doctor`** — 9 preflight checks for node version, config validity, icons, HMR port, browser overrides, permissions, and cross-browser API support.
 
 ## Install <span id="installation"></span>

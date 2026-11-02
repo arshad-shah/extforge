@@ -27,6 +27,7 @@ describe('extforge CLI command tree', () => {
     expect(names).toEqual([
       'build',
       'dev',
+      'diff',
       'doctor',
       'icons',
       'init',
