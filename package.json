@@ -99,7 +99,7 @@
     "@changesets/changelog-github": "^1.0.1",
     "@changesets/cli": "^3.0.3",
     "@mdn/browser-compat-data": "^8.1.7",
-    "@swc/core": "^1.16.21",
+    "@swc/core": "^1.16.22",
     "@types/chrome": "^0.2.9",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^26.6.6",
